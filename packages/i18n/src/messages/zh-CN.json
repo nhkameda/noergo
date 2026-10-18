@@ -1,0 +1,43 @@
+{
+  "meta": {
+    "title": "noergo — 属于你和 AI 智能体的可视化记忆",
+    "description": "看板、思维导图和知识图谱集于一处。ChatGPT、Claude 和 Grok 与你实时一起阅读和整理。"
+  },
+  "nav": {
+    "app": "打开 noergo",
+    "signIn": "登录",
+    "signOut": "退出",
+    "pricing": "价格",
+    "agents": "智能体",
+    "sourceCode": "源代码"
+  },
+  "auth": {
+    "title": "登录 noergo",
+    "google": "使用 Google 继续",
+    "microsoft": "使用 Microsoft 继续",
+    "free": "免费使用，无需绑卡。",
+    "or": "或",
+    "continueWith": "使用 {name} 继续",
+    "notConfigured": "此服务器尚未配置任何登录方式。请参阅 docs/configuration.md。",
+    "errors": {
+      "account_not_linked": "该邮箱已有 noergo 账户。请使用你第一次登录时的方式。",
+      "email_unverified": "你的服务提供方未确认该邮箱属于你。请换一个账户，或联系你所在组织的管理员。",
+      "email_missing": "该账户未提供邮箱地址。请使用有邮箱的账户。",
+      "signup_closed": "此服务器仅限邀请注册。请让管理员添加你的邮箱。",
+      "account_deleted": "该账户已被删除。",
+      "cancelled": "登录已取消。",
+      "unknown": "登录失败，请重试。"
+    }
+  },
+  "app": {
+    "loading": "正在加载你的看板…",
+    "offline": "离线中——更改会保存在本设备上，恢复连接后自动同步。",
+    "reconnecting": "正在重新连接…",
+    "signedIn": "你已登录。你的看板将在下一阶段上线。"
+  },
+  "footer": {
+    "openSource": "noergo 是开源软件（AGPL-3.0）。",
+    "terms": "条款",
+    "privacy": "隐私"
+  }
+}

@@ -1,0 +1,31 @@
+# Reverse proxy for a self-hosted noergo. The same routing applies to any proxy:
+# agents' endpoints (MCP and OAuth) go to mcp, everything else to web. The consent page
+# /oauth/interaction/* is a web page and must reach web.
+{$NOERGO_DOMAIN} {
+	encode zstd gzip
+
+	@mcp {
+		path /mcp /mcp/* /.well-known/oauth-authorization-server* /.well-known/oauth-protected-resource* /.well-known/openid-configuration*
+		path /oauth/*
+		not path /oauth/interaction/*
+	}
+	handle @mcp {
+		reverse_proxy mcp:3042
+	}
+
+	handle {
+		# The live stream must not be buffered.
+		reverse_proxy web:3041 {
+			flush_interval -1
+		}
+	}
+
+	header {
+		Strict-Transport-Security "max-age=31536000; includeSubDomains"
+		-Server
+	}
+}
+
+www.{$NOERGO_DOMAIN} {
+	redir https://{$NOERGO_DOMAIN}{uri} permanent
+}

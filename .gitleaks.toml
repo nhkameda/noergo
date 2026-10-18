@@ -1,0 +1,10 @@
+title = "noergo"
+
+[extend]
+useDefault = true
+
+[[rules]]
+id = "noergo-api-token"
+description = "Noergo personal access token"
+regex = '''nrg_[A-Za-z0-9_-]{32,}'''
+tags = ["noergo"]

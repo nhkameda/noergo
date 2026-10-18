@@ -1,0 +1,43 @@
+{
+  "meta": {
+    "title": "noergo — uma memória visual para você e seus agentes de IA",
+    "description": "Quadros, mapas mentais e um grafo de conhecimento num lugar só. ChatGPT, Claude e Grok leem e organizam junto com você, ao vivo."
+  },
+  "nav": {
+    "app": "Abrir o noergo",
+    "signIn": "Entrar",
+    "signOut": "Sair",
+    "pricing": "Preços",
+    "agents": "Agentes",
+    "sourceCode": "Código-fonte"
+  },
+  "auth": {
+    "title": "Entrar no noergo",
+    "google": "Continuar com Google",
+    "microsoft": "Continuar com Microsoft",
+    "free": "Grátis para usar. Sem cartão.",
+    "or": "ou",
+    "continueWith": "Continuar com {name}",
+    "notConfigured": "Nenhuma forma de entrar está configurada neste servidor. Veja docs/configuration.md.",
+    "errors": {
+      "account_not_linked": "Este e-mail já tem uma conta no noergo. Entre pelo mesmo caminho que você usou da primeira vez.",
+      "email_unverified": "O seu provedor não confirmou que este e-mail é seu. Tente outra conta ou fale com o administrador da sua organização.",
+      "email_missing": "Esta conta não informou um e-mail. Use uma conta que tenha e-mail.",
+      "signup_closed": "Neste servidor, o cadastro é por convite. Peça ao administrador para incluir o seu e-mail.",
+      "account_deleted": "Esta conta foi apagada.",
+      "cancelled": "A entrada foi cancelada.",
+      "unknown": "Não foi possível entrar. Tente de novo."
+    }
+  },
+  "app": {
+    "loading": "Carregando seus quadros…",
+    "offline": "Sem conexão — as mudanças ficam salvas neste aparelho e seguem quando a conexão voltar.",
+    "reconnecting": "Reconectando…",
+    "signedIn": "Você entrou. Os seus quadros chegam na próxima fase."
+  },
+  "footer": {
+    "openSource": "O noergo é open source (AGPL-3.0).",
+    "terms": "Termos",
+    "privacy": "Privacidade"
+  }
+}

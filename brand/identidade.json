@@ -1,0 +1,25 @@
+{
+  "version": "1.0",
+  "approved": {
+    "symbol": "Mente modular 05",
+    "lettering": "A5 / Onest 700",
+    "color": "B3 / Azul profundo"
+  },
+  "wordmark": {
+    "family": "Onest",
+    "weight": 700,
+    "tracking_font_units": -22,
+    "color": "#142B45"
+  },
+  "background": "#F7F5EF",
+  "symbol_colors": {
+    "azul": "#0061FF",
+    "amarelo": "#FFD000",
+    "verde": "#53C51B",
+    "ciano": "#00A1F1",
+    "vermelho": "#FF3025",
+    "turquesa": "#00B990"
+  },
+  "white": "#FFFFFF",
+  "provenance": "Curvas vetoriais redesenhadas a partir do conceito de cérebro escolhido, originado com ImageGen. Letras reais Onest 700, convertidas em curvas. Sem bitmap nos SVGs finais."
+}
