@@ -24,7 +24,7 @@ All configuration is environment variables. `docker/.env.example` lists them wit
 | `S3_ENDPOINT`, `S3_REGION`, `S3_BUCKET`, `S3_ACCESS_KEY_ID`, `S3_SECRET_ACCESS_KEY` | — | Any S3-compatible storage. |
 | `NOERGO_ATTACHMENTS_ORIGIN` | — | Origin files are served from; allowed in the Content-Security-Policy. |
 | `MCP_HOST`, `MCP_PORT` | `0.0.0.0`, `3042` | Where mcp listens (in the image). |
-| `HOSTNAME`, `PORT` | `0.0.0.0`, `3041` | Where web listens (in the image). |
+| `HOSTNAME`, `PORT` | `0.0.0.0`, `3041` | Where web listens (in the image). To listen on loopback only, use `localhost` with `NODE_OPTIONS=--dns-result-order=ipv4first`, never `127.0.0.1`: Next.js then turns every language rewrite into a request to itself, which fails behind a TLS proxy. |
 | `NOERGO_BIND`, `NOERGO_WEB_PORT`, `NOERGO_MCP_PORT` | `127.0.0.1`, `3041`, `3042` | Only for `docker/compose.yml`: the host interface and ports web and mcp are published on. |
 
 Providers whose variables are empty are simply not offered on the sign-in page.

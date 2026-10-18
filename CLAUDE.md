@@ -33,6 +33,10 @@ you can derive; these you cannot. Break one only with a reason written in the co
   agent write to a note.
 
 ## Web (apps/web)
+- web never listens on `HOSTNAME=127.0.0.1`. Next.js normalizes that host to `localhost` in
+  the proxy's URL, then compares the rewrite against `127.0.0.1`; every next-intl rewrite
+  (`/pt` → `pt-BR`) becomes a proxy to itself, which breaks behind `X-Forwarded-Proto: https`
+  (500 on every page). Loopback is `localhost` plus `--dns-result-order=ipv4first`.
 - Pages must render per request: the CSP nonce is per request, and a prerendered page
   carries a stale nonce, so the browser blocks every script on it. `cspNonce()` in the
   layout enforces this; do not add `generateStaticParams` to localized pages.

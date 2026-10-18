@@ -57,8 +57,8 @@ Update the matrix in the same pull request as the change:
 
 ## Dynamic testing
 
-Run dynamic tests (DAST, load, authentication abuse, upload fuzzing) only against a
-staging or self-hosted instance with synthetic data, and only with a written scope
+Run dynamic tests (DAST, load, authentication abuse, upload fuzzing) only against an
+ephemeral local or CI instance with synthetic data, and only with a written scope
 first. Following the baseline's authorization-scope template, the scope lists the
 exact targets, the window, synthetic accounts, allowed test families, rate and size
 limits, abort thresholds, a kill switch, how evidence is stored and destroyed, and
