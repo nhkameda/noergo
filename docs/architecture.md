@@ -52,6 +52,20 @@ The lock serialises writers within one workspace, so `seq` has no gaps and follo
 order. Browsers keep a live stream (`/api/stream`, Server-Sent Events, `id = seq`) and
 resume with `Last-Event-ID`; when they fall too far behind, they reload a snapshot.
 
+The browser API:
+
+| Endpoint | |
+|---|---|
+| `GET /api/snapshot` | The whole workspace at one `seq`. Long note bodies travel as excerpts. |
+| `POST /api/ops` | `{ ops: [{ opId, op }] }`, at most 50 ops and 2 MB. One result per op: `applied` (with `seq` and the effects), `conflict` or `rejected`. |
+| `GET /api/stream?since=<seq>` | `event: change` (one change-log row, `id: <seq>`), `event: reset` (reload the snapshot), `event: signed-out`. Heartbeat every 25 s. |
+
+Each web process holds one `LISTEN` connection, outside the pool. A notification only wakes
+the streams of its workspace up; each stream then reads the change log from its own last
+`seq`. A notification lost while that connection was down only delays the update: every
+reconnect wakes every stream up. Mutations under `/api` must come from this site's origin
+(`apps/web/src/lib/request-origin.ts`).
+
 Conflicts: simple fields are last-writer-wins; tags are add/remove; a note body is edited
 by patch against a base version, and a replacement with a stale version is refused with the
 current one attached, so the client (or the agent) can merge and retry.
