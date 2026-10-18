@@ -49,6 +49,24 @@ const linkStyle = z
   })
   .strict();
 
+/**
+ * A column's cover: which image and how it sits in the 3:1 frame. w and h are the
+ * image's size; the server takes them from the stored file, not from the client.
+ */
+const cover = z
+  .object({
+    fileId: id,
+    x: z.number().finite().min(-1).max(2),
+    y: z.number().finite().min(-1).max(2),
+    z: z.number().finite().min(0.2).max(10),
+    w: z.number().int().min(1).max(100_000),
+    h: z.number().int().min(1).max(100_000),
+    bg: color,
+  })
+  .strict()
+  .nullable();
+export type CoverInput = z.infer<typeof cover>;
+
 const layoutNode = z.object({
   kind: z.enum(['note', 'lane', 'board']),
   id,
@@ -68,7 +86,7 @@ export const opSchema = z.discriminatedUnion('type', [
   z.object({ type: z.literal('board.restore'), id }),
 
   z.object({ type: z.literal('lane.create'), id, boardId: id, title: trimmed(LIMITS.laneTitle).pipe(z.string().min(1)), color: color.optional(), place: placement.optional() }),
-  z.object({ type: z.literal('lane.update'), id, title: trimmed(LIMITS.laneTitle).pipe(z.string().min(1)).optional(), color: color.optional() }),
+  z.object({ type: z.literal('lane.update'), id, title: trimmed(LIMITS.laneTitle).pipe(z.string().min(1)).optional(), color: color.optional(), cover: cover.optional() }),
   z.object({ type: z.literal('lane.move'), id, boardId: id.optional(), place: placement }),
   z.object({ type: z.literal('lane.delete'), id }),
   z.object({ type: z.literal('lane.restore'), id }),

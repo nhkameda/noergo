@@ -1,6 +1,7 @@
 export * from './actors';
 export * from './dto';
 export * from './errors';
+export * from './files';
 export * from './identity';
 export * from './ids';
 export * from './limits';

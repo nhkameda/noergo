@@ -1,4 +1,4 @@
-import type { Board, Lane, Link, LinkStyle, NodeLayout, Note } from './db/types';
+import type { Board, CoverFrame, Lane, Link, LinkStyle, NodeLayout, Note } from './db/types';
 import { LIMITS } from './limits';
 
 /**
@@ -16,11 +16,17 @@ export interface BoardDto {
   deletedAt: string | null;
 }
 
+/** A column's cover: the image (served at /api/files/:fileId) and how it is framed. */
+export interface LaneCover extends CoverFrame {
+  fileId: string;
+}
+
 export interface LaneDto {
   id: string;
   boardId: string;
   title: string;
   color: string | null;
+  cover: LaneCover | null;
   position: string;
   version: number;
   updatedAt: string;
@@ -100,6 +106,7 @@ export const laneDto = (l: Lane): LaneDto => ({
   boardId: l.board_id,
   title: l.title,
   color: l.color,
+  cover: l.cover_id && l.cover ? { fileId: l.cover_id, ...l.cover } : null,
   position: l.position,
   version: l.version,
   updatedAt: isoReq(l.updated_at),

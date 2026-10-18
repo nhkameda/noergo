@@ -150,6 +150,22 @@ export interface LanesTable extends Versioned {
   title: string;
   color: string | null;
   position: string;
+  cover_id: Defaulted<string | null>;
+  cover: ColumnType<CoverFrame | null, string | null | undefined, string | null>;
+}
+
+/** How a column's cover image sits in its 3:1 frame (lanes.cover). */
+export interface CoverFrame {
+  /** The point of the image (0..1 of its width and height) at the centre of the frame. */
+  x: number;
+  y: number;
+  /** 1 shows the whole image; 2 is twice as large. */
+  z: number;
+  /** The image's own size, in pixels. */
+  w: number;
+  h: number;
+  /** What shows around the image: its edge colour, or null for the column's colour. */
+  bg: string | null;
 }
 
 export interface NotesTable extends Versioned {
@@ -222,6 +238,7 @@ export interface AttachmentsTable {
   name: Defaulted<string>;
   width: number | null;
   height: number | null;
+  content: Defaulted<Buffer | null>;
   created_by: string | null;
   created_at: CreatedAt;
   updated_at: Defaulted<Date>;
