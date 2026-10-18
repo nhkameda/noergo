@@ -4,7 +4,8 @@ import { useFormatter, useTranslations } from 'next-intl';
 import { useMemo } from 'react';
 import { useWorkspace } from './context';
 import { IconCheck } from './icons';
-import { colorName, dueNotes, type Data, type DueItem } from './model';
+import { corProps } from './cover';
+import { dueNotes, type Data, type DueItem } from './model';
 
 const GROUPS = ['overdue', 'today', 'upcoming'] as const;
 
@@ -30,7 +31,7 @@ export function DueList({ data }: { data: Data }) {
       <button type="button" className="w-check" aria-pressed={false} aria-label={t('note.markDone')} title={t('note.markDone')} onClick={() => actions.toggleDone(note)}>
         {note.doneAt && <IconCheck />}
       </button>
-      <button type="button" className="w-due-row__main" data-cor={colorName(note.color)} onClick={() => openNote(note.id)}>
+      <button type="button" className="w-due-row__main" {...corProps(note.color)} onClick={() => openNote(note.id)}>
         <span className="w-due-row__title">{note.title || note.excerpt || t('note.untitled')}</span>
         <span className="w-muted">
           {board.title} / {lane.title}

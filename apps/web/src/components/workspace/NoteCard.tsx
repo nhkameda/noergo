@@ -10,7 +10,7 @@ import { useFormatter, useTranslations } from 'next-intl';
 import { memo, useEffect, useRef, useState, type KeyboardEvent } from 'react';
 import { isEditable, useWorkspace } from './context';
 import { IconCalendar, IconCheck, IconLink } from './icons';
-import { colorName } from './model';
+import { corProps } from './cover';
 
 /** Focus a card after React has drawn it in its new place. */
 export function focusNote(id: string) {
@@ -95,14 +95,13 @@ export const NoteCard = memo(function NoteCard({ note }: { note: NoteDto }) {
   const due = note.dueAt ? new Date(note.dueAt) : null;
   const overdue = !!due && !done && due.getTime() < new Date().setHours(0, 0, 0, 0);
   const title = note.title || note.excerpt || t('note.untitled');
-  const cor = colorName(note.color);
 
   return (
     <li className="w-card-slot" data-edge={edge ?? undefined}>
       <article
         ref={ref}
         className={`nr-card w-card${done ? ' nr-card--feito' : ''}${dragging ? ' w-card--dragging' : ''}`}
-        data-cor={cor}
+        {...corProps(note.color)}
         data-note-id={note.id}
         tabIndex={0}
         aria-label={title}

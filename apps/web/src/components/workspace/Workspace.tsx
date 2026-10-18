@@ -6,9 +6,12 @@ import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore
 import { Actions } from './actions';
 import { Board } from './Board';
 import { CommandPalette } from './CommandPalette';
+import { takePicture } from './cover-client';
+import { CustomizePanel, type CustomizeTarget } from './Customize';
+import { Gallery } from './Gallery';
 import { isComposing, isEditable, useWorkspace, WorkspaceContext, type WorkspaceApi } from './context';
 import { DueList } from './DueList';
-import { IconCheck, IconClock, IconPlus, IconRedo, IconSearch, IconUndo, IconUser } from './icons';
+import { IconCards, IconCheck, IconClock, IconColumns, IconPlus, IconRedo, IconSearch, IconUndo, IconUser } from './icons';
 import { LaneMap } from './LaneMap';
 import { isIdeario, planIdeario } from './import-ideario';
 import { boardsOf, captureLane, colorName, locate, type Data } from './model';
@@ -26,6 +29,37 @@ function mapInUrl(): string | null {
   if (typeof window === 'undefined') return null;
   return /^#map=([0-9a-f-]{36})$/i.exec(window.location.hash)?.[1] ?? null;
 }
+
+/** Columns or cards: how a board is shown, remembered on this device. */
+type Layout = 'columns' | 'cards';
+const LAYOUT_KEY = 'noergo:layout';
+const layoutListeners = new Set<() => void>();
+const subscribeLayout = (f: () => void) => {
+  layoutListeners.add(f);
+  window.addEventListener('storage', f);
+  return () => {
+    layoutListeners.delete(f);
+    window.removeEventListener('storage', f);
+  };
+};
+function readLayout(): Layout {
+  try {
+    return localStorage.getItem(LAYOUT_KEY) === 'cards' ? 'cards' : 'columns';
+  } catch {
+    return 'columns';
+  }
+}
+function writeLayout(v: Layout) {
+  try {
+    localStorage.setItem(LAYOUT_KEY, v);
+  } catch {
+    // storage disabled: the choice lasts until the next reload
+    memoryLayout = v;
+  }
+  layoutListeners.forEach((f) => f());
+}
+let memoryLayout: Layout | null = null;
+const layoutNow = () => memoryLayout ?? readLayout();
 
 function readStoredBoard(userId: string): string | null {
   try {
@@ -52,8 +86,11 @@ export function Workspace({ userId, signInHref, homeHref, sourceUrl, signOut }: 
   const [renamingBoard, setRenamingBoard] = useState(false);
   const [announcement, setAnnouncement] = useState('');
   const [mapLane, setMapLane] = useState<string | null>(mapInUrl);
+  const [customizing, setCustomizing] = useState<CustomizeTarget | null>(null);
+  const layout = useSyncExternalStore(subscribeLayout, layoutNow, () => 'columns' as const);
   const capture = useRef<HTMLInputElement>(null);
   const returnFocus = useRef<string | null>(null);
+  const revealing = useRef<string | null>(null);
 
   useEffect(() => {
     store.start();
@@ -106,13 +143,42 @@ export function Workspace({ userId, signInHref, homeHref, sourceUrl, signOut }: 
     return () => window.removeEventListener('popstate', onPop);
   }, []);
 
-  // Back on the board: focus returns to the column's map button.
+  // Back on the board: focus returns to the column's map button (or its card).
   useEffect(() => {
     const id = returnFocus.current;
     if (map || !id) return;
     returnFocus.current = null;
-    document.querySelector<HTMLElement>(`[data-lane-map="${CSS.escape(id)}"]`)?.focus();
+    document.querySelector<HTMLElement>(`[data-lane-map="${CSS.escape(id)}"], [data-lane-tile="${CSS.escape(id)}"] .w-tile__open`)?.focus();
   }, [map]);
+
+  const revealLane = useCallback((laneId: string) => {
+    revealing.current = laneId;
+    setView('board');
+    writeLayout('columns');
+  }, []);
+
+  // A card was opened: its column comes to the start of the board and lights up.
+  useEffect(() => {
+    const id = revealing.current;
+    if (!id || layout !== 'columns' || view !== 'board') return;
+    revealing.current = null;
+    const el = document.querySelector<HTMLElement>(`[data-lane-id="${CSS.escape(id)}"]`);
+    if (!el) return;
+    el.scrollIntoView({ block: 'nearest', inline: 'start' });
+    el.focus({ preventScroll: true });
+    el.dataset.flash = '';
+    const done = () => delete el.dataset.flash;
+    el.addEventListener('animationend', done, { once: true });
+    setTimeout(done, 2000);
+  }, [layout, view]);
+
+  const customize = useCallback(
+    (laneId: string, anchor: DOMRect, file?: File) => {
+      setCustomizing({ laneId, anchor });
+      if (file) void takePicture(laneId, file, actions, store);
+    },
+    [actions, store],
+  );
 
   const openNote = useCallback(
     (id: string) => {
@@ -130,7 +196,10 @@ export function Workspace({ userId, signInHref, homeHref, sourceUrl, signOut }: 
     requestAnimationFrame(() => setAnnouncement(text));
   }, []);
 
-  const api = useMemo<WorkspaceApi>(() => ({ store, actions, openNote, showBoard, openMap, announce }), [store, actions, openNote, showBoard, openMap, announce]);
+  const api = useMemo<WorkspaceApi>(
+    () => ({ store, actions, openNote, showBoard, openMap, announce, customize, revealLane }),
+    [store, actions, openNote, showBoard, openMap, announce, customize, revealLane],
+  );
 
   const closeNote = useCallback(() => {
     if (map) document.querySelector<HTMLElement>('.w-map__canvas')?.focus();
@@ -244,12 +313,17 @@ export function Workspace({ userId, signInHref, homeHref, sourceUrl, signOut }: 
 
           <div className="w-top__tools">
             <div className="nr-visoes" role="group" aria-label={t('viewLabel')}>
-              <button type="button" aria-pressed={view === 'board'} onClick={() => setView('board')}>
-                {t('viewBoard')}
+              <button type="button" aria-pressed={view === 'board' && layout === 'columns'} onClick={() => { setView('board'); writeLayout('columns'); }}>
+                <IconColumns />
+                <span className="w-xs-sr">{t('viewColumns')}</span>
+              </button>
+              <button type="button" aria-pressed={view === 'board' && layout === 'cards'} onClick={() => { setView('board'); writeLayout('cards'); }}>
+                <IconCards />
+                <span className="w-xs-sr">{t('viewCards')}</span>
               </button>
               <button type="button" aria-pressed={view === 'due'} onClick={() => setView('due')}>
                 <IconClock />
-                {t('due')}
+                <span className="w-xs-sr">{t('due')}</span>
               </button>
             </div>
             <button type="button" className="w-icon-btn w-hide-sm" aria-pressed={hideDone} aria-label={hideDone ? t('showDone') : t('hideDone')} title={hideDone ? t('showDone') : t('hideDone')} onClick={() => setHideDone(!hideDone)}>
@@ -283,7 +357,9 @@ export function Workspace({ userId, signInHref, homeHref, sourceUrl, signOut }: 
           ) : view === 'due' ? (
             <DueList data={data} />
           ) : map ? (
-            <LaneMap key={map.id} data={data} laneId={map.id} blocked={palette || !!openNoteVisible} onClose={closeMap} />
+            <LaneMap key={map.id} data={data} laneId={map.id} blocked={palette || !!openNoteVisible || !!customizing} onClose={closeMap} />
+          ) : boardId && layout === 'cards' ? (
+            <Gallery data={data} boardId={boardId} hideDone={hideDone} onOpen={revealLane} />
           ) : boardId ? (
             <Board data={data} boardId={boardId} hideDone={hideDone} />
           ) : (
@@ -300,6 +376,7 @@ export function Workspace({ userId, signInHref, homeHref, sourceUrl, signOut }: 
 
         {openNoteVisible && data && <NoteDrawer data={data} noteId={openNoteVisible} onClose={closeNote} />}
         {palette && data && <CommandPalette data={data} onClose={() => setPalette(false)} />}
+        {customizing && data?.lanes.get(customizing.laneId) && <CustomizePanel key={customizing.laneId} data={data} target={customizing} onClose={() => setCustomizing(null)} />}
         <Notices state={state} store={store} />
 
         <p id="w-card-help" className="w-sr">
