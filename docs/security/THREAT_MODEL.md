@@ -195,7 +195,7 @@ States are not repeated here: every linked control is `NOT_TESTED` (see
 
 | ID | Threat | Controls | Planned implementation | Tests | Evidence (planned) | Residual |
 |---|---|---|---|---|---|---|
-| TM-26 | Stream exhaustion: many SSE or MCP streams per user or IP, slow readers, notification storms. | APP-013, APP-011, OPS-005 | Caps on concurrent streams per user and IP, heartbeat and idle timeout, bounded buffers, tiny notifications, resume by `seq` with a reload when too far behind (`changesSince` reset). | T-APP-013, T-APP-011, T-OPS-005 | Limited load test on staging under written scope. | medium: single host |
+| TM-26 | Stream exhaustion: many SSE or MCP streams per user or IP, slow readers, notification storms. | APP-013, APP-011, OPS-005 | Caps on concurrent streams per user and IP, heartbeat and idle timeout, bounded buffers, tiny notifications, resume by `seq` with a reload when too far behind (`changesSince` reset). | T-APP-013, T-APP-011, T-OPS-005 | Limited load test on an ephemeral local or CI instance under written scope. | medium: single host |
 | TM-27 | Automated abuse of `/mcp`, `/oauth/*` and `/.well-known/*`, which CDN bot protection cannot filter because AI vendors' servers must reach them. | APP-011, OPS-005, LOG-004 | Origin rate limits per IP, client and connection; database timeouts and pool limits (`packages/core/src/db/index.ts`: statement 15 s, idle in transaction 30 s, connect 5 s); alerts on spikes. | T-APP-011, T-OPS-005, T-LOG-004 | Rate-limit and alert tests. | medium |
 
 ### F. Billing

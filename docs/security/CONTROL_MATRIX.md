@@ -78,7 +78,7 @@
 | LOG-003 | E | Log integrity, time, access, retention | applies | Planned off-host shipping and retention. To fix: runtime roles can UPDATE and DELETE `audit_log` | T-LOG-003 | `NOT_TESTED` | — | F7 |
 | LOG-004 | E | Actionable alerts | applies | Planned uptime checks of health and OAuth discovery; alerts on webhook failures, token reuse, RLS violations, 5xx, backup failures | T-LOG-004 | `NOT_TESTED` | — | F7 |
 | LOG-005 | E | Audit of privileged actions and data | applies | Planned `audit_log` entries for admin actions, exports, deletions, token and agent grants, plan overrides | T-LOG-005 | `NOT_TESTED` | — | F7 |
-| OPS-001 | B | Environment separation | applies | Local (loopback, synthetic), CI ephemeral database, staging (own database, identity clients, payment test mode, allowlisted sign-up), production. Host-level separation to be decided | T-OPS-001 | `NOT_TESTED` | — | F1 |
+| OPS-001 | B | Environment separation | applies | Local (loopback, synthetic), CI ephemeral database, production. No standing staging: changes are proven locally and in CI (unit, database and browser tests) before release, and production keeps allowlisted sign-up until launch | T-OPS-001 | `NOT_TESTED` | — | F1 |
 | OPS-002 | B | Versioned hardening | applies | Planned hardening baseline for host, container, PostgreSQL and proxy, kept in the private operations repository | T-OPS-002 | `NOT_TESTED` | — | F1 |
 | OPS-003 | B | Runtime without excess privilege | applies | Planned non-root image, read-only root filesystem, `cap_drop: ALL`, `no-new-privileges`, memory and pid limits | T-OPS-003 | `NOT_TESTED` | — | F0 |
 | OPS-004 | E | Controlled network and egress | applies | Planned: origin reachable only from the CDN; internal endpoints not exposed; egress allowlist | T-OPS-004 | `NOT_TESTED` | — | F1 |
@@ -95,7 +95,7 @@
 | SUP-006 | B | Repository protection and review | applies | Planned branch protection, required checks, no force-push, DCO, CODEOWNERS. Single maintainer: no independent review | T-SUP-006 | `NOT_TESTED` | — | F0 |
 | SUP-007 | B | New dependencies and malicious packages | applies | CONTRIBUTING.md rule; `allowScripts` allowlist in `package.json` | T-SUP-007 | `NOT_TESTED` | — | F0 |
 | VUL-001 | B | Disclosure channel and triage | applies | `SECURITY.md` (GitHub private vulnerability reporting); channel not yet enabled or exercised | T-VUL-001 | `NOT_TESTED` | — | F0 |
-| VUL-002 | B | Combined assessment coverage | applies | Planned review, CodeQL, npm audit/Dependabot, gitleaks, configuration review, tests and limited DAST on staging | T-VUL-002 | `NOT_TESTED` | — | F7 |
+| VUL-002 | B | Combined assessment coverage | applies | Planned review, CodeQL, npm audit/Dependabot, gitleaks, configuration review, tests and limited DAST on an ephemeral local or CI instance | T-VUL-002 | `NOT_TESTED` | — | F7 |
 | VUL-003 | B | Contextual priority and SLA | applies | Response targets in SECURITY.md; planned internal severity policy | T-VUL-003 | `NOT_TESTED` | — | F7 |
 | VUL-004 | B | Fix and safe update | applies | CONTRIBUTING.md: root cause, variants, fix in the advisory fork | T-VUL-004 | `NOT_TESTED` | — | F0 |
 | VUL-005 | B | Finding validation and retest | applies | Planned: scanner and LLM findings validated before action. Independent retest not available (single maintainer) | T-VUL-005 | `NOT_TESTED` | — | F7 |
