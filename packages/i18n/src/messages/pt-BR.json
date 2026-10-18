@@ -141,7 +141,87 @@
       "importFiles": "{count, plural, one {# arquivo anexado não foi importado} other {# arquivos anexados não foram importados}}: os anexos chegam em breve.",
       "attachmentPlaceholder": "O arquivo anexado “{name}” não foi importado.",
       "captured": "Salva em “{column}”.",
-      "noSuchNote": "Ainda não existe nota chamada “{title}”."
+      "noSuchNote": "Ainda não existe nota chamada “{title}”.",
+      "alreadyLinked": "Essas duas já estão ligadas.",
+      "wikilinkLink": "Esta ligação vem de um [[wikilink]]: remova-o na nota.",
+      "deletedNotes": "{count, plural, one {# nota enviada} other {# notas enviadas}} para a lixeira."
+    },
+    "map": {
+      "open": "Mapa",
+      "openColumn": "Mapa de “{title}”",
+      "kicker": "Mapa da coluna",
+      "back": "Voltar ao quadro",
+      "organize": "Organizar",
+      "fit": "Ajustar à tela",
+      "zoomIn": "Aproximar",
+      "zoomOut": "Afastar",
+      "zoomReset": "Zoom em 100%",
+      "canvas": "Mapa de “{title}”. Clique duas vezes para criar uma ideia, arraste um ponto para conectar, as setas movem a seleção.",
+      "empty": "Esta coluna ainda não tem notas",
+      "emptyHint": "Clique duas vezes em qualquer lugar para criar a primeira.",
+      "placeholder": "ideia",
+      "toolbar": "Estilo da seleção",
+      "color": "Cor",
+      "auto": "Automática",
+      "fill": "Preenchimento",
+      "fills": {
+        "solid": "Cheio",
+        "soft": "Suave",
+        "outline": "Contorno"
+      },
+      "shape": "Forma",
+      "shapes": {
+        "pill": "Pílula",
+        "rounded": "Arredondada",
+        "rect": "Retângulo",
+        "ellipse": "Elipse",
+        "diamond": "Losango",
+        "plain": "Só texto"
+      },
+      "size": "Tamanho",
+      "sizes": {
+        "s": "Pequeno",
+        "m": "Médio",
+        "l": "Grande"
+      },
+      "thought": "Ideia",
+      "edit": "Editar texto",
+      "child": "Criar ideia ligada",
+      "openNote": "Abrir nota",
+      "delete": "Excluir",
+      "link": "Ligação",
+      "width": "Espessura",
+      "widthValue": "{width} px",
+      "dash": "Traço",
+      "dashes": {
+        "solid": "Contínuo",
+        "dashed": "Tracejado",
+        "dotted": "Pontilhado"
+      },
+      "route": "Linha",
+      "routes": {
+        "curve": "Curva",
+        "straight": "Reta",
+        "elbow": "Cotovelo"
+      },
+      "arrow": "Seta",
+      "arrows": {
+        "none": "Sem seta",
+        "end": "No fim",
+        "start": "No início",
+        "both": "Nas duas pontas"
+      },
+      "reverse": "Inverter a seta",
+      "label": "Rótulo",
+      "deleteLink": "Excluir ligação",
+      "hints": {
+        "create": "Clique duplo: nova ideia",
+        "connect": "Arraste um ponto: conectar",
+        "child": "Tab: ideia ligada",
+        "move": "Arraste ou Espaço: mover a tela",
+        "zoom": "⌘/Ctrl + rolagem: zoom"
+      },
+      "selected": "{count, plural, one {# ideia selecionada} other {# ideias selecionadas}}"
     }
   },
   "footer": {
