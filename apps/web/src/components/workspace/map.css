@@ -288,6 +288,7 @@
   border-radius: 14px;
   box-shadow: var(--nr-shadow-2);
 }
+.w-map__zoom-range { width: 112px; }
 .w-map__zoom-label { min-width: 54px; height: 32px; color: var(--nr-text); background: transparent; border: 0; border-radius: 8px; font: var(--nr-weight-medium) 12px var(--nr-font-mono); cursor: pointer; }
 .w-map__zoom-label:hover { background: var(--nr-fill-hover); }
 
@@ -303,6 +304,8 @@
   .w-map__actions { margin-inline-start: auto; }
   /* The style bar takes the bottom; zoom goes up. */
   .w-map__zoom { top: var(--nr-space-3); right: var(--nr-space-3); bottom: auto; }
+  /* A pinch zooms here; the buttons stay for one hand. */
+  .w-map__zoom-range { display: none; }
   .w-map__toolbar { bottom: var(--nr-space-3); max-width: calc(100% - 16px); }
 }
 @media (pointer: coarse) {

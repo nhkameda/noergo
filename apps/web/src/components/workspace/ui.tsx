@@ -3,7 +3,7 @@
 import { useTranslations } from 'next-intl';
 import { useId, useRef, useState, type ReactNode } from 'react';
 import { isComposing } from './context';
-import { IconMore } from './icons';
+import { IconMore, IconSizeLarge, IconSizeSmall } from './icons';
 import { colorName, PALETTE } from './model';
 
 /**
@@ -102,5 +102,56 @@ export function InlineEdit({
         }
       }}
     />
+  );
+}
+
+/**
+ * The strip under the columns and the cards, like the status bar of a Mac window: what is
+ * on the board on the left, a size slider on the right.
+ */
+export function ViewFoot({ lanes, notes, children }: { lanes: number; notes: number; children: ReactNode }) {
+  const t = useTranslations('app');
+  return (
+    <div className="w-foot">
+      <span className="w-foot__count">{t('zoom.summary', { lanes, notes })}</span>
+      {children}
+    </div>
+  );
+}
+
+/**
+ * A size slider: smaller to the left, larger to the right. The end icons step it. The
+ * value may run backwards (cards: larger means fewer per row); `valueText` says what it is.
+ */
+export function ZoomSlider({
+  label,
+  value,
+  min,
+  max,
+  step,
+  valueText,
+  onChange,
+  onStep,
+}: {
+  label: string;
+  value: number;
+  min: number;
+  max: number;
+  step: number;
+  valueText: string;
+  onChange: (value: number) => void;
+  onStep: (direction: -1 | 1) => void;
+}) {
+  const t = useTranslations('app');
+  return (
+    <div className="w-zoom" role="group" aria-label={label}>
+      <button type="button" className="w-zoom__end" onClick={() => onStep(-1)} aria-label={t('zoom.smaller')} title={t('zoom.smaller')}>
+        <IconSizeSmall />
+      </button>
+      <input type="range" className="w-zoom__range" min={min} max={max} step={step} value={value} aria-label={label} aria-valuetext={valueText} title={valueText} onChange={(e) => onChange(Number(e.target.value))} />
+      <button type="button" className="w-zoom__end" onClick={() => onStep(1)} aria-label={t('zoom.larger')} title={t('zoom.larger')}>
+        <IconSizeLarge />
+      </button>
+    </div>
   );
 }

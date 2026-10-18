@@ -35,6 +35,7 @@ import {
   viewFor,
   WIDTHS,
   zoomAt,
+  MAP_ZOOM,
   type Box,
   type EdgeStyle,
   type MapEdge,
@@ -50,6 +51,7 @@ import { CoverArt } from './CoverArt';
 import { corProps, laneStyle } from './cover';
 import { useFileDrag, useImageDrop, useLaneLook } from './cover-client';
 import { colorName, notesByLane, PALETTE, type Data } from './model';
+import { fromLogSlider, toLogSlider } from './view-prefs';
 import './map.css';
 
 /**
@@ -130,6 +132,7 @@ export function LaneMap({ data, laneId, blocked, onClose }: { data: Data; laneId
   const canvas = useRef<HTMLDivElement>(null);
   const world = useRef<HTMLDivElement>(null);
   const zoomLabel = useRef<HTMLSpanElement>(null);
+  const zoomRange = useRef<HTMLInputElement>(null);
   const view = useRef<View>({ x: 0, y: 0, z: 1 });
   const viewAnim = useRef(0);
   const layoutAnim = useRef(0);
@@ -179,6 +182,11 @@ export function LaneMap({ data, laneId, blocked, onClose }: { data: Data; laneId
       c.style.setProperty('--gy', `${v.y}px`);
     }
     if (zoomLabel.current) zoomLabel.current.textContent = `${Math.round(v.z * 100)}%`;
+    const r = zoomRange.current;
+    if (r) {
+      r.value = String(toLogSlider(v.z, MAP_ZOOM.min, MAP_ZOOM.max));
+      r.setAttribute('aria-valuetext', `${Math.round(v.z * 100)}%`);
+    }
   }, []);
 
   const setView = useCallback(
@@ -218,6 +226,14 @@ export function LaneMap({ data, laneId, blocked, onClose }: { data: Data; laneId
   const zoomBy = (f: number) => {
     const { w, h } = size();
     animateView(zoomAt(view.current, f, w / 2, h / 2), 160);
+  };
+
+  /** The slider: straight to that zoom, around the centre, no easing (the hand is the easing). */
+  const zoomToSlider = (t: number) => {
+    cancelAnimationFrame(viewAnim.current);
+    const { w, h } = size();
+    const v = view.current;
+    setView(zoomAt(v, fromLogSlider(t, MAP_ZOOM.min, MAP_ZOOM.max) / v.z, w / 2, h / 2));
   };
 
   /** Brings a world point into view if it is off screen. */
@@ -905,15 +921,26 @@ export function LaneMap({ data, laneId, blocked, onClose }: { data: Data; laneId
             <li key={h}>{t(`map.hints.${h}`)}</li>
           ))}
         </ul>
-        <div className="w-map__zoom" role="group" aria-label={t('map.zoomReset')}>
+        <div className="w-map__zoom" role="group" aria-label={t('zoom.map')}>
           <button type="button" className="w-icon-btn" onClick={() => zoomBy(0.8)} aria-label={t('map.zoomOut')} title={t('map.zoomOut')}>
             <IconMinus />
           </button>
-          <button type="button" className="w-map__zoom-label" onClick={() => zoomBy(1 / view.current.z)} aria-label={t('map.zoomReset')} title={t('map.zoomReset')}>
-            <span ref={zoomLabel} />
-          </button>
+          <input
+            ref={zoomRange}
+            type="range"
+            className="w-zoom__range w-map__zoom-range"
+            min={0}
+            max={1}
+            step={0.005}
+            defaultValue={toLogSlider(1, MAP_ZOOM.min, MAP_ZOOM.max)}
+            aria-label={t('zoom.map')}
+            onChange={(e) => zoomToSlider(Number(e.target.value))}
+          />
           <button type="button" className="w-icon-btn" onClick={() => zoomBy(1.25)} aria-label={t('map.zoomIn')} title={t('map.zoomIn')}>
             <IconPlus />
+          </button>
+          <button type="button" className="w-map__zoom-label" onClick={() => zoomBy(1 / view.current.z)} aria-label={t('map.zoomReset')} title={t('map.zoomReset')}>
+            <span ref={zoomLabel} />
           </button>
           <button type="button" className="w-icon-btn" onClick={() => fitTo()} aria-label={t('map.fit')} title={t('map.fit')}>
             <IconFit />

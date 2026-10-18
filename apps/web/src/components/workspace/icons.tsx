@@ -36,6 +36,9 @@ export const IconBrush = () => <Icon d="M14.5 4.5 19.5 9.5 11 18l-5-5 8.5-8.5ZM6
 export const IconImage = () => <Icon d="M4 5h16v14H4zM4 16l5-5 4 4 2-2 5 5M15.5 9.5h.01" />;
 export const IconColumns = () => <Icon d="M4 4h4v16H4zM10 4h4v11h-4zM16 4h4v14h-4z" />;
 export const IconCards = () => <Icon d="M4 4h7v7H4zM13 4h7v7h-7zM4 13h7v7H4zM13 13h7v7h-7z" />;
+/** The ends of a size slider: small on the left, large on the right, as on a Mac. */
+export const IconSizeSmall = () => <Icon d="M8 8h8v8H8z" />;
+export const IconSizeLarge = () => <Icon d="M5 5h14v14H5z" />;
 
 export const SHAPE_ICONS = {
   pill: () => <Icon d="M8 7h8a5 5 0 0 1 0 10H8A5 5 0 0 1 8 7Z" />,
