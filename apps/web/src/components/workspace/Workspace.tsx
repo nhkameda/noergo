@@ -9,6 +9,7 @@ import { CommandPalette } from './CommandPalette';
 import { isComposing, isEditable, useWorkspace, WorkspaceContext, type WorkspaceApi } from './context';
 import { DueList } from './DueList';
 import { IconCheck, IconClock, IconPlus, IconRedo, IconSearch, IconUndo, IconUser } from './icons';
+import { LaneMap } from './LaneMap';
 import { isIdeario, planIdeario } from './import-ideario';
 import { boardsOf, captureLane, colorName, locate, type Data } from './model';
 import { NoteDrawer } from './NoteDrawer';
@@ -19,6 +20,12 @@ import './workspace.css';
 
 const MAX_IMPORT_BYTES = 200 * 1024 * 1024;
 const boardKey = (userId: string) => `noergo:board:${userId}`;
+
+/** `#map=<column id>`: a map survives a reload and Back closes it. */
+function mapInUrl(): string | null {
+  if (typeof window === 'undefined') return null;
+  return /^#map=([0-9a-f-]{36})$/i.exec(window.location.hash)?.[1] ?? null;
+}
 
 function readStoredBoard(userId: string): string | null {
   try {
@@ -44,7 +51,9 @@ export function Workspace({ userId, signInHref, homeHref, sourceUrl, signOut }: 
   const [creatingBoard, setCreatingBoard] = useState(false);
   const [renamingBoard, setRenamingBoard] = useState(false);
   const [announcement, setAnnouncement] = useState('');
+  const [mapLane, setMapLane] = useState<string | null>(mapInUrl);
   const capture = useRef<HTMLInputElement>(null);
+  const returnFocus = useRef<string | null>(null);
 
   useEffect(() => {
     store.start();
@@ -52,7 +61,9 @@ export function Workspace({ userId, signInHref, homeHref, sourceUrl, signOut }: 
   }, [store]);
 
   const boards = useMemo(() => (data ? boardsOf(data.boards) : []), [data]);
-  const wanted = data ? (chosenBoard ?? readStoredBoard(userId)) : null;
+  const mapOf = mapLane ? data?.lanes.get(mapLane) : undefined;
+  const map = mapOf && mapOf.deletedAt === null && data?.boards.get(mapOf.boardId)?.deletedAt === null && view === 'board' ? mapOf : null;
+  const wanted = data ? (map?.boardId ?? chosenBoard ?? readStoredBoard(userId)) : null;
   const boardId = boards.find((b) => b.id === wanted)?.id ?? boards[0]?.id ?? null;
   const board = boardId ? data?.boards.get(boardId) : undefined;
 
@@ -60,14 +71,48 @@ export function Workspace({ userId, signInHref, homeHref, sourceUrl, signOut }: 
     (id: string) => {
       setChosenBoard(id);
       setView('board');
+      // Another board: the map of a column of this one stays behind.
+      setMapLane((cur) => (cur && store.getState().data?.lanes.get(cur)?.boardId !== id ? null : cur));
       try {
         localStorage.setItem(boardKey(userId), id);
       } catch {
         // storage disabled: the choice lasts for this page only
       }
     },
-    [userId],
+    [userId, store],
   );
+
+  const openMap = useCallback((laneId: string) => {
+    setMapLane(laneId);
+    setView('board');
+    const hash = `#map=${laneId}`;
+    // Next.js keeps its router state in history.state: extend it, never replace it.
+    if (window.location.hash !== hash) window.history.pushState({ ...window.history.state, noergoMap: laneId }, '', hash);
+  }, []);
+
+  const closeMap = useCallback(() => {
+    returnFocus.current = mapLane;
+    if (window.history.state?.noergoMap) {
+      window.history.back();
+      return;
+    }
+    window.history.replaceState(window.history.state, '', window.location.pathname + window.location.search);
+    setMapLane(null);
+  }, [mapLane]);
+
+  useEffect(() => {
+    const onPop = () => setMapLane(mapInUrl());
+    window.addEventListener('popstate', onPop);
+    return () => window.removeEventListener('popstate', onPop);
+  }, []);
+
+  // Back on the board: focus returns to the column's map button.
+  useEffect(() => {
+    const id = returnFocus.current;
+    if (map || !id) return;
+    returnFocus.current = null;
+    document.querySelector<HTMLElement>(`[data-lane-map="${CSS.escape(id)}"]`)?.focus();
+  }, [map]);
 
   const openNote = useCallback(
     (id: string) => {
@@ -85,12 +130,13 @@ export function Workspace({ userId, signInHref, homeHref, sourceUrl, signOut }: 
     requestAnimationFrame(() => setAnnouncement(text));
   }, []);
 
-  const api = useMemo<WorkspaceApi>(() => ({ store, actions, openNote, showBoard, announce }), [store, actions, openNote, showBoard, announce]);
+  const api = useMemo<WorkspaceApi>(() => ({ store, actions, openNote, showBoard, openMap, announce }), [store, actions, openNote, showBoard, openMap, announce]);
 
   const closeNote = useCallback(() => {
-    if (openId) focusNote(openId);
+    if (map) document.querySelector<HTMLElement>('.w-map__canvas')?.focus();
+    else if (openId) focusNote(openId);
     setOpenId(null);
-  }, [openId]);
+  }, [openId, map]);
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -236,6 +282,8 @@ export function Workspace({ userId, signInHref, homeHref, sourceUrl, signOut }: 
             </div>
           ) : view === 'due' ? (
             <DueList data={data} />
+          ) : map ? (
+            <LaneMap key={map.id} data={data} laneId={map.id} blocked={palette || !!openNoteVisible} onClose={closeMap} />
           ) : boardId ? (
             <Board data={data} boardId={boardId} hideDone={hideDone} />
           ) : (

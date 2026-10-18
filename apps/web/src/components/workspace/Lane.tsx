@@ -11,14 +11,14 @@ import { LIMITS } from '@noergo/core/limits';
 import { useTranslations } from 'next-intl';
 import { memo, useEffect, useRef, useState, type KeyboardEvent } from 'react';
 import { isComposing, useWorkspace } from './context';
-import { IconPlus } from './icons';
+import { IconMap, IconPlus } from './icons';
 import { colorName } from './model';
 import { NoteCard } from './NoteCard';
 import { InlineEdit, Menu, Swatches } from './ui';
 
 export const Lane = memo(function Lane({ lane, notes, hideDone, index, total }: { lane: LaneDto; notes: NoteDto[]; hideDone: boolean; index: number; total: number }) {
   const t = useTranslations('app');
-  const { actions, announce } = useWorkspace();
+  const { actions, announce, openMap } = useWorkspace();
   const section = useRef<HTMLElement>(null);
   const handle = useRef<HTMLHeadingElement>(null);
   const list = useRef<HTMLOListElement>(null);
@@ -104,6 +104,9 @@ export const Lane = memo(function Lane({ lane, notes, hideDone, index, total }: 
         <span className="nr-coluna__conta" aria-label={t('notesCount', { count: shown.length })}>
           {shown.length}
         </span>
+        <button type="button" className="w-icon-btn" data-lane-map={lane.id} aria-label={t('map.openColumn', { title: lane.title })} title={t('map.open')} onClick={() => openMap(lane.id)}>
+          <IconMap />
+        </button>
         <button type="button" className="w-icon-btn" data-lane-add aria-label={t('newNote')} title={t('newNote')} onClick={() => setAdding(true)}>
           <IconPlus />
         </button>

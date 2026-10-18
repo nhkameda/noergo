@@ -8,6 +8,8 @@ export interface WorkspaceApi {
   actions: Actions;
   openNote: (id: string) => void;
   showBoard: (id: string) => void;
+  /** The mind map of a column, over the board (Back closes it). */
+  openMap: (laneId: string) => void;
   /** Read out by screen readers (moves made with the keyboard). */
   announce: (text: string) => void;
 }
