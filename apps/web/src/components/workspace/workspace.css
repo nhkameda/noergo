@@ -178,6 +178,45 @@
   overscroll-behavior-x: contain;
 }
 .w-board__empty { align-self: center; }
+/* The columns scale with the slider at the bottom (CSS zoom, so they also take less room).
+   A menu opened inside one undoes it: full size, and placed in screen pixels. */
+.w-board > .w-lane { zoom: var(--board-z, 1); }
+.w-board .w-menu[popover] { zoom: calc(1 / var(--board-z, 1)); }
+
+/* ---------- a view with its status bar (columns, cards) ---------- */
+.w-view { flex: 1; display: flex; flex-direction: column; min-height: 0; }
+.w-view > .w-board { flex: 1; height: auto; min-height: 0; }
+.w-foot {
+  flex: none;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--nr-space-3);
+  min-height: 40px;
+  padding: 0 var(--nr-space-3) 0 var(--nr-space-4);
+  border-top: 1px solid var(--nr-border);
+  background: var(--nr-surface);
+  color: var(--nr-text-subtle);
+  font: var(--nr-weight-medium) var(--nr-text-xs) / 1.2 var(--nr-font-ui);
+  font-variant-numeric: tabular-nums;
+}
+.w-foot__count { min-width: 0; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+.w-zoom { flex: none; display: flex; align-items: center; gap: 2px; }
+.w-zoom__end {
+  display: grid;
+  place-items: center;
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  border: 0;
+  border-radius: var(--nr-radius-sm);
+  background: transparent;
+  color: var(--nr-text-muted);
+  cursor: pointer;
+}
+.w-zoom__end:hover { background: var(--nr-fill-hover); color: var(--nr-text); }
+.w-zoom__end svg { width: 16px; height: 16px; }
+.w-zoom__range { width: 120px; margin: 0 var(--nr-space-1); accent-color: var(--nr-focus); cursor: pointer; }
 
 .w-lane { display: flex; flex-direction: column; flex: none; max-height: 100%; min-height: 0; transition: opacity var(--nr-dur-fast) var(--nr-ease-out); }
 .w-lane--dragging { opacity: 0.45; }
@@ -421,8 +460,12 @@
 .w-gallery { flex: 1; min-height: 0; overflow-y: auto; padding: var(--nr-space-4); overscroll-behavior: contain; }
 .w-gallery__grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(156px, 1fr));
-  gap: var(--nr-space-3);
+  /* As many in a row as the slider says (--per-row), but never narrower than 96 px: the
+     browser drops tracks that do not fit from the first frame. The 0.1 px keeps rounding
+     from losing a track. */
+  --gap: var(--nr-space-3);
+  grid-template-columns: repeat(auto-fill, minmax(max(96px, (100% - (var(--per-row, 6) - 1) * var(--gap)) / var(--per-row, 6) - 0.1px), 1fr));
+  gap: var(--gap);
   margin: 0;
   padding: 0;
   list-style: none;
@@ -443,6 +486,8 @@
 .w-tile {
   position: relative;
   height: 100%;
+  /* The type grows with the card: a row of two is not a row of twelve. */
+  container-type: inline-size;
   border: 1px solid var(--nr-border);
   border-radius: var(--nr-radius-lg);
   background: var(--nr-surface);
@@ -474,13 +519,13 @@
   place-items: center;
   background: var(--nr-surface-sunken);
   color: var(--nr-text-subtle);
-  font: 750 var(--nr-text-xl) / 1 var(--nr-font-display);
+  font: 750 clamp(1rem, 13cqi, 5rem) / 1 var(--nr-font-display);
   letter-spacing: -0.02em;
 }
 .w-tile[data-tinted] .w-tile__blank { background: color-mix(in oklab, var(--lane) 84%, var(--lane-on)); color: var(--lane-on); }
 .w-tile__name { display: flex; align-items: center; gap: var(--nr-space-2); min-width: 0; padding: var(--nr-space-2) var(--nr-space-3); }
-.w-tile__title { flex: 1; min-width: 0; overflow: hidden; font: var(--nr-weight-semibold) var(--nr-text-sm) / 1.3 var(--nr-font-ui); white-space: nowrap; text-overflow: ellipsis; }
-.w-tile__count { flex: none; color: var(--nr-text-subtle); font-size: var(--nr-text-xs); font-weight: var(--nr-weight-semibold); }
+.w-tile__title { flex: 1; min-width: 0; overflow: hidden; font: var(--nr-weight-semibold) clamp(0.75rem, 0.7rem + 1.25cqi, 1.25rem) / 1.3 var(--nr-font-ui); white-space: nowrap; text-overflow: ellipsis; }
+.w-tile__count { flex: none; color: var(--nr-text-subtle); font-size: clamp(0.6875rem, 0.625rem + 1cqi, 1rem); font-weight: var(--nr-weight-semibold); }
 .w-tile[data-tinted] .w-tile__count { color: var(--lane-on); opacity: 0.8; }
 .w-tile__brush {
   position: absolute;
@@ -503,7 +548,7 @@
   .w-tile__name { padding-inline-end: 40px; }
   .w-tile__brush { top: auto; bottom: 0; right: 0; width: 40px; height: 40px; background: none; box-shadow: none; color: inherit; opacity: 0.75; }
 }
-.w-tile-slot--new { min-height: 96px; }
+.w-tile-slot--new { container-type: inline-size; }
 .w-tile-new {
   display: flex;
   align-items: center;
@@ -511,7 +556,7 @@
   gap: var(--nr-space-2);
   width: 100%;
   height: 100%;
-  min-height: 96px;
+  min-height: 56px;
   border: 1.5px dashed var(--nr-border-strong);
   border-radius: var(--nr-radius-lg);
   background: transparent;
@@ -521,6 +566,17 @@
 }
 .w-tile-new:hover { border-color: var(--nr-text-muted); background: var(--nr-fill-hover); color: var(--nr-text); }
 .w-gallery .w-board__empty { margin-top: var(--nr-space-6); }
+/* Small cards (many a row, or a phone): the name keeps the room; the count is in the label. */
+@container (max-width: 140px) {
+  .w-tile__count { display: none; }
+  .w-tile-new__label { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+}
+@media (hover: none) {
+  @container (max-width: 140px) {
+    .w-tile__name { padding-inline-end: 30px; }
+    .w-tile__brush { width: 28px; }
+  }
+}
 
 /* ---------- customise: cover and colour ---------- */
 .w-customize[popover] {
@@ -780,6 +836,10 @@ select.w-input { width: 100%; }
 /* ---------- small screens ---------- */
 @media (min-width: 1100px) {
   .w-app--drawer .w-board { padding-inline-end: calc(480px + var(--nr-space-4)); }
+  .w-app--drawer .w-foot { padding-inline-end: calc(480px + var(--nr-space-4)); }
+}
+@media (pointer: coarse) {
+  .w-zoom__end { width: 40px; height: 40px; }
 }
 @media (max-width: 640px) {
   .w-hide-sm { display: none !important; }
@@ -796,7 +856,9 @@ select.w-input { width: 100%; }
   .w-lane { width: calc(100vw - 3rem); scroll-snap-align: start; }
   .w-xs-sr { position: absolute; width: 1px; height: 1px; margin: -1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
   .w-gallery { padding: var(--nr-space-3); }
-  .w-gallery__grid { gap: var(--nr-space-2); }
+  .w-gallery__grid { --gap: var(--nr-space-2); }
+  .w-foot { padding-inline-start: var(--nr-space-3); padding-bottom: env(safe-area-inset-bottom); }
+  .w-zoom__range { width: 96px; }
   /* On a phone the panel is a sheet at the bottom. */
   .w-customize[popover] { left: 0; right: 0; top: auto; bottom: 0; width: 100%; max-height: 88dvh; border-radius: var(--nr-radius-xl) var(--nr-radius-xl) 0 0; padding-bottom: calc(var(--nr-space-4) + env(safe-area-inset-bottom)); }
   .w-drawer { top: 0; padding: var(--nr-space-2) var(--nr-space-4) var(--nr-space-5); border-left: 0; }

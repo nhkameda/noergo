@@ -467,9 +467,12 @@ export function viewFor(b: ReturnType<typeof bounds>, cw: number, ch: number, mi
   return { z, x: cw / 2 - ((b.x0 + b.x1) / 2) * z, y: h / 2 - ((b.y0 + b.y1) / 2) * z };
 }
 
+/** How far the map zooms out and in. */
+export const MAP_ZOOM = { min: 0.15, max: 3 } as const;
+
 /** Zoom by `factor` keeping the canvas point (cx, cy) still. */
 export function zoomAt(v: View, factor: number, cx: number, cy: number): View {
-  const z = clamp(v.z * factor, 0.15, 3);
+  const z = clamp(v.z * factor, MAP_ZOOM.min, MAP_ZOOM.max);
   return { z, x: cx - ((cx - v.x) / v.z) * z, y: cy - ((cy - v.y) / v.z) * z };
 }
 

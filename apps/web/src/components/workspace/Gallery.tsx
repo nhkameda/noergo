@@ -9,30 +9,65 @@ import type { Edge } from '@atlaskit/pragmatic-drag-and-drop-hitbox/types';
 import type { LaneDto } from '@noergo/core/dto';
 import { LIMITS } from '@noergo/core/limits';
 import { useTranslations } from 'next-intl';
-import { memo, useEffect, useMemo, useRef, useState, type KeyboardEvent } from 'react';
+import { memo, useEffect, useMemo, useRef, useState, type CSSProperties, type KeyboardEvent } from 'react';
 import { useWorkspace } from './context';
 import { CoverArt } from './CoverArt';
 import { initials, laneStyle } from './cover';
 import { useFileDrag, useImageDrop, useLaneLook } from './cover-client';
 import { IconBrush, IconImage, IconPlus } from './icons';
 import { lanesOf, notesByLane, type Data } from './model';
-import { InlineEdit } from './ui';
+import { InlineEdit, ViewFoot, ZoomSlider } from './ui';
+import { CARDS, CARDS_PER_ROW, cardsThatFit, perRow } from './view-prefs';
 
 /**
  * Every column of a board as a card: its cover and its title, side by side, so fifty
- * columns fit on one screen. Drag to reorder; a click opens the column on the board.
+ * columns fit on one screen. Drag to reorder; a click opens the column on the board. The
+ * slider at the bottom (or a pinch) sets how many go in a row, like a photo library: six
+ * unless the person chose otherwise, never more than fit at a readable size.
  */
 export function Gallery({ data, boardId, hideDone, onOpen }: { data: Data; boardId: string; hideDone: boolean; onOpen: (laneId: string) => void }) {
   const t = useTranslations('app');
   const { actions } = useWorkspace();
   const scroller = useRef<HTMLDivElement>(null);
+  const grid = useRef<HTMLOListElement>(null);
   const [adding, setAdding] = useState(false);
+  const chosen = CARDS_PER_ROW.use();
+  const [fit, setFit] = useState<number>(CARDS.max);
+  const shown = Math.min(chosen, fit);
   const { lanes: laneMap, notes: noteMap } = data;
   const lanes = useMemo(() => lanesOf(laneMap, boardId), [laneMap, boardId]);
   const counts = useMemo(() => {
     const by = notesByLane(noteMap, lanes.map((l) => l.id));
     return new Map(lanes.map((l) => [l.id, (by.get(l.id) ?? []).filter((n) => !hideDone || n.doneAt === null).length]));
   }, [noteMap, lanes, hideDone]);
+  const noteCount = useMemo(() => [...counts.values()].reduce((a, b) => a + b, 0), [counts]);
+
+  // How many cards fit follows the width of the grid (a window, a phone, the drawer).
+  useEffect(() => {
+    const el = grid.current;
+    if (!el) return;
+    const ro = new ResizeObserver(() => setFit(fitIn(el)));
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, []);
+
+  // A pinch on a trackpad (a wheel with Ctrl): apart for more cards a row, together for fewer.
+  useEffect(() => {
+    const el = scroller.current;
+    if (!el) return;
+    let pinched = 0;
+    const wheel = (e: WheelEvent) => {
+      if (!e.ctrlKey && !e.metaKey) return;
+      e.preventDefault();
+      pinched += e.deltaMode === 1 ? e.deltaY * 16 : e.deltaY;
+      if (Math.abs(pinched) < 40) return;
+      const now = Math.min(CARDS_PER_ROW.read(), grid.current ? fitIn(grid.current) : CARDS.max);
+      CARDS_PER_ROW.write(perRow(now + Math.sign(pinched)));
+      pinched = 0;
+    };
+    el.addEventListener('wheel', wheel, { passive: false });
+    return () => el.removeEventListener('wheel', wheel);
+  }, []);
 
   useEffect(() => {
     const el = scroller.current;
@@ -51,41 +86,59 @@ export function Gallery({ data, boardId, hideDone, onOpen }: { data: Data; board
   }, [actions]);
 
   return (
-    <div ref={scroller} className="w-gallery" role="region" aria-label={t('cards.region')}>
-      <ol className="w-gallery__grid">
-        {lanes.map((lane, i) => (
-          <Tile key={lane.id} lane={lane} count={counts.get(lane.id) ?? 0} index={i} total={lanes.length} onOpen={onOpen} />
-        ))}
-        <li className="w-tile-slot w-tile-slot--new">
-          {adding ? (
-            <InlineEdit
-              value=""
-              label={t('columnName')}
-              placeholder={t('columnName')}
-              maxLength={LIMITS.laneTitle}
-              onSave={(title) => {
-                actions.createLane(boardId, title);
-                setAdding(false);
-              }}
-              onCancel={() => setAdding(false)}
-            />
-          ) : (
-            <button type="button" className="w-tile-new" onClick={() => setAdding(true)}>
-              <IconPlus />
-              {t('newColumn')}
-            </button>
-          )}
-        </li>
-      </ol>
-      {lanes.length === 0 && !adding && (
-        <div className="nr-vazio w-board__empty">
-          <strong>{t('emptyBoard')}</strong>
-          <span>{t('emptyBoardHint')}</span>
-        </div>
-      )}
+    <div className="w-view">
+      <div ref={scroller} className="w-gallery" role="region" aria-label={t('cards.region')}>
+        <ol ref={grid} className="w-gallery__grid" style={{ '--per-row': shown } as CSSProperties}>
+          {lanes.map((lane, i) => (
+            <Tile key={lane.id} lane={lane} count={counts.get(lane.id) ?? 0} index={i} total={lanes.length} onOpen={onOpen} />
+          ))}
+          <li className="w-tile-slot w-tile-slot--new">
+            {adding ? (
+              <InlineEdit
+                value=""
+                label={t('columnName')}
+                placeholder={t('columnName')}
+                maxLength={LIMITS.laneTitle}
+                onSave={(title) => {
+                  actions.createLane(boardId, title);
+                  setAdding(false);
+                }}
+                onCancel={() => setAdding(false)}
+              />
+            ) : (
+              <button type="button" className="w-tile-new" onClick={() => setAdding(true)}>
+                <IconPlus />
+                <span className="w-tile-new__label">{t('newColumn')}</span>
+              </button>
+            )}
+          </li>
+        </ol>
+        {lanes.length === 0 && !adding && (
+          <div className="nr-vazio w-board__empty">
+            <strong>{t('emptyBoard')}</strong>
+            <span>{t('emptyBoardHint')}</span>
+          </div>
+        )}
+      </div>
+      <ViewFoot lanes={lanes.length} notes={noteCount}>
+        {/* Backwards: to the right the cards grow, so fewer fit in a row. */}
+        <ZoomSlider
+          label={t('zoom.cards')}
+          value={-shown}
+          min={-fit}
+          max={-CARDS.min}
+          step={1}
+          valueText={t('zoom.perRow', { count: shown })}
+          onChange={(v) => CARDS_PER_ROW.write(perRow(-v))}
+          onStep={(d) => CARDS_PER_ROW.write(perRow(Math.min(fit, shown - d)))}
+        />
+      </ViewFoot>
     </div>
   );
 }
+
+/** How many cards fit in a row of this grid. */
+const fitIn = (grid: HTMLElement) => cardsThatFit(grid.clientWidth, parseFloat(getComputedStyle(grid).columnGap) || 0);
 
 const Tile = memo(function Tile({ lane, count, index, total, onOpen }: { lane: LaneDto; count: number; index: number; total: number; onOpen: (laneId: string) => void }) {
   const t = useTranslations('app');
@@ -144,13 +197,21 @@ const Tile = memo(function Tile({ lane, count, index, total, onOpen }: { lane: L
             </span>
           )}
           <span className="w-tile__name">
-            <span className="w-tile__title">{lane.title}</span>
+            <span className="w-tile__title" title={lane.title}>
+              {lane.title}
+            </span>
             <span className="w-tile__count" aria-hidden="true">
               {count}
             </span>
           </span>
         </button>
-        <button type="button" className="w-icon-btn w-tile__brush" onClick={() => customize(lane.id, anchor())} aria-label={t('customize.open', { title: lane.title })} title={t('customize.openShort')}>
+        <button
+          type="button"
+          className="w-icon-btn w-tile__brush"
+          onClick={() => customize(lane.id, anchor())}
+          aria-label={t('customize.open', { title: lane.title })}
+          title={t('customize.openShort')}
+        >
           <IconBrush />
         </button>
         {files && (

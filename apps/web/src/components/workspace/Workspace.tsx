@@ -19,6 +19,7 @@ import { NoteDrawer } from './NoteDrawer';
 import { focusNote } from './NoteCard';
 import { WorkspaceStore, type WorkspaceState } from './store';
 import { InlineEdit, Menu, Swatches } from './ui';
+import { LAYOUT } from './view-prefs';
 import './workspace.css';
 
 const MAX_IMPORT_BYTES = 200 * 1024 * 1024;
@@ -29,37 +30,6 @@ function mapInUrl(): string | null {
   if (typeof window === 'undefined') return null;
   return /^#map=([0-9a-f-]{36})$/i.exec(window.location.hash)?.[1] ?? null;
 }
-
-/** Columns or cards: how a board is shown, remembered on this device. */
-type Layout = 'columns' | 'cards';
-const LAYOUT_KEY = 'noergo:layout';
-const layoutListeners = new Set<() => void>();
-const subscribeLayout = (f: () => void) => {
-  layoutListeners.add(f);
-  window.addEventListener('storage', f);
-  return () => {
-    layoutListeners.delete(f);
-    window.removeEventListener('storage', f);
-  };
-};
-function readLayout(): Layout {
-  try {
-    return localStorage.getItem(LAYOUT_KEY) === 'cards' ? 'cards' : 'columns';
-  } catch {
-    return 'columns';
-  }
-}
-function writeLayout(v: Layout) {
-  try {
-    localStorage.setItem(LAYOUT_KEY, v);
-  } catch {
-    // storage disabled: the choice lasts until the next reload
-    memoryLayout = v;
-  }
-  layoutListeners.forEach((f) => f());
-}
-let memoryLayout: Layout | null = null;
-const layoutNow = () => memoryLayout ?? readLayout();
 
 function readStoredBoard(userId: string): string | null {
   try {
@@ -87,7 +57,7 @@ export function Workspace({ userId, signInHref, homeHref, sourceUrl, signOut }: 
   const [announcement, setAnnouncement] = useState('');
   const [mapLane, setMapLane] = useState<string | null>(mapInUrl);
   const [customizing, setCustomizing] = useState<CustomizeTarget | null>(null);
-  const layout = useSyncExternalStore(subscribeLayout, layoutNow, () => 'columns' as const);
+  const layout = LAYOUT.use();
   const capture = useRef<HTMLInputElement>(null);
   const returnFocus = useRef<string | null>(null);
   const revealing = useRef<string | null>(null);
@@ -154,7 +124,7 @@ export function Workspace({ userId, signInHref, homeHref, sourceUrl, signOut }: 
   const revealLane = useCallback((laneId: string) => {
     revealing.current = laneId;
     setView('board');
-    writeLayout('columns');
+    LAYOUT.write('columns');
   }, []);
 
   // A card was opened: its column comes to the start of the board and lights up.
@@ -313,11 +283,11 @@ export function Workspace({ userId, signInHref, homeHref, sourceUrl, signOut }: 
 
           <div className="w-top__tools">
             <div className="nr-visoes" role="group" aria-label={t('viewLabel')}>
-              <button type="button" aria-pressed={view === 'board' && layout === 'columns'} onClick={() => { setView('board'); writeLayout('columns'); }}>
+              <button type="button" aria-pressed={view === 'board' && layout === 'columns'} onClick={() => { setView('board'); LAYOUT.write('columns'); }}>
                 <IconColumns />
                 <span className="w-xs-sr">{t('viewColumns')}</span>
               </button>
-              <button type="button" aria-pressed={view === 'board' && layout === 'cards'} onClick={() => { setView('board'); writeLayout('cards'); }}>
+              <button type="button" aria-pressed={view === 'board' && layout === 'cards'} onClick={() => { setView('board'); LAYOUT.write('cards'); }}>
                 <IconCards />
                 <span className="w-xs-sr">{t('viewCards')}</span>
               </button>
