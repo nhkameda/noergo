@@ -43,6 +43,37 @@ jobs:
       - run: npm audit --omit=dev --audit-level=high
       - run: npm run build --workspace @noergo/web --workspace @noergo/mcp --workspace @noergo/worker
 
+  e2e:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    services:
+      postgres:
+        image: postgres:18-bookworm
+        env:
+          POSTGRES_HOST_AUTH_METHOD: trust
+          POSTGRES_INITDB_ARGS: --locale-provider=builtin --builtin-locale=C.UTF-8
+        ports: ['5432:5432']
+        options: >-
+          --health-cmd "pg_isready -U postgres" --health-interval 5s --health-timeout 5s --health-retries 20
+    env:
+      NOERGO_DEV_PGPORT: '5432'
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+      - run: npm ci --no-fund
+      - name: Database (the same roles and schema as npm run db:dev)
+        run: |
+          psql -h 127.0.0.1 -U postgres -d postgres -v ON_ERROR_STOP=1 -q -c "CREATE ROLE noergo_migrator LOGIN; CREATE ROLE noergo_app LOGIN NOBYPASSRLS; CREATE ROLE noergo_jobs LOGIN BYPASSRLS;"
+          psql -h 127.0.0.1 -U postgres -d postgres -v ON_ERROR_STOP=1 -q -f packages/core/sql/database.sql
+          DATABASE_MIGRATOR_URL=postgres://noergo_migrator@127.0.0.1:5432/noergo npx tsx packages/core/scripts/migrate.ts
+      - run: npx playwright install --with-deps --only-shell chromium
+      - run: npm run e2e
+
   secrets:
     runs-on: ubuntu-latest
     timeout-minutes: 10

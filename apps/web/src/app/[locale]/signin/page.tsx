@@ -32,7 +32,7 @@ export default async function SignInPage({ params, searchParams }: { params: Pro
     <main className="nr-tela" style={{ display: 'grid', placeItems: 'center', minHeight: '100vh', padding: '2rem' }}>
       <section className="nr-card" style={{ display: 'grid', gap: '1rem', width: 'min(100%, 24rem)', padding: '2rem' }}>
         <img src="/favicon.svg" alt="" width={48} height={48} />
-        <h1 className="nr-h">{t('title')}</h1>
+        <h1 className="nr-h3">{t('title')}</h1>
         {reason && (
           <p className="nr-aviso" role="alert">
             {t(`errors.${reason}`)}
