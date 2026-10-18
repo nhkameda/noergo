@@ -69,6 +69,7 @@ describe.skipIf(!testDb)('database', () => {
         { type: 'link.create', id: newId(), from: { kind: 'note', id: note }, to: { kind: 'lane', id: lane } },
         { type: 'link.update', id: link, label: 'x' },
         { type: 'link.delete', id: link },
+        { type: 'link.restore', id: link },
         { type: 'layout.set', viewKind: 'lane_map', viewId: lane, nodes: [{ kind: 'note', id: note, x: 0, y: 0 }] },
         { type: 'layout.set', viewKind: 'graph', viewId: b.workspaceId, nodes: [{ kind: 'note', id: note, x: 0, y: 0 }] },
       ];
@@ -120,6 +121,44 @@ describe.skipIf(!testDb)('database', () => {
       const [o] = await run(a.ctx, { type: 'board.update', id: board.id, title: board.title });
       expect(applied(o).seq).toBeNull();
       expect((await snapshot(a.workspaceId, pools().app)).seq).toBe(s.seq);
+    });
+
+    it('spends no seq on a layout that did not move', async () => {
+      const a = await newAccount();
+      const s = await snapshot(a.workspaceId, pools().app);
+      const lane = s.lanes[0]!.id;
+      const node = { kind: 'note' as const, id: s.notes[0]!.id, x: 10, y: -20, shape: 'diamond' as const };
+      applied((await run(a.ctx, { type: 'layout.set', viewKind: 'lane_map', viewId: lane, nodes: [node] }))[0]);
+      const after = (await snapshot(a.workspaceId, pools().app)).seq;
+      const [again] = await run(a.ctx, { type: 'layout.set', viewKind: 'lane_map', viewId: lane, nodes: [node] });
+      expect(applied(again).seq).toBeNull();
+      expect((await snapshot(a.workspaceId, pools().app)).seq).toBe(after);
+      const [moved] = await run(a.ctx, { type: 'layout.set', viewKind: 'lane_map', viewId: lane, nodes: [{ ...node, x: 11 }] });
+      expect(applied(moved).effects).toHaveLength(1);
+    });
+
+    it('restores a deleted link, unless its twin was made meanwhile', async () => {
+      const a = await newAccount();
+      const s = await snapshot(a.workspaceId, pools().app);
+      const lane = s.lanes[0]!.id;
+      const [n1, n2] = s.notes.filter((n) => n.laneId === lane);
+      const id = newId();
+      const pair = { from: { kind: 'note' as const, id: n1!.id }, to: { kind: 'note' as const, id: n2!.id } };
+      await run(a.ctx, { type: 'link.create', id, ...pair }, { type: 'link.delete', id });
+      const [back] = await run(a.ctx, { type: 'link.restore', id });
+      expect(applied(back).effects[0]).toMatchObject({ kind: 'link', data: { id, deletedAt: null } });
+      expect(applied((await run(a.ctx, { type: 'link.restore', id }))[0]).seq).toBeNull();
+
+      const twin = newId();
+      await run(a.ctx, { type: 'link.delete', id }, { type: 'link.create', id: twin, ...pair });
+      expect(applied((await run(a.ctx, { type: 'link.restore', id }))[0]).seq).toBeNull();
+      const alive = (await snapshot(a.workspaceId, pools().app)).links.filter((l) => l.from.id === n1!.id && l.to.id === n2!.id);
+      expect(alive.map((l) => l.id)).toEqual([twin]);
+
+      // Its ends in the trash: the link waits for them.
+      await run(a.ctx, { type: 'link.delete', id: twin }, { type: 'note.delete', id: n2!.id });
+      const [blocked] = await run(a.ctx, { type: 'link.restore', id: twin });
+      expect(blocked!.status !== 'applied' && blocked!.error.code).toBe('not_found');
     });
 
     it('asks a client that is too far behind to reload', async () => {

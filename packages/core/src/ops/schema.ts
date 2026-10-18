@@ -111,6 +111,8 @@ export const opSchema = z.discriminatedUnion('type', [
   z.object({ type: z.literal('link.create'), id, from: nodeRef, to: nodeRef, label: trimmed(LIMITS.linkLabel).optional(), style: linkStyle.optional() }),
   z.object({ type: z.literal('link.update'), id, label: trimmed(LIMITS.linkLabel).optional(), style: linkStyle.optional() }),
   z.object({ type: z.literal('link.delete'), id }),
+  /** Undoes link.delete. A link whose ends are in the trash cannot come back before them. */
+  z.object({ type: z.literal('link.restore'), id }),
 
   z.object({
     type: z.literal('layout.set'),
