@@ -214,7 +214,10 @@ test('cards and the customise sheet on a phone @mobile', async ({ page }) => {
   // Two cards side by side.
   expect(Math.abs(a.y - b.y)).toBeLessThan(2);
   expect(b.x).toBeGreaterThan(a.x + a.width);
-  await tile(page, 'Inbox').getByRole('button', { name: 'Customise “Inbox”' }).click();
+  // A small card keeps its map and its menu; customising is in the menu.
+  await expect(tile(page, 'Inbox').getByRole('button', { name: 'Customise “Inbox”' })).toBeHidden();
+  await tile(page, 'Inbox').getByRole('button', { name: 'Thought “Inbox”: more actions' }).click();
+  await page.locator('.w-menu:popover-open').getByRole('button', { name: /^Customise cover/ }).click();
   const sheet = (await panel(page).boundingBox())!;
   expect(sheet.width).toBe(390);
   expect(Math.round(sheet.y + sheet.height)).toBe(844);

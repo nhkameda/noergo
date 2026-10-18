@@ -16,6 +16,7 @@ import { laneStyle } from './cover';
 import { useFileDrag, useImageDrop, useLaneLook } from './cover-client';
 import { IconBrush, IconImage, IconMap, IconPlus } from './icons';
 import { NoteCard } from './NoteCard';
+import { MoveToBoard } from './MoveToBoard';
 import { InlineEdit, Menu } from './ui';
 
 export const Lane = memo(function Lane({ lane, notes, hideDone, index, total }: { lane: LaneDto; notes: NoteDto[]; hideDone: boolean; index: number; total: number }) {
@@ -146,6 +147,7 @@ export const Lane = memo(function Lane({ lane, notes, hideDone, index, total }: 
                 <button type="button" className="w-menu__item" disabled={index === total - 1} onClick={() => move(index + 1)}>
                   {t('moveRight')}
                 </button>
+                <MoveToBoard lane={lane} close={close} />
                 <button type="button" className="w-menu__item w-menu__item--danger" onClick={() => { close(); actions.deleteLane(lane.id); }}>
                   {t('deleteColumn')}
                 </button>

@@ -68,6 +68,9 @@
 .w-board-tab[data-cor]::before { content: ""; flex: none; width: 8px; height: 8px; border-radius: 50%; background: var(--c); }
 .w-board-tab:hover { background: var(--nr-fill-hover); color: var(--nr-text); }
 .w-board-tab[aria-current="page"] { background: var(--nr-fill-active); color: var(--nr-text); }
+/* While a thought is dragged, the other boards' tabs are where it can go. */
+.w-board-tab[data-drop] { outline: 1.5px dashed var(--nr-border-strong); outline-offset: -3px; color: var(--nr-text); }
+.w-board-tab[data-drop="over"] { outline: 2px solid var(--nr-focus); background: var(--nr-fill-active); }
 .w-top__tools { display: flex; align-items: center; gap: var(--nr-space-2); flex: none; }
 .w-search-btn { gap: var(--nr-space-2); }
 
@@ -131,6 +134,11 @@
 .w-menu__item[disabled] { opacity: 0.45; cursor: default; background: transparent; }
 .w-menu__item--danger { color: var(--nr-danger-text); }
 .w-menu__label { padding: var(--nr-space-2) var(--nr-space-3) 0; color: var(--nr-text-muted); font-size: var(--nr-text-xs); font-weight: var(--nr-weight-bold); }
+.w-menu__group { display: grid; gap: 2px; max-height: min(50vh, 18rem); overflow-y: auto; border-block: 1px solid var(--nr-border); margin-block: var(--nr-space-1); padding-block: var(--nr-space-1); }
+.w-menu__hint { margin: 0; padding: var(--nr-space-1) var(--nr-space-3) var(--nr-space-2); color: var(--nr-text-muted); font-size: var(--nr-text-sm); }
+.w-menu__item--board { gap: var(--nr-space-2); }
+.w-menu__item--board[data-cor]::before { content: ""; flex: none; width: 8px; height: 8px; border-radius: 50%; background: var(--c); }
+.w-menu__text { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 
 .w-swatches { display: flex; flex-wrap: wrap; gap: var(--nr-space-1); padding: var(--nr-space-1) var(--nr-space-2); }
 .w-swatch {
@@ -527,27 +535,31 @@
 .w-tile__title { flex: 1; min-width: 0; overflow: hidden; font: var(--nr-weight-semibold) clamp(0.75rem, 0.7rem + 1.25cqi, 1.25rem) / 1.3 var(--nr-font-ui); white-space: nowrap; text-overflow: ellipsis; }
 .w-tile__count { flex: none; color: var(--nr-text-subtle); font-size: clamp(0.6875rem, 0.625rem + 1cqi, 1rem); font-weight: var(--nr-weight-semibold); }
 .w-tile[data-tinted] .w-tile__count { color: var(--lane-on); opacity: 0.8; }
-.w-tile__brush {
+.w-tile__tools {
   position: absolute;
   top: 4px;
   right: 4px;
+  display: flex;
+  gap: 4px;
+}
+.w-tile__tool {
   width: 36px;
   height: 36px;
   background: color-mix(in srgb, var(--nr-surface) 88%, transparent);
   color: var(--nr-text);
   box-shadow: var(--nr-shadow-1);
 }
-.w-tile__brush:hover { background: var(--nr-surface); }
-.w-tile__brush svg { width: 16px; height: 16px; }
+.w-tile__tool:hover { background: var(--nr-surface); }
+.w-tile__tool svg, .w-tile__map svg { width: 16px; height: 16px; }
 @media (hover: hover) {
-  .w-tile__brush { opacity: 0; transition: opacity var(--nr-dur-fast) var(--nr-ease-out); }
-  .w-tile:hover .w-tile__brush, .w-tile:focus-within .w-tile__brush { opacity: 1; }
+  .w-tile__tool { opacity: 0; transition: opacity var(--nr-dur-fast) var(--nr-ease-out); }
+  .w-tile:hover .w-tile__tool, .w-tile:focus-within .w-tile__tool { opacity: 1; }
 }
-/* By touch the brush sits in the name row, off the cover. */
-@media (hover: none) {
-  .w-tile__name { padding-inline-end: 40px; }
-  .w-tile__brush { top: auto; bottom: 0; right: 0; width: 40px; height: 40px; background: none; box-shadow: none; color: inherit; opacity: 0.75; }
-}
+/* The mind map is always one click away, at the end of the name row. */
+.w-tile__name { padding-inline-end: 40px; }
+.w-tile__map { position: absolute; right: 2px; bottom: 0; width: 36px; height: 36px; color: inherit; }
+.w-tile__map:hover { background: var(--nr-fill-hover); }
+.w-tile[data-tinted] .w-tile__map:hover { background: color-mix(in srgb, var(--lane-on) 16%, transparent); }
 .w-tile-slot--new { container-type: inline-size; }
 .w-tile-new {
   display: flex;
@@ -571,11 +583,13 @@
   .w-tile__count { display: none; }
   .w-tile-new__label { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
 }
-@media (hover: none) {
-  @container (max-width: 140px) {
-    .w-tile__name { padding-inline-end: 30px; }
-    .w-tile__brush { width: 28px; }
-  }
+/* A small card keeps the map and the menu; the brush is in the menu too. */
+@container (max-width: 160px) {
+  .w-tile__brush { display: none; }
+  .w-tile__tools { top: 2px; right: 2px; }
+  .w-tile__tool { width: 28px; height: 28px; }
+  .w-tile__name { padding-inline-end: 30px; }
+  .w-tile__map { right: 0; width: 30px; }
 }
 
 /* ---------- customise: cover and colour ---------- */

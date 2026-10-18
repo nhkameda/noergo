@@ -14,14 +14,16 @@ import { useWorkspace } from './context';
 import { CoverArt } from './CoverArt';
 import { initials, laneStyle } from './cover';
 import { useFileDrag, useImageDrop, useLaneLook } from './cover-client';
-import { IconBrush, IconImage, IconPlus } from './icons';
+import { IconBrush, IconImage, IconMap, IconPlus } from './icons';
 import { lanesOf, notesByLane, type Data } from './model';
-import { InlineEdit, ViewFoot, ZoomSlider } from './ui';
+import { MoveToBoard } from './MoveToBoard';
+import { InlineEdit, Menu, ViewFoot, ZoomSlider } from './ui';
 import { CARDS, CARDS_PER_ROW, cardsThatFit, perRow } from './view-prefs';
 
 /**
- * Every column of a board as a card: its cover and its title, side by side, so fifty
- * columns fit on one screen. Drag to reorder; a click opens the column on the board. The
+ * Every thought of a board as a card: its cover and its title, side by side, so fifty
+ * thoughts fit on one screen. Drag to reorder, or onto another board's tab to move it
+ * there; a click opens the thought among the columns, the map button its mind map. The
  * slider at the bottom (or a pinch) sets how many go in a row, like a photo library: six
  * unless the person chose otherwise, never more than fit at a readable size.
  */
@@ -142,7 +144,7 @@ const fitIn = (grid: HTMLElement) => cardsThatFit(grid.clientWidth, parseFloat(g
 
 const Tile = memo(function Tile({ lane, count, index, total, onOpen }: { lane: LaneDto; count: number; index: number; total: number; onOpen: (laneId: string) => void }) {
   const t = useTranslations('app');
-  const { actions, announce, customize, store } = useWorkspace();
+  const { actions, announce, customize, openMap, store } = useWorkspace();
   const look = useLaneLook(lane);
   const files = useFileDrag();
   const ref = useRef<HTMLDivElement>(null);
@@ -205,15 +207,33 @@ const Tile = memo(function Tile({ lane, count, index, total, onOpen }: { lane: L
             </span>
           </span>
         </button>
-        <button
-          type="button"
-          className="w-icon-btn w-tile__brush"
-          onClick={() => customize(lane.id, anchor())}
-          aria-label={t('customize.open', { title: lane.title })}
-          title={t('customize.openShort')}
-        >
-          <IconBrush />
+        <button type="button" className="w-icon-btn w-tile__map" onClick={() => openMap(lane.id)} aria-label={t('map.openColumn', { title: lane.title })} title={t('map.open')}>
+          <IconMap />
         </button>
+        <div className="w-tile__tools">
+          <button
+            type="button"
+            className="w-icon-btn w-tile__tool w-tile__brush"
+            onClick={() => customize(lane.id, anchor())}
+            aria-label={t('customize.open', { title: lane.title })}
+            title={t('customize.openShort')}
+          >
+            <IconBrush />
+          </button>
+          <Menu label={t('columnMenu', { title: lane.title })} className="w-icon-btn w-tile__tool w-tile__more">
+            {(close) => (
+              <>
+                <button type="button" className="w-menu__item" onClick={() => { close(); customize(lane.id, anchor()); }}>
+                  {t('customize.menu')}
+                </button>
+                <MoveToBoard lane={lane} close={close} />
+                <button type="button" className="w-menu__item w-menu__item--danger" onClick={() => { close(); actions.deleteLane(lane.id); }}>
+                  {t('deleteColumn')}
+                </button>
+              </>
+            )}
+          </Menu>
+        </div>
         {files && (
           <span className="w-drop-hint" aria-hidden="true">
             <IconImage />

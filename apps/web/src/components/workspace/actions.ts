@@ -102,6 +102,19 @@ export class Actions {
     return { index: Math.min(index, lanes.length - 1), total: lanes.length };
   }
 
+  /** Moves a thought to the end of another board, its notes with it. */
+  moveLaneToBoard(id: string, boardId: string): boolean {
+    const data = this.data;
+    const cur = data?.lanes.get(id);
+    const board = data?.boards.get(boardId);
+    if (!data || !cur || !board || board.deletedAt !== null || boardId === cur.boardId) return false;
+    const position = between(lanesOf(data.lanes, boardId).at(-1)?.position ?? null, null);
+    const undo: Op[] = [{ type: 'lane.move', id, boardId: cur.boardId, place: { position: cur.position } }];
+    this.store.dispatch({ type: 'lane.move', id, boardId, place: { position } }, { undo });
+    this.store.notify({ tone: 'info', key: 'movedToBoard', values: { title: cur.title, board: board.title }, undo: () => this.store.dispatch(undo) });
+    return true;
+  }
+
   /** Drop of a column on another, at the edge the pointer was closest to. */
   moveLaneNear(id: string, targetId: string, edge: 'left' | 'right' | null) {
     const data = this.data;

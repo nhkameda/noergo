@@ -14,7 +14,8 @@ import { DueList } from './DueList';
 import { IconCards, IconCheck, IconClock, IconColumns, IconPlus, IconRedo, IconSearch, IconUndo, IconUser } from './icons';
 import { LaneMap } from './LaneMap';
 import { isIdeario, planIdeario } from './import-ideario';
-import { boardsOf, captureLane, colorName, locate, type Data } from './model';
+import { boardsOf, captureLane, locate, type Data } from './model';
+import { BoardTab } from './MoveToBoard';
 import { NoteDrawer } from './NoteDrawer';
 import { focusNote } from './NoteCard';
 import { WorkspaceStore, type WorkspaceState } from './store';
@@ -230,17 +231,7 @@ export function Workspace({ userId, signInHref, homeHref, sourceUrl, signOut }: 
                   onCancel={() => setRenamingBoard(false)}
                 />
               ) : (
-                <button
-                  key={b.id}
-                  type="button"
-                  className="w-board-tab"
-                  data-cor={colorName(b.color)}
-                  aria-current={b.id === boardId && view === 'board' ? 'page' : undefined}
-                  onClick={() => showBoard(b.id)}
-                  onDoubleClick={() => b.id === boardId && setRenamingBoard(true)}
-                >
-                  {b.title}
-                </button>
+                <BoardTab key={b.id} board={b} current={b.id === boardId && view === 'board'} onSelect={() => showBoard(b.id)} onRename={() => b.id === boardId && setRenamingBoard(true)} />
               ),
             )}
             {creatingBoard ? (
