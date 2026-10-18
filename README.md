@@ -1,8 +1,8 @@
 <p align="center"><img src="brand/svg/noergo-horizontal.svg" alt="noergo" width="320"></p>
 
-<p align="center"><b>A visual memory for you and your AI agents.</b><br>
-Boards like Trello, mind maps, and a knowledge graph like Obsidian — one click apart.<br>
-ChatGPT, Claude and Grok read, write and connect your notes with you, live.</p>
+<p align="center"><b>Where your thoughts take shape.</b><br>
+Each thought lives on a board and can be seen as columns, as cards or as a mind map.<br>
+Talk it through with ChatGPT, Grok or Claude: they do the thinking with you, and noergo draws it, live.</p>
 
 <p align="center"><a href="README.pt-BR.md">Português</a> · <a href="README.zh-CN.md">中文</a> · <a href="https://noergo.com">noergo.com</a></p>
 
@@ -10,14 +10,27 @@ ChatGPT, Claude and Grok read, write and connect your notes with you, live.</p>
 
 ## What it is
 
-noergo is where you keep what you are thinking and doing: projects, ideas, to-dos, things
-to remember. You write notes in columns, drag them around, and switch a column or a whole
-board into a mind map; every note and every connection also lives in one graph of
-everything you know. `[[Wikilinks]]` connect notes as you type.
+noergo keeps what you are thinking about: a project, a trip, a book, a decision. Each one
+is a **thought**, thoughts live on **boards**, and a thought holds its ideas. You can look at
+a thought three ways:
 
-Your AI agents connect over [MCP](https://modelcontextprotocol.io). They search and read
-your notes, write new ones, append to old ones, link ideas and tidy columns — and you see
-it happen in the open tab, with every change attributed and reversible.
+- **Columns**, like Trello: each thought is a column, its ideas are cards you drag around.
+- **Cards**, like a photo library: each thought is a tile with its cover and colour.
+- **Mind map**: the thought sits in the middle, its ideas branch out and connect.
+
+Drag a thought onto another board's tab to move it there. `[[Wikilinks]]` connect ideas as
+you type.
+
+## Think out loud with your agents
+
+The reasoning comes from the agents you already use: ChatGPT, Grok, Claude and others.
+noergo is the picture of it. Agents connect over [MCP](https://modelcontextprotocol.io) and
+read everything you keep; while you talk, they add ideas to the thought you have open,
+connect them and attach pictures. Leave the mind map open in a tab and watch it grow as you
+speak.
+
+Talk to Grok by voice, or type or dictate to ChatGPT. Every change an agent makes carries
+its name, and you can undo it.
 
 ## Three ways to use it
 
@@ -29,9 +42,9 @@ it happen in the open tab, with every change attributed and reversible.
 
 ## Status
 
-Under active construction, before the first release. The database layer and the domain
-operations exist and are tested; the interface, sign-in, MCP server and billing are being
-built in phases.
+noergo.com is live: boards, thoughts as columns, cards and mind maps, and live sync across
+your devices. The MCP server for agents, the knowledge graph and billing are being built;
+until billing exists, agents are switched on account by account.
 
 ## Development
 

@@ -1,7 +1,7 @@
 {
   "meta": {
-    "title": "noergo — a visual memory for you and your AI agents",
-    "description": "Boards, mind maps and a knowledge graph in one place. ChatGPT, Claude and Grok read and organise it with you, live."
+    "title": "noergo — where your thoughts take shape",
+    "description": "Thoughts on boards, seen as columns, cards or a mind map. Talk it through with ChatGPT, Grok or Claude, and noergo draws it, live."
   },
   "nav": {
     "app": "Open noergo",

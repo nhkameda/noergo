@@ -1,7 +1,7 @@
 {
   "meta": {
-    "title": "noergo — uma memória visual para você e seus agentes de IA",
-    "description": "Quadros, mapas mentais e um grafo de conhecimento num lugar só. ChatGPT, Claude e Grok leem e organizam junto com você, ao vivo."
+    "title": "noergo — onde seus pensamentos ganham forma",
+    "description": "Pensamentos em quadros, vistos em colunas, cards ou mapa mental. Converse com o ChatGPT, o Grok ou o Claude, e o noergo desenha, ao vivo."
   },
   "nav": {
     "app": "Abrir o noergo",

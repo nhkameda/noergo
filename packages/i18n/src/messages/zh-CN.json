@@ -1,7 +1,7 @@
 {
   "meta": {
-    "title": "noergo — 属于你和 AI 智能体的可视化记忆",
-    "description": "看板、思维导图和知识图谱集于一处。ChatGPT、Claude 和 Grok 与你实时一起阅读和整理。"
+    "title": "noergo — 让你的想法成形",
+    "description": "想法放在看板里，可按列、卡片或思维导图查看。和 ChatGPT、Grok 或 Claude 聊一聊，noergo 实时把它画出来。"
   },
   "nav": {
     "app": "打开 noergo",
