@@ -24,6 +24,7 @@ All configuration is environment variables. `docker/.env.example` lists them wit
 | `NOERGO_ATTACHMENTS_ORIGIN` | — | Origin files are served from; allowed in the Content-Security-Policy. |
 | `MCP_HOST`, `MCP_PORT` | `0.0.0.0`, `3042` | Where mcp listens (in the image). |
 | `HOSTNAME`, `PORT` | `0.0.0.0`, `3041` | Where web listens (in the image). |
+| `NOERGO_BIND`, `NOERGO_WEB_PORT`, `NOERGO_MCP_PORT` | `127.0.0.1`, `3041`, `3042` | Only for `docker/compose.yml`: the host interface and ports web and mcp are published on. |
 
 Providers whose variables are empty are simply not offered on the sign-in page.
 
