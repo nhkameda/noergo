@@ -447,6 +447,28 @@ export async function applyOp(tx: Tx, ctx: OpCtx, op: Op): Promise<Applied> {
       const row = await tx.updateTable('links').set({ deleted_at: new Date(), ...stamp(ctx), version: cur.version + 1 }).where('id', '=', cur.id).where('workspace_id', '=', ws).returningAll().executeTakeFirstOrThrow();
       return single('link', linkDto(cur), linkDto(row), row.version);
     }
+    case 'link.restore': {
+      const cur = await tx.selectFrom('links').selectAll().where('id', '=', op.id).where('workspace_id', '=', ws).forUpdate().executeTakeFirst();
+      if (!cur) throw notFound('link');
+      if (cur.deleted_at === null) return noop('link', cur.id, cur.version);
+      await assertNode(tx, ctx, { kind: cur.from_kind, id: cur.from_id });
+      await assertNode(tx, ctx, { kind: cur.to_kind, id: cur.to_id });
+      // The same link made again meanwhile: that one stands, this one stays deleted.
+      const twin = await tx
+        .selectFrom('links')
+        .select('id')
+        .where('workspace_id', '=', ws)
+        .where('deleted_at', 'is', null)
+        .where('origin', '=', cur.origin)
+        .where('from_kind', '=', cur.from_kind)
+        .where('from_id', '=', cur.from_id)
+        .where('to_kind', '=', cur.to_kind)
+        .where('to_id', '=', cur.to_id)
+        .executeTakeFirst();
+      if (twin) return noop('link', cur.id, cur.version);
+      const row = await tx.updateTable('links').set({ deleted_at: null, ...stamp(ctx), version: cur.version + 1 }).where('id', '=', cur.id).where('workspace_id', '=', ws).returningAll().executeTakeFirstOrThrow();
+      return single('link', linkDto(cur), linkDto(row), row.version);
+    }
 
     case 'layout.set': {
       // The global graph uses the workspace id as its view id.
@@ -480,6 +502,7 @@ export async function applyOp(tx: Tx, ctx: OpCtx, op: Op): Promise<Applied> {
           ...(n.size !== undefined ? { size: n.size } : {}),
           ...(n.color !== undefined ? { color: n.color } : {}),
         };
+        if (before && before.x === n.x && before.y === n.y && Object.entries(style).every(([k, v]) => before[k as keyof typeof style] === v)) continue;
         const row = before
           ? await tx
               .updateTable('node_layouts')
