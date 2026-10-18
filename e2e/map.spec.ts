@@ -6,6 +6,8 @@ const openInboxMap = async (page: Page) => {
   await expect(page.locator('.w-map').getByRole('heading', { name: 'Inbox' })).toBeVisible();
 };
 const node = (page: Page, text: string) => page.locator('.w-map__node', { hasText: text });
+/** Where a node sits on the map, in map units: the screen position also depends on the zoom. */
+const spot = (l: Locator) => l.evaluate((el) => [parseFloat(el.style.left), parseFloat(el.style.top)]);
 
 /** Drags from the right-hand dot of `from` and lets go over `to`. */
 async function connect(page: Page, from: Locator, to: Locator) {
@@ -58,13 +60,13 @@ test('the map of a column: create, connect, style, organise, and it survives a r
 
   await page.getByRole('button', { name: 'Organise' }).click();
   await settled(page);
-  const before = await node(page, 'Barista').boundingBox();
+  const before = await spot(node(page, 'Barista'));
 
   await page.reload();
   await expect(node(page, 'Barista')).toBeVisible();
   await expect(page.locator('.w-map__edge')).toHaveCount(2);
   await expect(page.locator('.w-map__head')).toHaveCount(2);
-  expect(Math.abs((await node(page, 'Barista').boundingBox())!.x - before!.x)).toBeLessThan(3);
+  expect(await spot(node(page, 'Barista'))).toEqual(before);
 
   // Esc with nothing selected: back to the board, where the new notes are cards.
   await page.locator('.w-map__canvas').focus();
