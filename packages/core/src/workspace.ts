@@ -93,3 +93,38 @@ export async function inboxLaneId(workspaceId: string, db: Db = getDb()): Promis
     { db, snapshot: true },
   );
 }
+
+export interface UserContext {
+  workspaceId: string;
+  /** The user's actor in that workspace: who the change log says made a change. */
+  actorId: string;
+}
+
+const contexts = new Map<string, UserContext>();
+
+/**
+ * Workspace and actor of a signed-in user, for every request that reads or writes. Both
+ * are immutable once created, so they are cached for the life of the process (the cache
+ * is bounded; an evicted entry is simply looked up again).
+ */
+export async function userContext(userId: string, db: Db = getDb()): Promise<UserContext> {
+  const hit = contexts.get(userId);
+  if (hit) return hit;
+  const workspaceId = await personalWorkspaceId(userId, db);
+  if (!workspaceId) throw new Error('signed-in user without a workspace');
+  const actorId = await withWorkspace(
+    workspaceId,
+    async (tx) => {
+      const actor = await tx.selectFrom('actors').select('id').where('workspace_id', '=', workspaceId).where('kind', '=', 'user').where('user_id', '=', userId).executeTakeFirst();
+      if (actor) return actor.id;
+      // Created with the workspace; this only repairs a workspace that lost it.
+      const user = await tx.selectFrom('users').select('name').where('id', '=', userId).executeTakeFirstOrThrow();
+      return ensureActor(tx, workspaceId, { kind: 'user', userId, label: user.name });
+    },
+    { db },
+  );
+  const ctx = { workspaceId, actorId };
+  if (contexts.size >= 10_000) contexts.delete(contexts.keys().next().value!);
+  contexts.set(userId, ctx);
+  return ctx;
+}

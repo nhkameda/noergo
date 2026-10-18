@@ -35,7 +35,8 @@ declare module 'next-auth' {
     epoch?: number;
   }
   interface Session {
-    user: { id: string; role: 'user' | 'admin'; locale: Locale };
+    /** epoch: the session epoch, for long-lived streams that re-check it themselves. */
+    user: { id: string; role: 'user' | 'admin'; locale: Locale; epoch: number };
   }
 }
 
@@ -163,7 +164,7 @@ function config(req: NextRequest | undefined): NextAuthConfig {
         return { ...token, role: state.role, locale: state.locale };
       },
       session({ session, token }) {
-        return { ...session, user: { id: token.uid!, role: token.role ?? 'user', locale: token.locale ?? 'en' } } as typeof session;
+        return { ...session, user: { id: token.uid!, role: token.role ?? 'user', locale: token.locale ?? 'en', epoch: token.epoch ?? 0 } } as typeof session;
       },
     },
   };
