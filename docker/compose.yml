@@ -110,7 +110,9 @@ services:
     restart: unless-stopped
     ports: ["80:80", "443:443", "443:443/udp"]
     environment:
-      NOERGO_DOMAIN: ${NOERGO_DOMAIN:?set NOERGO_DOMAIN to use the caddy profile}
+      # Not `:?`: Compose checks every service, profile or not, and would refuse to start
+      # without Caddy. Left empty, the Caddyfile has no site address and Caddy itself refuses.
+      NOERGO_DOMAIN: ${NOERGO_DOMAIN:-}
     volumes:
       - ./Caddyfile:/etc/caddy/Caddyfile:ro
       - caddy:/data
