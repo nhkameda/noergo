@@ -10,6 +10,9 @@ you can derive; these you cannot. Break one only with a reason written in the co
   Examples here are generic (`notes.example.com`).
 - Secrets never touch a file. Locally the dev database uses trust auth on loopback and has
   no passwords. gitleaks runs in the pre-commit hook (`.githooks/`) and in CI.
+- `docker/compose.yml` hands each service an explicit `environment`, never `env_file: .env`:
+  web and mcp must not receive the superuser's or the migrator's password (the migrator owns
+  the tables and can switch row-level security off). A new setting goes into `x-app-env`.
 
 ## Database (packages/core)
 - Only `packages/core` talks to PostgreSQL (lint rule). Content queries run inside
