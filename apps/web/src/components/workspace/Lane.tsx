@@ -11,15 +11,20 @@ import { LIMITS } from '@noergo/core/limits';
 import { useTranslations } from 'next-intl';
 import { memo, useEffect, useRef, useState, type KeyboardEvent } from 'react';
 import { isComposing, useWorkspace } from './context';
-import { IconMap, IconPlus } from './icons';
-import { colorName } from './model';
+import { CoverArt } from './CoverArt';
+import { laneStyle } from './cover';
+import { useFileDrag, useImageDrop, useLaneLook } from './cover-client';
+import { IconBrush, IconImage, IconMap, IconPlus } from './icons';
 import { NoteCard } from './NoteCard';
-import { InlineEdit, Menu, Swatches } from './ui';
+import { InlineEdit, Menu } from './ui';
 
 export const Lane = memo(function Lane({ lane, notes, hideDone, index, total }: { lane: LaneDto; notes: NoteDto[]; hideDone: boolean; index: number; total: number }) {
   const t = useTranslations('app');
-  const { actions, announce, openMap } = useWorkspace();
+  const { actions, announce, openMap, customize, store } = useWorkspace();
+  const look = useLaneLook(lane);
+  const files = useFileDrag();
   const section = useRef<HTMLElement>(null);
+  const top = useRef<HTMLDivElement>(null);
   const handle = useRef<HTMLHeadingElement>(null);
   const list = useRef<HTMLOListElement>(null);
   const [renaming, setRenaming] = useState(false);
@@ -79,6 +84,11 @@ export const Lane = memo(function Lane({ lane, notes, hideDone, index, total }: 
       setDraft('');
     }
   };
+  const personalize = (file?: File) => customize(lane.id, top.current!.getBoundingClientRect(), file);
+  const drop = useImageDrop(
+    (file) => personalize(file),
+    () => store.notify({ tone: 'error', key: 'coverNotImage' }),
+  );
   const move = (to: number) => {
     const moved = actions.moveLane(lane.id, to);
     if (moved) announce(t('a11y.movedColumn', { position: moved.index + 1, total: moved.total }));
@@ -88,49 +98,68 @@ export const Lane = memo(function Lane({ lane, notes, hideDone, index, total }: 
     <section
       ref={section}
       className={`nr-coluna w-lane${dragging ? ' w-lane--dragging' : ''}${noteOver ? ' w-lane--over' : ''}`}
-      data-cor={colorName(lane.color)}
+      {...laneStyle(look.color)}
       data-lane-id={lane.id}
       data-edge={laneEdge ?? undefined}
       aria-labelledby={`lane-${lane.id}`}
+      tabIndex={-1}
     >
-      <header className="nr-coluna__cabeca w-lane__head">
-        {renaming ? (
-          <InlineEdit value={lane.title} label={t('columnName')} maxLength={LIMITS.laneTitle} onSave={(title) => { actions.updateLane(lane.id, { title }); setRenaming(false); }} onCancel={() => setRenaming(false)} />
-        ) : (
-          <h2 ref={handle} id={`lane-${lane.id}`} className="w-lane__title" title={t('a11y.dragHandle')} onDoubleClick={() => setRenaming(true)}>
-            {lane.title}
-          </h2>
+      <div ref={top} className="w-lane__top" {...drop.props} data-over={drop.over || undefined}>
+        {look.cover && (
+          <button type="button" className="w-lane__cover" onClick={() => personalize()} aria-label={t('customize.open', { title: lane.title })} title={t('customize.openShort')}>
+            <CoverArt look={look.cover} />
+            {look.uploading && <span className="w-lane__busy" aria-hidden="true" />}
+          </button>
         )}
-        <span className="nr-coluna__conta" aria-label={t('notesCount', { count: shown.length })}>
-          {shown.length}
-        </span>
-        <button type="button" className="w-icon-btn" data-lane-map={lane.id} aria-label={t('map.openColumn', { title: lane.title })} title={t('map.open')} onClick={() => openMap(lane.id)}>
-          <IconMap />
-        </button>
-        <button type="button" className="w-icon-btn" data-lane-add aria-label={t('newNote')} title={t('newNote')} onClick={() => setAdding(true)}>
-          <IconPlus />
-        </button>
-        <Menu label={t('columnMenu', { title: lane.title })}>
-          {(close) => (
-            <>
-              <button type="button" className="w-menu__item" onClick={() => { close(); setRenaming(true); }}>
-                {t('rename')}
-              </button>
-              <div className="w-menu__label">{t('color')}</div>
-              <Swatches value={lane.color} label={t('color')} onChange={(color) => actions.updateLane(lane.id, { color })} />
-              <button type="button" className="w-menu__item" disabled={index === 0} onClick={() => move(index - 1)}>
-                {t('moveLeft')}
-              </button>
-              <button type="button" className="w-menu__item" disabled={index === total - 1} onClick={() => move(index + 1)}>
-                {t('moveRight')}
-              </button>
-              <button type="button" className="w-menu__item w-menu__item--danger" onClick={() => { close(); actions.deleteLane(lane.id); }}>
-                {t('deleteColumn')}
-              </button>
-            </>
+        <header className="nr-coluna__cabeca w-lane__head">
+          <button type="button" className="w-lane__paint" data-lane-customize={lane.id} aria-label={t('customize.open', { title: lane.title })} title={t('customize.openShort')} onClick={() => personalize()}>
+            <IconBrush />
+          </button>
+          {renaming ? (
+            <InlineEdit value={lane.title} label={t('columnName')} maxLength={LIMITS.laneTitle} onSave={(title) => { actions.updateLane(lane.id, { title }); setRenaming(false); }} onCancel={() => setRenaming(false)} />
+          ) : (
+            <h2 ref={handle} id={`lane-${lane.id}`} className="w-lane__title" title={t('a11y.dragHandle')} onDoubleClick={() => setRenaming(true)}>
+              {lane.title}
+            </h2>
           )}
-        </Menu>
-      </header>
+          <span className="nr-coluna__conta" aria-label={t('notesCount', { count: shown.length })}>
+            {shown.length}
+          </span>
+          <button type="button" className="w-icon-btn" data-lane-map={lane.id} aria-label={t('map.openColumn', { title: lane.title })} title={t('map.open')} onClick={() => openMap(lane.id)}>
+            <IconMap />
+          </button>
+          <button type="button" className="w-icon-btn" data-lane-add aria-label={t('newNote')} title={t('newNote')} onClick={() => setAdding(true)}>
+            <IconPlus />
+          </button>
+          <Menu label={t('columnMenu', { title: lane.title })}>
+            {(close) => (
+              <>
+                <button type="button" className="w-menu__item" onClick={() => { close(); setRenaming(true); }}>
+                  {t('rename')}
+                </button>
+                <button type="button" className="w-menu__item" onClick={() => { close(); personalize(); }}>
+                  {t('customize.menu')}
+                </button>
+                <button type="button" className="w-menu__item" disabled={index === 0} onClick={() => move(index - 1)}>
+                  {t('moveLeft')}
+                </button>
+                <button type="button" className="w-menu__item" disabled={index === total - 1} onClick={() => move(index + 1)}>
+                  {t('moveRight')}
+                </button>
+                <button type="button" className="w-menu__item w-menu__item--danger" onClick={() => { close(); actions.deleteLane(lane.id); }}>
+                  {t('deleteColumn')}
+                </button>
+              </>
+            )}
+          </Menu>
+        </header>
+        {files && (
+          <div className="w-drop-hint" aria-hidden="true">
+            <IconImage />
+            {t('customize.dropShort')}
+          </div>
+        )}
+      </div>
 
       {adding && (
         <div className="w-composer">

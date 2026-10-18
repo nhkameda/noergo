@@ -32,6 +32,10 @@ export const IconEdit = () => <Icon d="M4 20h4L19 9l-4-4L4 16v4ZM13.5 6.5l4 4" /
 export const IconTrash = () => <Icon d="M4 7h16M10 11v6M14 11v6M6 7l1 13h10l1-13M9 7V4h6v3" />;
 export const IconSwap = () => <Icon d="M4 8h15M15 4l4 4-4 4M20 16H5M9 12l-4 4 4 4" />;
 export const IconLabel = () => <Icon d="M5 6h14M12 6v13" />;
+export const IconBrush = () => <Icon d="M14.5 4.5 19.5 9.5 11 18l-5-5 8.5-8.5ZM6 13l-2.5 6.5L10 17M16 7l1-1" />;
+export const IconImage = () => <Icon d="M4 5h16v14H4zM4 16l5-5 4 4 2-2 5 5M15.5 9.5h.01" />;
+export const IconColumns = () => <Icon d="M4 4h4v16H4zM10 4h4v11h-4zM16 4h4v14h-4z" />;
+export const IconCards = () => <Icon d="M4 4h7v7H4zM13 4h7v7h-7zM4 13h7v7H4zM13 13h7v7h-7z" />;
 
 export const SHAPE_ICONS = {
   pill: () => <Icon d="M8 7h8a5 5 0 0 1 0 10H8A5 5 0 0 1 8 7Z" />,

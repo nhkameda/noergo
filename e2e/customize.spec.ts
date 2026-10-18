@@ -1,0 +1,183 @@
+import { expect, test, type Locator, type Page } from '@playwright/test';
+import { freshUser, lane, settled, signIn } from './helpers';
+
+/** A 600 × 200 PNG: a purple mark on white, like a screenshot of a logo. */
+async function logo(page: Page, color = '#7c3aed'): Promise<Buffer> {
+  const url = await page.evaluate((c) => {
+    const canvas = document.createElement('canvas');
+    canvas.width = 600;
+    canvas.height = 200;
+    const ctx = canvas.getContext('2d')!;
+    ctx.fillStyle = '#ffffff';
+    ctx.fillRect(0, 0, 600, 200);
+    ctx.fillStyle = c;
+    ctx.beginPath();
+    ctx.arc(160, 100, 70, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.fillRect(260, 70, 280, 60);
+    return canvas.toDataURL('image/png');
+  }, color);
+  return Buffer.from(url.split(',')[1]!, 'base64');
+}
+
+/** Lets a picture go over `target`, the way a file dragged from the desktop arrives. */
+async function dropPicture(target: Locator, png: Buffer, type = 'image/png') {
+  await target.evaluate(
+    (el, { b64, type }) => {
+      const bytes = Uint8Array.from(atob(b64), (ch) => ch.charCodeAt(0));
+      const dt = new DataTransfer();
+      dt.items.add(new File([bytes], 'logo.png', { type }));
+      for (const kind of ['dragenter', 'dragover', 'drop']) el.dispatchEvent(new DragEvent(kind, { bubbles: true, cancelable: true, dataTransfer: dt }));
+    },
+    { b64: png.toString('base64'), type },
+  );
+}
+
+/** How far a computed colour is from `hex`: colours read from a picture are averages. */
+const off = (l: Locator, prop: string, hex: string) =>
+  l.evaluate(
+    (el, { prop, hex }) => {
+      const got = (getComputedStyle(el).getPropertyValue(prop).match(/\d+/g) ?? []).slice(0, 3).map(Number);
+      const want = [1, 3, 5].map((i) => parseInt(hex.slice(i, i + 2), 16));
+      return Math.max(...want.map((v, i) => Math.abs(v - (got[i] ?? -999))));
+    },
+    { prop, hex },
+  );
+
+const panel = (page: Page) => page.locator('.w-customize');
+const tile = (page: Page, title: string) => page.locator('.w-tile', { hasText: title });
+const tiles = (page: Page) => page.locator('.w-tile__title');
+
+test('columns as cards: drag to reorder, a click opens the column at the start of the board', async ({ page }) => {
+  await signIn(page, freshUser('cards'));
+  await page.getByRole('button', { name: 'Cards' }).click();
+  await expect(tiles(page)).toHaveText(['Inbox', 'Doing', 'Ideas']);
+  await expect(tile(page, 'Inbox').locator('.w-tile__blank')).toHaveText('I');
+
+  // Drag "Ideas" before "Inbox".
+  const from = (await tile(page, 'Ideas').boundingBox())!;
+  const to = (await tile(page, 'Inbox').boundingBox())!;
+  await page.mouse.move(from.x + from.width / 2, from.y + from.height / 2);
+  await page.mouse.down();
+  await page.mouse.move(to.x + 12, to.y + to.height / 2, { steps: 10 });
+  await page.mouse.up();
+  await expect(tiles(page)).toHaveText(['Ideas', 'Inbox', 'Doing']);
+
+  // Alt + arrow moves the focused card.
+  await tile(page, 'Doing').getByRole('button', { name: /^Doing/ }).focus();
+  await page.keyboard.press('Alt+ArrowLeft');
+  await expect(tiles(page)).toHaveText(['Ideas', 'Doing', 'Inbox']);
+  await settled(page);
+
+  // The layout is remembered; the order is saved.
+  await page.reload();
+  await expect(tiles(page)).toHaveText(['Ideas', 'Doing', 'Inbox']);
+
+  await tile(page, 'Inbox').getByRole('button', { name: /^Inbox/ }).click();
+  await expect(page.locator('.w-board')).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Columns' })).toHaveAttribute('aria-pressed', 'true');
+  await expect(lane(page, 'Inbox')).toBeFocused();
+  await expect(lane(page, 'Inbox')).toBeInViewport();
+  // A click shows the column; it does not undo the order chosen by dragging.
+  await expect(page.locator('.w-lane__title')).toHaveText(['Ideas', 'Doing', 'Inbox']);
+});
+
+test('a cover and a colour: chosen, framed, recoloured, and they survive a reload', async ({ page }) => {
+  await signIn(page, freshUser('cover'));
+  const inbox = lane(page, 'Inbox');
+  await inbox.getByRole('button', { name: 'Customise “Inbox”' }).click();
+  await expect(panel(page)).toBeVisible();
+  await expect(panel(page).getByText('Drop an image here')).toBeVisible();
+
+  await panel(page).locator('input[type="file"]').setInputFiles({ name: 'logo.png', mimeType: 'image/png', buffer: await logo(page) });
+  // The picture shows at once, then lands on the server; the column takes its colour.
+  await expect(inbox.locator('.w-lane__cover img')).toHaveAttribute('src', /\/api\/files\/[0-9a-f-]{36}$/);
+  await expect(inbox).toHaveAttribute('data-tinted', 'true');
+  await expect.poll(() => off(inbox, 'background-color', '#7c3aed')).toBeLessThan(6);
+  await expect(inbox.locator('.w-lane__title')).toHaveCSS('color', 'rgb(255, 255, 255)');
+  // Its notes take a light tint of it.
+  const noteBg = await inbox.locator('.w-card').first().evaluate((el) => getComputedStyle(el).backgroundColor);
+  expect(noteBg).not.toBe('rgb(255, 255, 255)');
+  // The logo was shot on white: the frame around it is white too.
+  await expect(panel(page).getByRole('radio', { name: 'Like the image edge' })).toHaveCount(0);
+  await expect(panel(page).getByRole('radio', { name: 'White' })).toHaveAttribute('aria-checked', 'true');
+  await expect(panel(page).getByRole('radio', { name: /^Image colour/ }).first()).toHaveAttribute('aria-checked', 'true');
+
+  // Bigger, then dragged to the left.
+  const img = inbox.locator('.w-lane__cover img');
+  const before = await img.evaluate((el) => parseFloat(el.style.width));
+  await panel(page).getByRole('button', { name: 'Larger' }).click();
+  await panel(page).getByRole('button', { name: 'Larger' }).click();
+  await expect.poll(() => img.evaluate((el) => parseFloat(el.style.width))).toBeCloseTo(before * 1.5625, 1);
+  const editor = panel(page).getByRole('group', { name: 'Cover position' });
+  const box = (await editor.boundingBox())!;
+  await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
+  await page.mouse.down();
+  await page.mouse.move(box.x + box.width / 2 - 40, box.y + box.height / 2, { steps: 5 });
+  await page.mouse.up();
+  const left = await img.evaluate((el) => parseFloat(el.style.left));
+
+  // A palette colour, then any colour.
+  await panel(page).getByRole('radio', { name: 'Indigo' }).click();
+  await expect(inbox).toHaveAttribute('data-cor', 'anil');
+  await panel(page).getByLabel('Any colour…').fill('#0e7490');
+  await panel(page).getByLabel('Any colour…').dispatchEvent('change');
+  await expect(inbox).toHaveCSS('background-color', 'rgb(14, 116, 144)');
+  await panel(page).getByRole('button', { name: 'Done' }).click();
+  await expect(panel(page)).toBeHidden();
+  await settled(page);
+
+  await page.reload();
+  await expect(inbox.locator('.w-lane__cover img')).toHaveAttribute('src', /\/api\/files\//);
+  await expect.poll(() => img.evaluate((el) => parseFloat(el.style.left))).toBeCloseTo(left, 1);
+  await expect(inbox).toHaveCSS('background-color', 'rgb(14, 116, 144)');
+
+  // The map wears the cover top left, the colour on its bar and, lightly, on its canvas.
+  await inbox.getByRole('button', { name: 'Map of “Inbox”' }).click();
+  const map = page.locator('.w-map');
+  await expect(map.locator('.w-map__cover img')).toHaveAttribute('src', /\/api\/files\//);
+  await expect(map.locator('.w-map__bar')).toHaveCSS('color', 'rgb(255, 255, 255)');
+  const canvas = await map.locator('.w-map__canvas').evaluate((el) => getComputedStyle(el).backgroundColor);
+  expect(canvas).not.toBe('rgb(255, 255, 255)');
+  await map.getByRole('button', { name: 'Customise “Inbox”' }).first().click();
+  await expect(panel(page)).toBeVisible();
+  await panel(page).getByRole('button', { name: 'Remove' }).click();
+  await expect(map.locator('.w-map__cover')).toHaveCount(0);
+});
+
+test('a picture dropped on a column becomes its cover; anything else is refused', async ({ page }) => {
+  await signIn(page, freshUser('drop'));
+  const doing = lane(page, 'Doing');
+  await dropPicture(doing.locator('.w-lane__top'), await logo(page, '#0e9f6e'));
+  await expect(panel(page)).toBeVisible();
+  await expect(doing.locator('.w-lane__cover img')).toHaveAttribute('src', /\/api\/files\//);
+  await expect.poll(() => off(doing, 'background-color', '#0e9f6e')).toBeLessThan(6);
+  await page.keyboard.press('Escape');
+  await expect(panel(page)).toBeHidden();
+
+  // A card takes a drop too.
+  await page.getByRole('button', { name: 'Cards' }).click();
+  await expect(tile(page, 'Doing').locator('.w-cover img')).toBeVisible();
+  await dropPicture(tile(page, 'Ideas'), Buffer.from('not a picture'), 'text/plain');
+  await expect(page.getByText('That is not an image. Use a PNG, JPEG, WebP or GIF.')).toBeVisible();
+
+  // The server checks the bytes, not the name: a text file called .png is refused.
+  const res = await page.request.post('/api/files', { data: Buffer.from('<svg xmlns="http://www.w3.org/2000/svg"/>'), headers: { 'Content-Type': 'image/png', Origin: new URL(page.url()).origin } });
+  expect(res.status()).toBe(422);
+});
+
+test('cards and the customise sheet on a phone @mobile', async ({ page }) => {
+  test.skip(page.viewportSize()!.width > 600, 'phone layout');
+  await page.emulateMedia({ reducedMotion: 'reduce' });
+  await signIn(page, freshUser('phone'));
+  await page.getByRole('button', { name: 'Cards' }).click();
+  const a = (await tile(page, 'Inbox').boundingBox())!;
+  const b = (await tile(page, 'Doing').boundingBox())!;
+  // Two cards side by side.
+  expect(Math.abs(a.y - b.y)).toBeLessThan(2);
+  expect(b.x).toBeGreaterThan(a.x + a.width);
+  await tile(page, 'Inbox').getByRole('button', { name: 'Customise “Inbox”' }).click();
+  const sheet = (await panel(page).boundingBox())!;
+  expect(sheet.width).toBe(390);
+  expect(Math.round(sheet.y + sheet.height)).toBe(844);
+});

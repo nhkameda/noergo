@@ -12,6 +12,10 @@ export interface WorkspaceApi {
   openMap: (laneId: string) => void;
   /** Read out by screen readers (moves made with the keyboard). */
   announce: (text: string) => void;
+  /** The cover and colour panel of a column, next to `anchor`; a picture given is taken as its cover. */
+  customize: (laneId: string, anchor: DOMRect, file?: File) => void;
+  /** Back to the columns, with this one at the start and lit up. */
+  revealLane: (laneId: string) => void;
 }
 
 export const WorkspaceContext = createContext<WorkspaceApi | null>(null);

@@ -7,7 +7,7 @@ import { between } from '@noergo/core/position';
 import { useTranslations } from 'next-intl';
 import { memo, useCallback, useEffect, useEffectEvent, useLayoutEffect, useMemo, useRef, useState, type MouseEvent as ReactMouseEvent, type PointerEvent as ReactPointerEvent, type ReactNode } from 'react';
 import { isComposing, isEditable, useWorkspace } from './context';
-import { ARROW_ICONS, DASH_ICONS, FILL_ICONS, IconClose, IconEdit, IconFit, IconLabel, IconLink, IconMinus, IconNote, IconOrganize, IconPlus, IconSwap, IconTrash, ROUTE_ICONS, SHAPE_ICONS, WidthIcon } from './icons';
+import { ARROW_ICONS, DASH_ICONS, FILL_ICONS, IconBrush, IconClose, IconEdit, IconImage, IconFit, IconLabel, IconLink, IconMinus, IconNote, IconOrganize, IconPlus, IconSwap, IconTrash, ROUTE_ICONS, SHAPE_ICONS, WidthIcon } from './icons';
 import { splitText } from './import-ideario';
 import {
   ARROWS,
@@ -46,6 +46,9 @@ import {
   type WH,
   type XY,
 } from './map';
+import { CoverArt } from './CoverArt';
+import { corProps, laneStyle } from './cover';
+import { useFileDrag, useImageDrop, useLaneLook } from './cover-client';
 import { colorName, notesByLane, PALETTE, type Data } from './model';
 import './map.css';
 
@@ -109,10 +112,19 @@ function frozen(nodes: readonly MapNode[]): LayoutNode[] {
 
 export function LaneMap({ data, laneId, blocked, onClose }: { data: Data; laneId: string; blocked: boolean; onClose: () => void }) {
   const t = useTranslations('app');
-  const { store, actions, openNote } = useWorkspace();
+  const { store, actions, openNote, customize } = useWorkspace();
   const { lanes, notes, links, layouts } = data;
   const map = useMemo(() => laneMap({ lanes, notes, links, layouts }, laneId), [lanes, notes, links, layouts, laneId]);
   const rootKey = keyOf({ kind: 'lane', id: laneId });
+  const look = useLaneLook(lanes.get(laneId));
+  const laneColor = look.color ?? undefined;
+  const files = useFileDrag();
+  const bar = useRef<HTMLElement>(null);
+  const personalize = (file?: File, from?: Element) => customize(laneId, (from ?? bar.current!).getBoundingClientRect(), file);
+  const drop = useImageDrop(
+    (file) => personalize(file),
+    () => store.notify({ tone: 'error', key: 'coverNotImage' }),
+  );
 
   const root = useRef<HTMLElement>(null);
   const canvas = useRef<HTMLDivElement>(null);
@@ -151,9 +163,9 @@ export function LaneMap({ data, laneId, blocked, onClose }: { data: Data; laneId
   /** The colour a node shows: its own on the map, else the note's, else the column's. */
   const colors = useMemo(() => {
     const out = new Map<NodeKey, string | undefined>();
-    for (const n of map?.nodes ?? []) out.set(n.key, colorName(n.color ?? n.note?.color ?? map!.lane.color));
+    for (const n of map?.nodes ?? []) out.set(n.key, n.color ?? n.note?.color ?? laneColor);
     return out;
-  }, [map]);
+  }, [map, laneColor]);
 
   // ───────────────────────────── view
 
@@ -764,18 +776,28 @@ export function LaneMap({ data, laneId, blocked, onClose }: { data: Data; laneId
   const selected = new Set(sel.nodes);
   const selNodes = map.nodes.filter((n) => selected.has(n.key));
   const selEdge = sel.edge ? (map.edges.find((e) => e.id === sel.edge) ?? null) : null;
-  const laneCor = colorName(map.lane.color);
   const extra: string[] = [];
   if (temp && boxes.get(temp.from)) extra.push(tempPath(boxes.get(temp.from)!, temp.side, temp.to, temp.target ? (boxes.get(temp.target) ?? null) : null));
   const parent = ghost?.from ? boxes.get(ghost.from) : undefined;
   if (ghost && parent) extra.push(buildPath(geometry(parent, { x: ghost.x, y: ghost.y, ...(sizes.get(GHOST) ?? GUESS), shape: ghost.style.shape }, 'curve'), 'none', 2).d);
 
   return (
-    <section ref={root} className="w-map" aria-labelledby={`map-${laneId}`} data-cor={laneCor}>
-      <header className="w-map__bar">
+    <section ref={root} className="w-map" aria-labelledby={`map-${laneId}`} {...laneStyle(look.color)}>
+      <header ref={bar} className="w-map__bar" {...drop.props} data-over={drop.over || undefined}>
         <button type="button" className="w-icon-btn" onClick={onClose} aria-label={t('map.back')} title={t('map.back')}>
           <IconClose />
         </button>
+        {look.cover ? (
+          <button type="button" className="w-map__cover" onClick={(e) => personalize(undefined, e.currentTarget)} aria-label={t('customize.open', { title: map.lane.title })} title={t('customize.openShort')}>
+            <CoverArt look={look.cover} />
+          </button>
+        ) : (
+          files && (
+            <span className="w-map__cover w-map__cover--slot" aria-hidden="true">
+              <IconImage />
+            </span>
+          )
+        )}
         <div className="w-map__names">
           <div className="w-map__kicker">{t('map.kicker')}</div>
           <h2 id={`map-${laneId}`} className="w-map__title">
@@ -790,6 +812,10 @@ export function LaneMap({ data, laneId, blocked, onClose }: { data: Data; laneId
           <button type="button" className="nr-btn nr-btn--sm nr-btn--fantasma" onClick={organize} aria-label={t('map.organize')}>
             <IconOrganize />
             <span className="w-hide-sm">{t('map.organize')}</span>
+          </button>
+          <button type="button" className="nr-btn nr-btn--sm nr-btn--fantasma" onClick={(e) => personalize(undefined, e.currentTarget)} aria-label={t('customize.open', { title: map.lane.title })}>
+            <IconBrush />
+            <span className="w-hide-sm">{t('customize.openShort')}</span>
           </button>
         </div>
       </header>
@@ -833,7 +859,7 @@ export function LaneMap({ data, laneId, blocked, onClose }: { data: Data; laneId
                 node={{ key: GHOST, ref: { kind: 'note', id: GHOST }, x: ghost.x, y: ghost.y, ...ghost.style, placed: false, note: null, title: '' }}
                 x={ghost.x}
                 y={ghost.y}
-                cor={colorName(ghost.style.color ?? map.lane.color)}
+                cor={ghost.style.color ?? laneColor}
                 selected
                 target={false}
                 editing
@@ -858,7 +884,7 @@ export function LaneMap({ data, laneId, blocked, onClose }: { data: Data; laneId
             nodes={selNodes}
             edge={selEdge}
             rootKey={rootKey}
-            laneCor={laneCor}
+            laneCor={laneColor}
             labelEditing={!!selEdge && labelEdit === selEdge.id}
             onNodeStyle={(patch) => commitLayout(new Map(sel.nodes.map((k) => [k, patch])))}
             onEdgeStyle={(patch) => selEdge && updateLink(selEdge.id, { style: patch })}
@@ -928,6 +954,7 @@ const MapNodeView = memo(function MapNodeView({
   const ref = useRef<HTMLDivElement>(null);
   useLayoutEffect(() => observe(ref.current!), [observe]);
   const url = node.note?.url;
+  const paint = corProps(cor);
   return (
     <div
       ref={ref}
@@ -936,13 +963,13 @@ const MapNodeView = memo(function MapNodeView({
       data-shape={node.shape}
       data-fill={node.fill}
       data-size={node.size}
-      data-cor={cor}
+      data-cor={paint['data-cor']}
       data-root={node.ref.kind === 'lane' || undefined}
       data-selected={selected || undefined}
       data-target={target || undefined}
       data-done={node.note?.doneAt ? true : undefined}
       data-editing={editing || undefined}
-      style={{ left: x, top: y }}
+      style={{ ...paint.style, left: x, top: y }}
     >
       {editing && onEdited ? <TitleEditor initial={node.title} label={label} onDone={onEdited} /> : <span className="w-map__text">{node.title}</span>}
       {url && !editing && (
@@ -1012,7 +1039,7 @@ const MapEdges = memo(function MapEdges({ edges, boxes, colors, selected, extra 
         if (!A || !B) return null;
         const { d, heads, mid } = buildPath(geometry(A, B, e.style.route), e.style.arrow, e.style.width);
         return (
-          <g key={e.id} className="w-map__edge" data-edge={e.id} data-cor={colorName(e.style.color) ?? colors.get(e.to)} data-selected={selected === e.id || undefined}>
+          <g key={e.id} className="w-map__edge" data-edge={e.id} {...corProps(e.style.color ?? colors.get(e.to))} data-selected={selected === e.id || undefined}>
             <path className="w-map__hit" d={d} />
             <path className="w-map__line" d={d} strokeWidth={e.style.width} strokeDasharray={dashArray(e.style.dash, e.style.width)} strokeLinecap={e.style.dash === 'dashed' ? 'butt' : 'round'} />
             {heads.map((h, i) => (
@@ -1067,7 +1094,7 @@ function ColorGroup({ value, laneCor, onChange }: { value: string | null | undef
   const name = value ? colorName(value) : undefined;
   return (
     <Group label={t('map.color')} radio>
-      <button type="button" role="radio" aria-checked={value === null} className="w-swatch w-swatch--auto" data-cor={laneCor} aria-label={t('map.auto')} title={t('map.auto')} onClick={() => onChange(null)}>
+      <button type="button" role="radio" aria-checked={value === null} className="w-swatch w-swatch--auto" {...corProps(laneCor)} aria-label={t('map.auto')} title={t('map.auto')} onClick={() => onChange(null)}>
         A
       </button>
       {PALETTE.map((c) => (

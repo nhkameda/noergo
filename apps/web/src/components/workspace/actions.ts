@@ -1,4 +1,4 @@
-import type { NoteDto } from '@noergo/core/dto';
+import type { LaneCover, NoteDto } from '@noergo/core/dto';
 import { newId } from '@noergo/core/ids';
 import type { Op } from '@noergo/core/ops/schema';
 import { between } from '@noergo/core/position';
@@ -69,6 +69,17 @@ export class Actions {
     if (!cur) return;
     const before = { ...(patch.title !== undefined ? { title: cur.title } : {}), ...(patch.color !== undefined ? { color: cur.color } : {}) };
     this.store.dispatch({ type: 'lane.update', id, ...patch }, { undo: [{ type: 'lane.update', id, ...before }] });
+  }
+
+  /**
+   * A column's cover (null removes it), and with it, when given, a colour: dropping a logo
+   * on a column without one paints the column in the logo's colour, in one undo step.
+   */
+  setCover(id: string, cover: LaneCover | null, color?: string | null) {
+    const cur = this.data?.lanes.get(id);
+    if (!cur) return;
+    const paint = color !== undefined && color !== cur.color ? { color } : {};
+    this.store.dispatch({ type: 'lane.update', id, cover, ...paint }, { undo: [{ type: 'lane.update', id, cover: cur.cover ?? null, ...('color' in paint ? { color: cur.color } : {}) }] });
   }
 
   deleteLane(id: string) {
