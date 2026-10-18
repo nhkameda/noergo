@@ -98,6 +98,15 @@
       "region": "Colunas em cards",
       "open": "{title}, {count, plural, one {# nota} other {# notas}}, card {position} de {total}. Abre a coluna; Alt + setas movem o card."
     },
+    "zoom": {
+      "summary": "{lanes, plural, one {# coluna} other {# colunas}} · {notes, plural, one {# nota} other {# notas}}",
+      "columns": "Tamanho das colunas",
+      "cards": "Tamanho dos cards",
+      "map": "Zoom do mapa",
+      "perRow": "{count, plural, one {# card por linha} other {# cards por linha}}",
+      "smaller": "Menor",
+      "larger": "Maior"
+    },
     "customize": {
       "menu": "Personalizar capa e cor…",
       "open": "Personalizar “{title}”",
