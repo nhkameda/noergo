@@ -29,6 +29,8 @@ you can derive; these you cannot. Break one only with a reason written in the co
   and in commit order, which the live stream relies on (a client reading `seq > n` must
   never skip a change that commits later). Do not move the lock after `applyOp`.
 - An op that changes nothing consumes no seq and writes no change row.
+  jsonb returns its keys in its own order: compare stored objects (a cover's frame) field
+  by field, or every save looks like a change.
 - Agents never hard-delete. Delete is the trash (30 days); a revision is cut before every
   agent write to a note.
 
@@ -49,6 +51,13 @@ you can derive; these you cannot. Break one only with a reason written in the co
   `form-action 'self'` blocks the cross-origin redirect to the agent after a form submit.
 - Uva (`--nr-uva-*`) is reserved for agents (their avatars, their changes in the activity
   feed). People never get it.
+  The palette people pick from leaves uva out. The free colour picker of a column takes any
+  hex, purple too: that is someone's brand colour on their own column, not the uva token.
+- Images are decoded and re-encoded by the server (`lib/image.ts`, sharp) before they are
+  stored; nothing a person uploads is served as sent. Column covers live in PostgreSQL
+  (`attachments.content`, at most 2 MB) for now, so backups carry them.
+- A component file must not differ from a module only in case (`Cover.tsx` next to
+  `cover.ts`): macOS resolves both to one file and the build breaks only there.
 
 ## Sign-in (apps/web/src/auth.ts, packages/core/src/identity.ts)
 - Auth.js does the OAuth dance only. It has no adapter and no tables. Accounts, links and the
