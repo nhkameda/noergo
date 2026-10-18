@@ -21,3 +21,9 @@ export function signInPolicy(): SignInPolicy {
   const adminEmails = list(process.env.NOERGO_ADMIN_EMAILS);
   return { signup: mode, allowlist: [...list(process.env.SIGNUP_ALLOWLIST), ...adminEmails], adminEmails };
 }
+
+/**
+ * Where the source code of this instance is (AGPL-3.0 §13: people using it over the
+ * network may get it). Point it at your fork if you run a modified version.
+ */
+export const SOURCE_URL = process.env.NOERGO_SOURCE_URL || 'https://github.com/nhkameda/noergo';

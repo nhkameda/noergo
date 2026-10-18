@@ -5,6 +5,7 @@ All configuration is environment variables. `docker/.env.example` lists them wit
 | Variable | Default | |
 |---|---|---|
 | `NOERGO_PUBLIC_URL` | — | Public URL of the instance, `https://…`, no trailing slash. |
+| `NOERGO_SOURCE_URL` | `https://github.com/nhkameda/noergo` | Where the app's "Source code" link points. The AGPL requires it to lead to the code you actually run: set it to your fork if you changed anything. |
 | `DATABASE_URL` | — | Runtime role (`noergo_app`, subject to row-level security). Set by the compose file. |
 | `DATABASE_JOBS_URL` | — | Worker only (`noergo_jobs`). |
 | `DATABASE_MIGRATOR_URL` | — | `migrate` only (`noergo_migrator`, owner of the schema). |

@@ -11,17 +11,25 @@
     "typecheck": "next typegen && tsc -p tsconfig.json"
   },
   "dependencies": {
+    "@atlaskit/pragmatic-drag-and-drop": "^4.0.0",
+    "@atlaskit/pragmatic-drag-and-drop-auto-scroll": "^3.2.1",
+    "@atlaskit/pragmatic-drag-and-drop-hitbox": "^3.0.0",
     "@noergo/core": "*",
     "@noergo/i18n": "*",
     "@noergo/ui": "*",
+    "diff-match-patch": "^1.0.5",
+    "idb-keyval": "^6.3.0",
     "next": "16.4.2",
     "next-auth": "5.0.0-beta.32",
     "next-intl": "^4.14.9",
     "react": "^19.3.1",
     "react-dom": "^19.3.1",
+    "react-markdown": "^10.1.0",
+    "remark-gfm": "^4.0.1",
     "zod": "^4.6.7"
   },
   "devDependencies": {
+    "@types/diff-match-patch": "^1.0.36",
     "@types/react": "^19.2.0",
     "@types/react-dom": "^19.2.0"
   }

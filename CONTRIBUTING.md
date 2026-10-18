@@ -38,6 +38,12 @@ runs only the pure tests, for a quick loop on code that does not touch the datab
 CI ignores it. A skipped test is not a passing test: run the full suite before you
 submit anything that touches `packages/core`.
 
+`npm run e2e` runs the browser tests (Playwright, `e2e/`) against `next dev` and the
+`db:dev` database. Sign-in goes through `e2e/idp.ts`, a throwaway OpenID Connect
+provider on `127.0.0.1:9311` that signs in whoever asks, with no screen; it exists only
+for the tests. Each test signs in a new person, so it starts from the welcome board.
+The first run needs a browser: `npx playwright install --only-shell chromium`.
+
 ## Sign your commits off (DCO)
 
 Every commit must carry a `Signed-off-by` line, added by `git commit -s`:

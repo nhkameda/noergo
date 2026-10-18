@@ -1,0 +1,429 @@
+'use client';
+
+import { LIMITS } from '@noergo/core/limits';
+import { useTranslations } from 'next-intl';
+import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore, type RefObject } from 'react';
+import { Actions } from './actions';
+import { Board } from './Board';
+import { CommandPalette } from './CommandPalette';
+import { isComposing, isEditable, useWorkspace, WorkspaceContext, type WorkspaceApi } from './context';
+import { DueList } from './DueList';
+import { IconCheck, IconClock, IconPlus, IconRedo, IconSearch, IconUndo, IconUser } from './icons';
+import { isIdeario, planIdeario } from './import-ideario';
+import { boardsOf, captureLane, colorName, locate, type Data } from './model';
+import { NoteDrawer } from './NoteDrawer';
+import { focusNote } from './NoteCard';
+import { WorkspaceStore, type WorkspaceState } from './store';
+import { InlineEdit, Menu, Swatches } from './ui';
+import './workspace.css';
+
+const MAX_IMPORT_BYTES = 200 * 1024 * 1024;
+const boardKey = (userId: string) => `noergo:board:${userId}`;
+
+function readStoredBoard(userId: string): string | null {
+  try {
+    return localStorage.getItem(boardKey(userId));
+  } catch {
+    return null;
+  }
+}
+
+/** The signed-in workspace: boards, the capture bar, the open note and search. */
+export function Workspace({ userId, signInHref, homeHref, sourceUrl, signOut }: { userId: string; signInHref: string; homeHref: string; sourceUrl: string; signOut: () => Promise<void> }) {
+  const t = useTranslations('app');
+  const [store] = useState(() => new WorkspaceStore(userId, () => window.location.assign(signInHref)));
+  const [actions] = useState(() => new Actions(store));
+  const state: WorkspaceState = useSyncExternalStore(store.subscribe, store.getState, store.getState);
+  const { data } = state;
+
+  const [chosenBoard, setChosenBoard] = useState<string | null>(null);
+  const [openId, setOpenId] = useState<string | null>(null);
+  const [palette, setPalette] = useState(false);
+  const [view, setView] = useState<'board' | 'due'>('board');
+  const [hideDone, setHideDone] = useState(false);
+  const [creatingBoard, setCreatingBoard] = useState(false);
+  const [renamingBoard, setRenamingBoard] = useState(false);
+  const [announcement, setAnnouncement] = useState('');
+  const capture = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    store.start();
+    return () => store.stop();
+  }, [store]);
+
+  const boards = useMemo(() => (data ? boardsOf(data.boards) : []), [data]);
+  const wanted = data ? (chosenBoard ?? readStoredBoard(userId)) : null;
+  const boardId = boards.find((b) => b.id === wanted)?.id ?? boards[0]?.id ?? null;
+  const board = boardId ? data?.boards.get(boardId) : undefined;
+
+  const showBoard = useCallback(
+    (id: string) => {
+      setChosenBoard(id);
+      setView('board');
+      try {
+        localStorage.setItem(boardKey(userId), id);
+      } catch {
+        // storage disabled: the choice lasts for this page only
+      }
+    },
+    [userId],
+  );
+
+  const openNote = useCallback(
+    (id: string) => {
+      const where = store.getState().data && locate(store.getState().data!, id);
+      if (!where) return;
+      showBoard(where.board.id);
+      setOpenId(id);
+      requestAnimationFrame(() => document.querySelector(`[data-note-id="${CSS.escape(id)}"]`)?.scrollIntoView({ block: 'nearest', inline: 'nearest' }));
+    },
+    [store, showBoard],
+  );
+
+  const announce = useCallback((text: string) => {
+    setAnnouncement('');
+    requestAnimationFrame(() => setAnnouncement(text));
+  }, []);
+
+  const api = useMemo<WorkspaceApi>(() => ({ store, actions, openNote, showBoard, announce }), [store, actions, openNote, showBoard, announce]);
+
+  const closeNote = useCallback(() => {
+    if (openId) focusNote(openId);
+    setOpenId(null);
+  }, [openId]);
+
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      const mod = e.metaKey || e.ctrlKey;
+      const key = e.key.toLowerCase();
+      if (mod && key === 'k') {
+        e.preventDefault();
+        setPalette(true);
+        return;
+      }
+      if (isEditable(e.target) || e.defaultPrevented) return;
+      if (mod && key === 'z') {
+        e.preventDefault();
+        if (e.shiftKey) store.redo();
+        else store.undo();
+      } else if (mod && key === 'y') {
+        e.preventDefault();
+        store.redo();
+      } else if (!mod && !e.altKey && e.key === '/') {
+        e.preventDefault();
+        setPalette(true);
+      } else if (!mod && !e.altKey && key === 'n') {
+        e.preventDefault();
+        capture.current?.focus();
+      }
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [store]);
+
+  const openNoteVisible = openId && data && locate(data, openId) ? openId : null;
+
+  return (
+    <WorkspaceContext.Provider value={api}>
+      <div className={`w-app${openNoteVisible ? ' w-app--drawer' : ''}`}>
+        <header className="w-top">
+          <a className="w-logo" href={homeHref} aria-label="noergo">
+            <img src="/favicon.svg" alt="" width={28} height={28} />
+          </a>
+          <nav className="w-boards" aria-label={t('boards')}>
+            {boards.map((b) =>
+              b.id === boardId && renamingBoard ? (
+                <InlineEdit
+                  key={b.id}
+                  value={b.title}
+                  label={t('boardName')}
+                  maxLength={LIMITS.boardTitle}
+                  onSave={(title) => {
+                    actions.updateBoard(b.id, { title });
+                    setRenamingBoard(false);
+                  }}
+                  onCancel={() => setRenamingBoard(false)}
+                />
+              ) : (
+                <button
+                  key={b.id}
+                  type="button"
+                  className="w-board-tab"
+                  data-cor={colorName(b.color)}
+                  aria-current={b.id === boardId && view === 'board' ? 'page' : undefined}
+                  onClick={() => showBoard(b.id)}
+                  onDoubleClick={() => b.id === boardId && setRenamingBoard(true)}
+                >
+                  {b.title}
+                </button>
+              ),
+            )}
+            {creatingBoard ? (
+              <InlineEdit
+                value=""
+                label={t('boardName')}
+                placeholder={t('boardName')}
+                maxLength={LIMITS.boardTitle}
+                onSave={(title) => {
+                  const id = actions.createBoard(title);
+                  if (id) showBoard(id);
+                  setCreatingBoard(false);
+                }}
+                onCancel={() => setCreatingBoard(false)}
+              />
+            ) : (
+              data && (
+                <button type="button" className="w-icon-btn" aria-label={t('newBoard')} title={t('newBoard')} onClick={() => setCreatingBoard(true)}>
+                  <IconPlus />
+                </button>
+              )
+            )}
+            {board && (
+              <Menu label={t('boardMenu', { title: board.title })}>
+                {(close) => (
+                  <>
+                    <button type="button" className="w-menu__item" onClick={() => { close(); setRenamingBoard(true); }}>
+                      {t('rename')}
+                    </button>
+                    <div className="w-menu__label">{t('color')}</div>
+                    <Swatches value={board.color} label={t('color')} onChange={(color) => actions.updateBoard(board.id, { color })} />
+                    <button type="button" className="w-menu__item w-menu__item--danger" onClick={() => { close(); actions.deleteBoard(board.id); }}>
+                      {t('deleteBoard')}
+                    </button>
+                  </>
+                )}
+              </Menu>
+            )}
+          </nav>
+
+          <div className="w-top__tools">
+            <div className="nr-visoes" role="group" aria-label={t('viewLabel')}>
+              <button type="button" aria-pressed={view === 'board'} onClick={() => setView('board')}>
+                {t('viewBoard')}
+              </button>
+              <button type="button" aria-pressed={view === 'due'} onClick={() => setView('due')}>
+                <IconClock />
+                {t('due')}
+              </button>
+            </div>
+            <button type="button" className="w-icon-btn w-hide-sm" aria-pressed={hideDone} aria-label={hideDone ? t('showDone') : t('hideDone')} title={hideDone ? t('showDone') : t('hideDone')} onClick={() => setHideDone(!hideDone)}>
+              <span className={`w-check w-check--sm${hideDone ? '' : ' w-check--on'}`} aria-hidden="true">
+                {!hideDone && <IconCheck />}
+              </span>
+            </button>
+            <button type="button" className="w-icon-btn w-hide-sm" aria-label={t('undo')} title={`${t('undo')} (⌘Z)`} disabled={!state.canUndo} onClick={() => store.undo()}>
+              <IconUndo />
+            </button>
+            <button type="button" className="w-icon-btn w-hide-sm" aria-label={t('redo')} title={`${t('redo')} (⇧⌘Z)`} disabled={!state.canRedo} onClick={() => store.redo()}>
+              <IconRedo />
+            </button>
+            <button type="button" className="nr-btn nr-btn--sm nr-btn--fantasma w-search-btn" onClick={() => setPalette(true)} aria-label={t('search')} aria-keyshortcuts="Meta+K Control+K">
+              <IconSearch />
+              <span className="w-hide-sm">{t('search')}</span>
+              <kbd className="nr-kbd w-hide-sm">⌘K</kbd>
+            </button>
+            <Status state={state} />
+            <AccountMenu store={store} data={data} sourceUrl={sourceUrl} signOut={signOut} onImported={showBoard} />
+          </div>
+        </header>
+
+        {data && <Capture data={data} boardId={boardId} inputRef={capture} />}
+
+        <main className="w-main" id="main">
+          {!data ? (
+            <div className="nr-vazio" role="status">
+              <span>{state.connection === 'offline' ? t('offline') : t('loading')}</span>
+            </div>
+          ) : view === 'due' ? (
+            <DueList data={data} />
+          ) : boardId ? (
+            <Board data={data} boardId={boardId} hideDone={hideDone} />
+          ) : (
+            <div className="nr-vazio">
+              <strong>{t('emptyBoards')}</strong>
+              <span>{t('emptyBoardsHint')}</span>
+              <button type="button" className="nr-btn nr-btn--primario" onClick={() => setCreatingBoard(true)}>
+                <IconPlus />
+                {t('newBoard')}
+              </button>
+            </div>
+          )}
+        </main>
+
+        {openNoteVisible && data && <NoteDrawer data={data} noteId={openNoteVisible} onClose={closeNote} />}
+        {palette && data && <CommandPalette data={data} onClose={() => setPalette(false)} />}
+        <Notices state={state} store={store} />
+
+        <p id="w-card-help" className="w-sr">
+          {t('a11y.keyboardHelp')}
+        </p>
+        <div className="w-sr" role="status" aria-live="polite">
+          {announcement}
+        </div>
+      </div>
+    </WorkspaceContext.Provider>
+  );
+}
+
+function Status({ state }: { state: WorkspaceState }) {
+  const t = useTranslations('app');
+  const { connection, unsynced } = state;
+  const label = connection === 'offline' ? t('offline') : connection === 'connecting' ? t('reconnecting') : connection === 'loading' ? t('loading') : unsynced > 0 ? t('saving', { count: unsynced }) : t('live');
+  const tone = connection === 'offline' ? 'off' : connection === 'live' && unsynced === 0 ? 'on' : 'wait';
+  return (
+    <span className="w-status" data-tone={tone} role="status" title={label}>
+      <span className="w-status__dot" aria-hidden="true" />
+      <span className="w-status__text">{label}</span>
+    </span>
+  );
+}
+
+/** The capture bar: one line, Enter, and it is in the inbox column (where agents write too). */
+function Capture({ data, boardId, inputRef }: { data: Data; boardId: string | null; inputRef: RefObject<HTMLInputElement | null> }) {
+  const t = useTranslations('app');
+  const { actions, store } = useWorkspace();
+  const [text, setText] = useState('');
+  const lane = captureLane(data, boardId);
+  const submit = () => {
+    if (!lane || !text.trim()) return;
+    if (actions.createNote(lane.id, text, 'top')) {
+      setText('');
+      if (lane.boardId !== boardId) store.notify({ tone: 'info', key: 'captured', values: { column: lane.title } });
+    }
+  };
+  return (
+    <form
+      className="w-capture"
+      onSubmit={(e) => {
+        e.preventDefault();
+        submit();
+      }}
+    >
+      <label className="nr-captura w-capture__bar">
+        <span className="nr-captura__faisca" aria-hidden="true" />
+        <span className="w-sr">{t('captureLabel')}</span>
+        <input
+          ref={inputRef}
+          value={text}
+          maxLength={LIMITS.noteBody}
+          disabled={!lane}
+          placeholder={lane ? t('capture', { column: lane.title }) : t('captureNoColumn')}
+          onChange={(e) => setText(e.target.value)}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter' && !isComposing(e)) {
+              e.preventDefault();
+              submit();
+            } else if (e.key === 'Escape') {
+              e.currentTarget.blur();
+            }
+          }}
+        />
+        <kbd className="nr-kbd w-hide-sm">N</kbd>
+      </label>
+    </form>
+  );
+}
+
+function Notices({ state, store }: { state: WorkspaceState; store: WorkspaceStore }) {
+  const t = useTranslations('app');
+  return (
+    <div className="w-notices" aria-live="polite">
+      {state.notices.map((n) => (
+        <div key={n.id} className="nr-aviso w-notice" data-tone={n.tone}>
+          <span className="nr-aviso__ponto" aria-hidden="true" />
+          <span>{t(`notices.${n.key}`, n.values)}</span>
+          {n.undo && (
+            <button
+              type="button"
+              onClick={() => {
+                n.undo?.();
+                store.dismiss(n.id);
+              }}
+            >
+              {t('undo')}
+            </button>
+          )}
+          <button type="button" aria-label={t('close')} onClick={() => store.dismiss(n.id)}>
+            ×
+          </button>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function AccountMenu({ store, data, sourceUrl, signOut, onImported }: { store: WorkspaceStore; data: Data | null; sourceUrl: string; signOut: () => Promise<void>; onImported: (boardId: string) => void }) {
+  const t = useTranslations('app');
+  const tNav = useTranslations('nav');
+  const file = useRef<HTMLInputElement>(null);
+
+  const importFile = async (f: File) => {
+    if (!data) return;
+    if (f.size > MAX_IMPORT_BYTES) return store.notify({ tone: 'error', key: 'importFailed' });
+    let json: unknown;
+    try {
+      json = JSON.parse(await f.text());
+    } catch {
+      return store.notify({ tone: 'error', key: 'importFailed' });
+    }
+    if (!isIdeario(json)) return store.notify({ tone: 'error', key: 'importFailed' });
+    const last = boardsOf(data.boards).at(-1);
+    const plan = planIdeario(
+      json,
+      { boardTitle: t('importBoardTitle'), untitledColumn: t('untitledColumn'), attachment: (name) => t('notices.attachmentPlaceholder', { name }) },
+      last?.position ?? null,
+    );
+    store.dispatch(plan.ops);
+    const first = plan.ops[0];
+    if (first?.type === 'board.create') onImported(first.id);
+    store.notify({ tone: 'info', key: 'imported', values: { columns: plan.columns, notes: plan.notes } });
+    if (plan.skippedFiles) store.notify({ tone: 'info', key: 'importFiles', values: { count: plan.skippedFiles } });
+  };
+
+  return (
+    <>
+      <Menu label={t('account')} icon={<IconUser />}>
+        {(close) => (
+          <>
+            <button
+              type="button"
+              className="w-menu__item"
+              disabled={!data}
+              onClick={() => {
+                close();
+                file.current?.click();
+              }}
+            >
+              {t('import')}
+            </button>
+            <a className="w-menu__item" href={sourceUrl} target="_blank" rel="noopener noreferrer">
+              {tNav('sourceCode')}
+            </a>
+            <form
+              action={async () => {
+                store.stop();
+                await store.clearCache();
+                await signOut();
+              }}
+            >
+              <button type="submit" className="w-menu__item">
+                {tNav('signOut')}
+              </button>
+            </form>
+          </>
+        )}
+      </Menu>
+      <input
+        ref={file}
+        type="file"
+        accept="application/json,.json"
+        hidden
+        onChange={(e) => {
+          const f = e.target.files?.[0];
+          e.target.value = '';
+          if (f) void importFile(f);
+        }}
+      />
+    </>
+  );
+}

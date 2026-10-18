@@ -25,7 +25,7 @@ export default async function LocaleLayout({ children, params }: { children: Rea
   await cspNonce();
   return (
     <html lang={locale}>
-      <body>
+      <body className="nr-base">
         <NextIntlClientProvider>{children}</NextIntlClientProvider>
       </body>
     </html>
