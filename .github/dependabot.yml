@@ -8,6 +8,13 @@ updates:
     groups:
       minor-and-patch:
         update-types: [minor, patch]
+    ignore:
+      # The runtime is Node 22 LTS (.nvmrc, Dockerfile); its types follow the runtime.
+      - dependency-name: "@types/node"
+        update-types: ["version-update:semver-major"]
+      # TypeScript 7 is the native compiler: moving to it is a project, not a bump.
+      - dependency-name: typescript
+        update-types: ["version-update:semver-major"]
   - package-ecosystem: github-actions
     directory: /
     schedule:
@@ -16,3 +23,7 @@ updates:
     directory: /docker
     schedule:
       interval: weekly
+    ignore:
+      # Node majors move together with the runtime of the servers, not on their own.
+      - dependency-name: node
+        update-types: ["version-update:semver-major"]
