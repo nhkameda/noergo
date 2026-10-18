@@ -19,6 +19,14 @@ export const LIMITS = {
   excerpt: 280,
   searchResults: 50,
   fileBytes: 50 * 1024 * 1024,
+  /** An image as sent (a screenshot), before it is decoded and re-encoded. */
+  imageUploadBytes: 12 * 1024 * 1024,
+  /** Decoding stops above this many pixels (decompression bombs). */
+  imagePixels: 50_000_000,
+  /** The long side of a stored image; a cover is drawn at most ~600 px wide. */
+  imageSide: 1600,
+  /** A stored image, after re-encoding (the database CHECK says the same). */
+  imageStoredBytes: 2 * 1024 * 1024,
   /** How long the change log is kept: SSE resume window and activity feed. */
   changesResumeDays: 7,
   changesRetentionDays: 90,

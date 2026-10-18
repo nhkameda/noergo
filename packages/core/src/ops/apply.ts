@@ -1,6 +1,6 @@
 import { diff_match_patch } from 'diff-match-patch';
 import { sql, type Tx } from '../db';
-import type { ActorKind, Lane, Note } from '../db/types';
+import type { ActorKind, CoverFrame, Lane, Note } from '../db/types';
 import {
   boardDto,
   laneDto,
@@ -12,7 +12,7 @@ import {
 import { DomainError, notFound } from '../errors';
 import { LIMITS } from '../limits';
 import { between } from '../position';
-import type { NodeRef, Op, Placement } from './schema';
+import type { CoverInput, NodeRef, Op, Placement } from './schema';
 import { propagateRename, resolvePending, syncWikilinks } from './wikilinks';
 
 export interface OpCtx {
@@ -105,6 +105,29 @@ async function loadLane(tx: Tx, ctx: OpCtx, id: string, opts: { deleted?: boolea
   if (!row) throw notFound('column');
   return row;
 }
+
+/**
+ * The stored framing of a cover. The image must be a ready image of this workspace; its
+ * size comes from the file, whatever the client sent.
+ */
+async function coverFrame(tx: Tx, ctx: OpCtx, c: NonNullable<CoverInput>): Promise<CoverFrame> {
+  const file = await tx
+    .selectFrom('attachments')
+    .select(['width', 'height'])
+    .where('id', '=', c.fileId)
+    .where('workspace_id', '=', ctx.workspaceId)
+    .where('status', '=', 'ready')
+    .where('deleted_at', 'is', null)
+    .where('mime', 'like', 'image/%')
+    .executeTakeFirst();
+  if (!file?.width || !file.height) throw notFound('image');
+  const r = (n: number) => Math.round(n * 10_000) / 10_000;
+  return { x: r(c.x), y: r(c.y), z: r(c.z), w: file.width, h: file.height, bg: c.bg };
+}
+
+/** jsonb keeps its own key order, so frames compare by field. */
+const sameFrame = (a: CoverFrame | null, b: CoverFrame | null) =>
+  a === b || (!!a && !!b && a.x === b.x && a.y === b.y && a.z === b.z && a.w === b.w && a.h === b.h && a.bg === b.bg);
 
 async function loadNote(tx: Tx, ctx: OpCtx, id: string, opts: { deleted?: boolean } = {}): Promise<Note> {
   let q = tx.selectFrom('notes').selectAll().where('id', '=', id).where('workspace_id', '=', ctx.workspaceId);
@@ -263,8 +286,15 @@ export async function applyOp(tx: Tx, ctx: OpCtx, op: Op): Promise<Applied> {
     case 'lane.update': {
       const cur = await loadLane(tx, ctx, op.id);
       const patch = { ...(op.title !== undefined ? { title: op.title } : {}), ...(op.color !== undefined ? { color: op.color } : {}) };
-      if (!Object.keys(patch).length || Object.entries(patch).every(([k, v]) => cur[k as keyof Lane] === v)) return noop('lane', cur.id, cur.version);
-      const row = await tx.updateTable('lanes').set({ ...patch, ...stamp(ctx), version: cur.version + 1 }).where('id', '=', cur.id).where('workspace_id', '=', ws).returningAll().executeTakeFirstOrThrow();
+      const changed = Object.entries(patch).some(([k, v]) => cur[k as keyof Lane] !== v);
+      let cover: { cover_id: string | null; cover: string | null } | null = null;
+      if (op.cover !== undefined) {
+        const frame = op.cover ? await coverFrame(tx, ctx, op.cover) : null;
+        const same = (op.cover?.fileId ?? null) === cur.cover_id && sameFrame(frame, cur.cover);
+        if (!same) cover = { cover_id: op.cover?.fileId ?? null, cover: frame ? JSON.stringify(frame) : null };
+      }
+      if (!changed && !cover) return noop('lane', cur.id, cur.version);
+      const row = await tx.updateTable('lanes').set({ ...patch, ...cover, ...stamp(ctx), version: cur.version + 1 }).where('id', '=', cur.id).where('workspace_id', '=', ws).returningAll().executeTakeFirstOrThrow();
       return single('lane', laneDto(cur), laneDto(row), row.version);
     }
     case 'lane.move': {

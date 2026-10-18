@@ -3,6 +3,7 @@ import { sql, withWorkspace } from '../src/db';
 import { newId } from '../src/ids';
 import { executeOps, type OpOutcome } from '../src/ops/execute';
 import type { Op } from '../src/ops/schema';
+import { readFile, storeImage } from '../src/files';
 import { changesSince, getNote, search, snapshot } from '../src/read';
 import { closePools, newAccount, pools, testDb } from './fixtures';
 
@@ -240,6 +241,48 @@ describe.skipIf(!testDb)('database', () => {
       expect((await search(a.workspaceId, 'orcamento', {}, pools().app)).map((h) => h.title)).toContain('Plano de ação');
       expect((await search(a.workspaceId, '发布', {}, pools().app)).map((h) => h.title)).toEqual(['会议记录']);
       expect(await search(a.workspaceId, '%', {}, pools().app)).toEqual([]);
+    });
+  });
+
+  describe('column covers', () => {
+    const png = (n: number) => ({ bytes: new Uint8Array([137, 80, 78, 71, n, n, n]), mime: 'image/png' as const, width: 300, height: 100 });
+
+    it('stores an image once, charges the quota once and refuses past it', async () => {
+      const a = await newAccount();
+      const first = await storeImage(a.ctx, png(1), pools().app);
+      const again = await storeImage(a.ctx, png(1), pools().app);
+      expect(again.id).toBe(first.id);
+      const used = () => pools().jobs.selectFrom('workspaces').select('storage_bytes').where('id', '=', a.workspaceId).executeTakeFirstOrThrow();
+      expect(Number((await used()).storage_bytes)).toBe(7);
+      await pools().jobs.updateTable('workspaces').set({ storage_quota_bytes: 10 }).where('id', '=', a.workspaceId).execute();
+      await expect(storeImage(a.ctx, png(2), pools().app)).rejects.toMatchObject({ code: 'limit_reached' });
+      expect(Number((await used()).storage_bytes)).toBe(7);
+      expect((await readFile(a.workspaceId, first.id, pools().app)).bytes.byteLength).toBe(7);
+    });
+
+    it('frames a cover with the size of the stored file, and only with an own image', async () => {
+      const a = await newAccount();
+      const b = await newAccount();
+      const lane = (await snapshot(a.workspaceId, pools().app)).lanes[0]!;
+      const mine = await storeImage(a.ctx, png(3), pools().app);
+      const theirs = await storeImage(b.ctx, png(4), pools().app);
+      const frame = { x: 0.5, y: 0.5, z: 1.25, w: 9999, h: 1, bg: '#ffffff' };
+      const [set] = await run(a.ctx, { type: 'lane.update', id: lane.id, cover: { fileId: mine.id, ...frame } });
+      const after = applied(set).effects[0]!;
+      expect(after.kind === 'lane' && after.data.cover).toEqual({ fileId: mine.id, x: 0.5, y: 0.5, z: 1.25, w: 300, h: 100, bg: '#ffffff' });
+      // The same framing again changes nothing and takes no seq.
+      const seq = (await snapshot(a.workspaceId, pools().app)).seq;
+      const [same] = await run(a.ctx, { type: 'lane.update', id: lane.id, cover: { fileId: mine.id, ...frame } });
+      expect(applied(same).result).toMatchObject({ unchanged: true });
+      expect((await snapshot(a.workspaceId, pools().app)).seq).toBe(seq);
+      // Another workspace's image is not found, and so is its file.
+      const [foreign] = await run(a.ctx, { type: 'lane.update', id: lane.id, cover: { fileId: theirs.id, ...frame } });
+      expect(foreign!.status !== 'applied' && foreign!.error.code).toBe('not_found');
+      await expect(readFile(a.workspaceId, theirs.id, pools().app)).rejects.toMatchObject({ code: 'not_found' });
+      await expect(readFile(a.workspaceId, 'not-a-uuid', pools().app)).rejects.toMatchObject({ code: 'not_found' });
+      const [off] = await run(a.ctx, { type: 'lane.update', id: lane.id, cover: null });
+      const cleared = applied(off).effects[0]!;
+      expect(cleared.kind === 'lane' && cleared.data.cover).toBeNull();
     });
   });
 
