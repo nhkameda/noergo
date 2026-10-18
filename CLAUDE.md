@@ -49,6 +49,9 @@ you can derive; these you cannot. Break one only with a reason written in the co
   and a sign-in started on one host and finished on the other fails.
 - The OAuth consent page approves with `fetch` + `location`, not a form POST: CSP
   `form-action 'self'` blocks the cross-origin redirect to the agent after a form submit.
+- A lane is a **thought** on screen (pensamento, 想法), seen as columns, as cards or as a
+  mind map; the map's nodes are **ideas** (ideia, 点子). Code, ops and i18n keys keep
+  `lane`/`column` (`newColumn` reads "New thought"); the Columns view keeps its name.
 - Uva (`--nr-uva-*`) is reserved for agents (their avatars, their changes in the activity
   feed). People never get it.
   The palette people pick from leaves uva out. The free colour picker of a column takes any

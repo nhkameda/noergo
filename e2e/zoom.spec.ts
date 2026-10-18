@@ -17,7 +17,7 @@ async function pinch(page: Page, over: { x: number; y: number }, deltaY: number)
 test('cards: six a row, the slider and a pinch change how many, and the choice stays', async ({ page }) => {
   await signIn(page, freshUser('rows'));
   await page.getByRole('button', { name: 'Cards' }).click();
-  await expect(foot(page)).toContainText('3 columns · ');
+  await expect(foot(page)).toContainText('3 thoughts · ');
   expect(await perRow(page)).toBe(6);
   const slider = foot(page).getByRole('slider', { name: 'Card size' });
   await expect(slider).toHaveAttribute('aria-valuetext', '6 cards per row');
@@ -58,7 +58,7 @@ test('columns: the slider and a pinch scale them; menus and drags still land whe
   expect(await width(page, 'Inbox')).toBeCloseTo(full * 0.8, 0);
 
   // A column's menu opens at full size, next to its button.
-  const more = lane(page, 'Doing').getByRole('button', { name: 'Column “Doing”: more actions' });
+  const more = lane(page, 'Doing').getByRole('button', { name: 'Thought “Doing”: more actions' });
   await more.click();
   const menu = page.locator('.w-menu:popover-open');
   await expect(menu).toBeVisible();
