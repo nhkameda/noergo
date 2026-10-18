@@ -98,6 +98,15 @@
       "region": "以卡片显示的列",
       "open": "{title}，{count, plural, other {# 条笔记}}，第 {position} 张，共 {total} 张。打开该列；Alt + 方向键移动。"
     },
+    "zoom": {
+      "summary": "{lanes} 列 · {notes} 条笔记",
+      "columns": "列的大小",
+      "cards": "卡片大小",
+      "map": "地图缩放",
+      "perRow": "每行 {count} 张卡片",
+      "smaller": "缩小",
+      "larger": "放大"
+    },
     "customize": {
       "menu": "自定义封面和颜色…",
       "open": "自定义“{title}”",

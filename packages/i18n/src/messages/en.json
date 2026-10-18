@@ -98,6 +98,15 @@
       "region": "Columns as cards",
       "open": "{title}, {count, plural, one {# note} other {# notes}}, card {position} of {total}. Opens the column; Alt + arrows move it."
     },
+    "zoom": {
+      "summary": "{lanes, plural, one {# column} other {# columns}} · {notes, plural, one {# note} other {# notes}}",
+      "columns": "Column size",
+      "cards": "Card size",
+      "map": "Map zoom",
+      "perRow": "{count, plural, one {# card per row} other {# cards per row}}",
+      "smaller": "Smaller",
+      "larger": "Larger"
+    },
     "customize": {
       "menu": "Customise cover and colour…",
       "open": "Customise “{title}”",
