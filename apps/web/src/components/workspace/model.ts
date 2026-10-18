@@ -283,9 +283,46 @@ function applyOptimistic(d: Draft, p: Pending): void {
       if (cur) d.write('notes').set(op.id, { ...cur, deletedAt: op.type === 'note.delete' ? t : null });
       return;
     }
-    // Links and layouts are drawn by the maps (phase F5); the confirmed effect suffices here.
-    default:
+    case 'link.create': {
+      if (d.get('links').has(op.id)) return;
+      d.write('links').set(op.id, { id: op.id, from: op.from, to: op.to, origin: 'manual', label: op.label ?? '', style: op.style ?? {}, version: 0, updatedBy: null, deletedAt: null });
       return;
+    }
+    case 'link.update': {
+      const cur = d.get('links').get(op.id);
+      if (cur) d.write('links').set(op.id, { ...cur, label: op.label ?? cur.label, style: op.style ? { ...cur.style, ...op.style } : cur.style });
+      return;
+    }
+    case 'link.delete':
+    case 'link.restore': {
+      const cur = d.get('links').get(op.id);
+      if (cur) d.write('links').set(op.id, { ...cur, deletedAt: op.type === 'link.delete' ? t : null });
+      return;
+    }
+    case 'layout.set': {
+      const map = d.write('layouts');
+      for (const n of op.nodes) {
+        const ref = { viewKind: op.viewKind, viewId: op.viewId, nodeKind: n.kind, nodeId: n.id };
+        const key = layoutKey(ref);
+        const cur = map.get(key);
+        map.set(key, {
+          ...ref,
+          x: n.x,
+          y: n.y,
+          shape: n.shape ?? cur?.shape ?? 'pill',
+          fill: n.fill ?? cur?.fill ?? 'soft',
+          size: n.size ?? cur?.size ?? 'm',
+          color: n.color !== undefined ? n.color : (cur?.color ?? null),
+          version: cur?.version ?? 0,
+        });
+      }
+      return;
+    }
+    case 'layout.remove': {
+      const map = d.write('layouts');
+      for (const n of op.nodes) map.delete(layoutKey({ viewKind: op.viewKind, viewId: op.viewId, nodeKind: n.kind, nodeId: n.id }));
+      return;
+    }
   }
 }
 
