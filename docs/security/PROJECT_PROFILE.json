@@ -1,0 +1,106 @@
+{
+  "project": {
+    "name": "noergo",
+    "version_or_commit": "0.1.0-dev (pre-initial-commit, 2026-10-18)",
+    "owners": {
+      "product": "maintainer",
+      "engineering": "maintainer",
+      "security": "maintainer",
+      "privacy": "maintainer"
+    }
+  },
+  "assurance_profile": "E",
+  "exposure": {
+    "public_internet": true,
+    "authenticated_users": true,
+    "administrative_interface": true,
+    "multi_tenant": true,
+    "api": true,
+    "webhooks": true,
+    "file_uploads": true,
+    "real_time_protocols": true,
+    "oauth_authorization_server": true,
+    "dynamic_client_registration": true,
+    "third_party_ai_agents_with_write_access": true,
+    "public_source_repository": true,
+    "self_hosted_distribution": true
+  },
+  "data": {
+    "personal_data": true,
+    "sensitive_personal_data": true,
+    "children_or_adolescents": false,
+    "authentication_secrets": true,
+    "payment_data": false,
+    "health_or_financial_high_impact": false,
+    "data_subjects_in_brazil": true,
+    "data_subjects_in_eu": true,
+    "data_subjects_in_china": true,
+    "free_form_user_content_may_contain_sensitive_data": true,
+    "identity_provider_tokens_stored": false,
+    "card_data_handled_by_payment_provider_only": true
+  },
+  "business_risk": {
+    "money_or_stored_value": false,
+    "abuse_or_fraud_incentive": true,
+    "material_availability_impact": false,
+    "automated_high_impact_decisions": false,
+    "recurring_subscription_payments": true,
+    "free_trial_with_card": true
+  },
+  "technology": {
+    "languages": ["TypeScript", "SQL"],
+    "runtimes": ["Node.js 22"],
+    "frameworks": [
+      "Next.js 16 (apps/web)",
+      "Auth.js v5 with JWT sessions revoked by per-user session_epoch",
+      "oidc-provider (OAuth 2.1 authorization server in apps/mcp)",
+      "Model Context Protocol server over Streamable HTTP (apps/mcp)",
+      "pg-boss job queue (apps/worker)",
+      "Kysely + pg (packages/core, the only database path)",
+      "zod (validation at every edge)",
+      "DOMPurify (markdown sanitization)"
+    ],
+    "clouds": [
+      "single VPS behind a CDN/WAF reverse proxy that terminates TLS",
+      "Cloudflare R2 object storage (S3 API)",
+      "Cloudflare DNS and proxy",
+      "GitHub Actions",
+      "GitHub Container Registry"
+    ],
+    "datastores": [
+      "PostgreSQL 18 with row-level security (ENABLE + FORCE) on content tables",
+      "Cloudflare R2 buckets for attachments (quarantine and served prefixes)",
+      "pgBackRest WAL archive / PITR and daily pg_dump backups"
+    ],
+    "identity_providers": [
+      "Google",
+      "Microsoft (multi-tenant and personal accounts)",
+      "generic OIDC via AUTH_OIDC_* (self-host, optional)",
+      "email one-time code via AUTH_EMAIL_CODE (self-host, optional; off on noergo.com)"
+    ],
+    "external_integrations": [
+      "Stripe Checkout, customer portal and webhooks",
+      "Cloudflare R2, DNS and proxy",
+      "GitHub repository, Actions and GHCR",
+      "MCP clients registered through Dynamic Client Registration (e.g. ChatGPT, Claude, Grok, Cursor)",
+      "personal API tokens (nrg_) for scripts and API clients"
+    ],
+    "tenancy_model": [
+      "one personal workspace per user; workspace_id is the tenant key",
+      "workspace_members roles owner/editor/viewer exist in the schema; sharing is not designed yet"
+    ],
+    "deployment": [
+      "one Docker image for web, mcp and worker, published to GHCR with SBOM and provenance attestation",
+      "non-root user, read-only root filesystem, cap_drop ALL",
+      "self-hosters run the same image with BILLING=off, STORAGE=s3|local, SIGNUP=open|allowlist"
+    ]
+  },
+  "environments_authorized_for_dynamic_tests": [],
+  "explicit_exclusions": [
+    "noergo.com production: passive checks only; no dynamic, load, credential, brute-force or social-engineering tests",
+    "Third-party services (Google, Microsoft, Stripe, Cloudflare, GitHub, MCP client vendors) are not test targets; only noergo's integration with them, using sandbox or test modes",
+    "Self-hosted instances not operated by the maintainer",
+    "Profile C controls (DAT-007, LOG-006, SUP-008) are not selected; selecting DAT-007 is an open decision recorded in THREAT_MODEL.md"
+  ],
+  "accepted_exceptions": []
+}

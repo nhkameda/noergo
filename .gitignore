@@ -1,0 +1,33 @@
+# Referência local — não versionar (protótipo, pacote de marca de trabalho, notas privadas)
+/prototipo/
+/logo/
+/_privado/
+
+# Dependências e builds
+node_modules/
+.next/
+dist/
+build/
+out/
+coverage/
+*.tsbuildinfo
+packages/core/src/generated/
+
+# Ambiente e segredos (nunca)
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+
+# Teste
+playwright-report/
+test-results/
+
+# Sistema
+.DS_Store
+*.log
+
+# Next.js generated
+next-env.d.ts
+*.tsbuildinfo

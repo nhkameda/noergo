@@ -1,0 +1,43 @@
+{
+  "meta": {
+    "title": "noergo — a visual memory for you and your AI agents",
+    "description": "Boards, mind maps and a knowledge graph in one place. ChatGPT, Claude and Grok read and organise it with you, live."
+  },
+  "nav": {
+    "app": "Open noergo",
+    "signIn": "Sign in",
+    "signOut": "Sign out",
+    "pricing": "Pricing",
+    "agents": "Agents",
+    "sourceCode": "Source code"
+  },
+  "auth": {
+    "title": "Sign in to noergo",
+    "google": "Continue with Google",
+    "microsoft": "Continue with Microsoft",
+    "free": "Free to use. No card needed.",
+    "or": "or",
+    "continueWith": "Continue with {name}",
+    "notConfigured": "No sign-in method is configured on this server. See docs/configuration.md.",
+    "errors": {
+      "account_not_linked": "This e-mail already has a noergo account. Sign in with the method you used the first time.",
+      "email_unverified": "Your provider did not confirm that this e-mail is yours. Try another account, or ask your organisation's administrator.",
+      "email_missing": "This account did not share an e-mail address. Use an account that has one.",
+      "signup_closed": "Sign-up on this server is by invitation. Ask its administrator to add your e-mail.",
+      "account_deleted": "This account was deleted.",
+      "cancelled": "Sign-in was cancelled.",
+      "unknown": "Sign-in failed. Please try again."
+    }
+  },
+  "app": {
+    "loading": "Loading your boards…",
+    "offline": "Offline — changes are saved on this device and sent when you reconnect.",
+    "reconnecting": "Reconnecting…",
+    "signedIn": "You are signed in. Your boards arrive in the next phase."
+  },
+  "footer": {
+    "openSource": "noergo is open source (AGPL-3.0).",
+    "terms": "Terms",
+    "privacy": "Privacy"
+  }
+}

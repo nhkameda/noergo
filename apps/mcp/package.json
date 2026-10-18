@@ -1,0 +1,22 @@
+{
+  "name": "@noergo/mcp",
+  "version": "0.1.0",
+  "private": true,
+  "license": "AGPL-3.0-only",
+  "type": "module",
+  "scripts": {
+    "dev": "tsx watch src/index.ts",
+    "build": "node ../../scripts/bundle.mjs src/index.ts dist/index.mjs",
+    "start": "node dist/index.mjs",
+    "typecheck": "tsc -p tsconfig.json"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.32.1",
+    "@noergo/core": "*",
+    "oidc-provider": "^9.12.2",
+    "zod": "^4.6.7"
+  },
+  "devDependencies": {
+    "@types/oidc-provider": "^9.5.0"
+  }
+}

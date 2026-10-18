@@ -1,0 +1,93 @@
+# noergo — self-hosting with Docker Compose. Read docs/self-hosting.md first.
+#
+#   cp docker/.env.example docker/.env      # then fill it in
+#   docker compose -f docker/compose.yml --env-file docker/.env up -d
+#
+# Add `--profile caddy` to also run Caddy as the HTTPS reverse proxy (automatic
+# certificates). Without it, point your own proxy at web (3041) and mcp (3042) using the
+# routes in docker/Caddyfile.
+
+x-noergo: &noergo
+  image: ghcr.io/nhkameda/noergo:${NOERGO_VERSION:-latest}
+  restart: unless-stopped
+  read_only: true
+  cap_drop: [ALL]
+  security_opt: ["no-new-privileges:true"]
+  tmpfs: ["/tmp"]
+  env_file: [.env]
+  environment: &noergo-env
+    DATABASE_URL: postgres://noergo_app:${NOERGO_DB_APP_PASSWORD:?}@postgres:5432/noergo
+  depends_on:
+    migrate:
+      condition: service_completed_successfully
+
+services:
+  postgres:
+    image: postgres:18-bookworm@sha256:afc7e2d441324c0388fa80c3d24f733b4194a4eb7f47dd8ee2b08eb1a24a647c
+    restart: unless-stopped
+    environment:
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in docker/.env}
+      POSTGRES_INITDB_ARGS: --locale-provider=builtin --builtin-locale=C.UTF-8
+      NOERGO_DB_MIGRATOR_PASSWORD: ${NOERGO_DB_MIGRATOR_PASSWORD:?}
+      NOERGO_DB_APP_PASSWORD: ${NOERGO_DB_APP_PASSWORD:?}
+      NOERGO_DB_JOBS_PASSWORD: ${NOERGO_DB_JOBS_PASSWORD:?}
+    volumes:
+      - pgdata:/var/lib/postgresql
+      - ./postgres/init.sh:/docker-entrypoint-initdb.d/10-noergo.sh:ro
+      - ../packages/core/sql:/noergo:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d noergo"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+    shm_size: 256mb
+
+  migrate:
+    <<: *noergo
+    command: migrate
+    restart: "no"
+    environment:
+      DATABASE_MIGRATOR_URL: postgres://noergo_migrator:${NOERGO_DB_MIGRATOR_PASSWORD:?}@postgres:5432/noergo
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  web:
+    <<: *noergo
+    command: web
+    ports: ["${NOERGO_BIND:-127.0.0.1}:3041:3041"]
+    tmpfs: ["/tmp", "/app/web/apps/web/.next/cache"]
+    volumes: ["files:/data/files"]
+    mem_limit: 768m
+
+  mcp:
+    <<: *noergo
+    command: mcp
+    ports: ["${NOERGO_BIND:-127.0.0.1}:3042:3042"]
+    mem_limit: 384m
+
+  worker:
+    <<: *noergo
+    command: worker
+    environment:
+      <<: *noergo-env
+      DATABASE_JOBS_URL: postgres://noergo_jobs:${NOERGO_DB_JOBS_PASSWORD:?}@postgres:5432/noergo
+    volumes: ["files:/data/files"]
+    mem_limit: 512m
+
+  caddy:
+    profiles: [caddy]
+    image: caddy:2
+    restart: unless-stopped
+    ports: ["80:80", "443:443", "443:443/udp"]
+    environment:
+      NOERGO_DOMAIN: ${NOERGO_DOMAIN:?set NOERGO_DOMAIN to use the caddy profile}
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy:/data
+    depends_on: [web, mcp]
+
+volumes:
+  pgdata:
+  files:
+  caddy:

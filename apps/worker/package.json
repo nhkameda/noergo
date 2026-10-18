@@ -1,0 +1,16 @@
+{
+  "name": "@noergo/worker",
+  "version": "0.1.0",
+  "private": true,
+  "license": "AGPL-3.0-only",
+  "type": "module",
+  "scripts": {
+    "dev": "tsx watch src/index.ts",
+    "build": "node ../../scripts/bundle.mjs src/index.ts dist/index.mjs",
+    "start": "node dist/index.mjs",
+    "typecheck": "tsc -p tsconfig.json"
+  },
+  "dependencies": {
+    "@noergo/core": "*"
+  }
+}

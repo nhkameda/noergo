@@ -1,0 +1,29 @@
+{
+  "name": "@noergo/core",
+  "version": "0.1.0",
+  "private": true,
+  "license": "AGPL-3.0-only",
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts",
+    "./db": "./src/db/index.ts",
+    "./*": "./src/*.ts"
+  },
+  "scripts": {
+    "typecheck": "tsc -p tsconfig.json",
+    "db:migrate": "tsx scripts/migrate.ts",
+    "db:deploy": "tsx scripts/migrate.ts"
+  },
+  "dependencies": {
+    "diff-match-patch": "^1.0.5",
+    "fractional-indexing": "^4.0.0",
+    "kysely": "^0.29.7",
+    "pg": "^8.23.1",
+    "uuid": "^14.0.3",
+    "zod": "^4.6.7"
+  },
+  "devDependencies": {
+    "@types/diff-match-patch": "^1.0.36",
+    "@types/pg": "^8.23.1"
+  }
+}

@@ -1,0 +1,14 @@
+@import '@noergo/ui/tokens.css';
+@import '@noergo/ui/noergo.css';
+
+html,
+body {
+  margin: 0;
+  min-height: 100%;
+}
+
+/* Chinese has no webfont: Latin glyphs come from Figtree, Han from the system CJK fonts. */
+:lang(zh-CN) {
+  --nr-font-ui: 'Figtree', 'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei', 'Noto Sans SC', system-ui, sans-serif;
+  --nr-font-display: 'Onest', 'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei', 'Noto Sans SC', system-ui, sans-serif;
+}
