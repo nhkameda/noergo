@@ -141,7 +141,87 @@
       "importFiles": "{count, plural, one {# attached file was} other {# attached files were}} not imported: attachments are coming soon.",
       "attachmentPlaceholder": "Attached file “{name}” was not imported.",
       "captured": "Saved in “{column}”.",
-      "noSuchNote": "No note is called “{title}” yet."
+      "noSuchNote": "No note is called “{title}” yet.",
+      "alreadyLinked": "These two are already linked.",
+      "wikilinkLink": "This link comes from a [[wikilink]]: remove it in the note.",
+      "deletedNotes": "{count, plural, one {# note} other {# notes}} moved to the trash."
+    },
+    "map": {
+      "open": "Map",
+      "openColumn": "Map of “{title}”",
+      "kicker": "Column map",
+      "back": "Back to the board",
+      "organize": "Organise",
+      "fit": "Fit to screen",
+      "zoomIn": "Zoom in",
+      "zoomOut": "Zoom out",
+      "zoomReset": "Zoom to 100%",
+      "canvas": "Map of “{title}”. Double-click to add a thought, drag a dot to connect, the arrow keys move the selection.",
+      "empty": "This column has no notes yet",
+      "emptyHint": "Double-click anywhere to add the first one.",
+      "placeholder": "thought",
+      "toolbar": "Style of the selection",
+      "color": "Colour",
+      "auto": "Automatic",
+      "fill": "Fill",
+      "fills": {
+        "solid": "Solid",
+        "soft": "Soft",
+        "outline": "Outline"
+      },
+      "shape": "Shape",
+      "shapes": {
+        "pill": "Pill",
+        "rounded": "Rounded",
+        "rect": "Rectangle",
+        "ellipse": "Ellipse",
+        "diamond": "Diamond",
+        "plain": "Text only"
+      },
+      "size": "Size",
+      "sizes": {
+        "s": "Small",
+        "m": "Medium",
+        "l": "Large"
+      },
+      "thought": "Thought",
+      "edit": "Edit text",
+      "child": "Add a linked thought",
+      "openNote": "Open note",
+      "delete": "Delete",
+      "link": "Link",
+      "width": "Thickness",
+      "widthValue": "{width} px",
+      "dash": "Stroke",
+      "dashes": {
+        "solid": "Solid",
+        "dashed": "Dashed",
+        "dotted": "Dotted"
+      },
+      "route": "Path",
+      "routes": {
+        "curve": "Curve",
+        "straight": "Straight",
+        "elbow": "Elbow"
+      },
+      "arrow": "Arrow",
+      "arrows": {
+        "none": "No arrow",
+        "end": "At the end",
+        "start": "At the start",
+        "both": "At both ends"
+      },
+      "reverse": "Reverse the arrow",
+      "label": "Label",
+      "deleteLink": "Delete link",
+      "hints": {
+        "create": "Double-click: new thought",
+        "connect": "Drag a dot: connect",
+        "child": "Tab: linked thought",
+        "move": "Drag or Space: move around",
+        "zoom": "⌘/Ctrl + scroll: zoom"
+      },
+      "selected": "{count, plural, one {# thought selected} other {# thoughts selected}}"
     }
   },
   "footer": {
