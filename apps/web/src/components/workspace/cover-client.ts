@@ -194,9 +194,14 @@ export function analyze(source: CanvasImageSource, w: number, h: number): { bg: 
   return { bg: edgeColor(px, cw, ch), colors: dominantColors(px, cw, ch) };
 }
 
-/** The server keeps at most 1600 px; a 5K screenshot is shrunk here first, so it travels light. */
+/**
+ * The server keeps at most 1600 px; a 5K screenshot is shrunk here first, so it travels light.
+ * A reverse proxy in front may also cap the body (a few MB): anything heavier than SEND_BYTES
+ * is re-encoded, a little rougher each time, until it fits.
+ */
 const SEND_SIDE = 2400;
-const SEND_BYTES = 8 * 1024 * 1024;
+const SEND_BYTES = 2 * 1024 * 1024;
+const SEND_QUALITY = [0.92, 0.8, 0.6];
 
 export async function readPicture(file: Blob): Promise<Picture> {
   const bitmap = await createImageBitmap(file);
@@ -211,7 +216,10 @@ export async function readPicture(file: Blob): Promise<Picture> {
       canvas.width = Math.round(w * scale);
       canvas.height = Math.round(h * scale);
       canvas.getContext('2d')!.drawImage(bitmap, 0, 0, canvas.width, canvas.height);
-      blob = await new Promise<Blob>((ok, fail) => canvas.toBlob((b) => (b ? ok(b) : fail(new Error('encode'))), 'image/webp', 0.92));
+      for (const quality of SEND_QUALITY) {
+        blob = await new Promise<Blob>((ok, fail) => canvas.toBlob((b) => (b ? ok(b) : fail(new Error('encode'))), 'image/webp', quality));
+        if (blob.size <= SEND_BYTES) break;
+      }
     }
     return { blob, src: URL.createObjectURL(blob), w, h, bg, colors };
   } finally {
@@ -232,6 +240,8 @@ export async function uploadPicture(blob: Blob): Promise<{ id: string; width: nu
   } catch {
     throw new UploadError('offline');
   }
+  // A proxy's 413 comes with its own page, not our JSON.
+  if (res.status === 413) throw new UploadError('too_large');
   if (!res.ok) {
     const body = (await res.json().catch(() => null)) as { error?: { code?: string } } | null;
     throw new UploadError(body?.error?.code ?? 'internal');

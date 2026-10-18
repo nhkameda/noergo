@@ -166,6 +166,44 @@ test('a picture dropped on a column becomes its cover; anything else is refused'
   expect(res.status()).toBe(422);
 });
 
+test('a heavy screenshot travels shrunk, and a proxy’s refusal reads as too large', async ({ page }) => {
+  await signIn(page, freshUser('heavy'));
+  // 1500 × 1000 of noise: within the side the app sends as is, but megabytes as a PNG.
+  const heavy = Buffer.from(
+    (
+      await page.evaluate(() => {
+        const canvas = document.createElement('canvas');
+        canvas.width = 1500;
+        canvas.height = 1000;
+        const ctx = canvas.getContext('2d')!;
+        const img = ctx.createImageData(1500, 1000);
+        for (let i = 0; i < img.data.length; i++) img.data[i] = i % 4 === 3 ? 255 : (Math.random() * 256) | 0;
+        ctx.putImageData(img, 0, 0);
+        return canvas.toDataURL('image/png');
+      })
+    ).split(',')[1]!,
+    'base64',
+  );
+  expect(heavy.byteLength).toBeGreaterThan(3 * 1024 * 1024);
+  const sent: number[] = [];
+  await page.route('**/api/files', async (route) => {
+    sent.push(route.request().postDataBuffer()?.byteLength ?? 0);
+    await route.continue();
+  });
+  const doing = lane(page, 'Doing');
+  await dropPicture(doing.locator('.w-lane__top'), heavy);
+  await expect(doing.locator('.w-lane__cover img')).toHaveAttribute('src', /\/api\/files\/[0-9a-f-]{36}$/);
+  expect(sent).toHaveLength(1);
+  expect(sent[0]).toBeLessThanOrEqual(2 * 1024 * 1024);
+  await page.keyboard.press('Escape');
+
+  // A reverse proxy in front refuses a big body with 413 and a page of its own.
+  await page.unroute('**/api/files');
+  await page.route('**/api/files', (route) => route.fulfill({ status: 413, contentType: 'text/html', body: '<html><body>413 Request Entity Too Large</body></html>' }));
+  await dropPicture(lane(page, 'Ideas').locator('.w-lane__top'), await logo(page));
+  await expect(page.getByText('This image is too large.').first()).toBeVisible();
+});
+
 test('cards and the customise sheet on a phone @mobile', async ({ page }) => {
   test.skip(page.viewportSize()!.width > 600, 'phone layout');
   await page.emulateMedia({ reducedMotion: 'reduce' });
