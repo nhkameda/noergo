@@ -36,6 +36,10 @@ x-app-env: &app-env
   S3_ACCESS_KEY_ID: ${S3_ACCESS_KEY_ID:-}
   S3_SECRET_ACCESS_KEY: ${S3_SECRET_ACCESS_KEY:-}
   NOERGO_ATTACHMENTS_ORIGIN: ${NOERGO_ATTACHMENTS_ORIGIN:-}
+  MCP_ACCESS: ${MCP_ACCESS:-all}
+  MCP_CIMD_HOSTS: ${MCP_CIMD_HOSTS:-}
+  # web answers the consent page through mcp's internal endpoint (signed with AUTH_SECRET).
+  NOERGO_MCP_INTERNAL_URL: http://mcp:3042
   DATABASE_URL: postgres://noergo_app:${NOERGO_DB_APP_PASSWORD:?}@postgres:5432/noergo
 
 x-noergo: &noergo
