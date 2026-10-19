@@ -72,8 +72,28 @@ current one attached, so the client (or the agent) can merge and retry.
 
 ## Agents
 
-Agents connect over MCP with OAuth 2.1 (dynamic client registration, PKCE, resource
-indicators, opaque tokens) or with a personal token. The tools read (search, fetch, boards,
-recent activity) and write (create, update, append, edit a passage, move, link, archive).
-Every change made by an agent is attributed to it, shown live, and can be reverted from the
-activity feed. Agents cannot hard-delete; a revision is kept before each of their edits.
+Agents connect over MCP (Streamable HTTP, stateless: each POST carries its bearer and
+nothing lives between calls) with OAuth 2.1 or with a personal token (`nrg_…`, stored as a
+sha256). The OAuth server is oidc-provider inside mcp: dynamic client registration or a
+client metadata document from a listed host, PKCE S256, one resource (`/mcp`), opaque
+access tokens for an hour, rotating refresh tokens. The consent page is a web page
+(`/oauth/interaction/<uid>`); web answers it through mcp's internal endpoint, signed with
+an HMAC and carrying the browser's own interaction cookie, so only the browser that started
+the authorization can finish it.
+
+The tools (`apps/mcp/src/mcp/tools.ts`) read (search, fetch, boards, a thought with its
+ideas and links, the thought open on the person's screen, recent activity) and write
+(boards, thoughts, ideas, text, links, moves, archive). `add_notes` is the mind map's
+primitive: up to 50 ideas, each linked to its parent (the thought or an earlier idea of
+the same call), in one transaction. Every tool runs as operations through the same path
+as the browser, with the connection's actor, so the change log, the live stream and the
+undo history see agent writes like any other. Agents cannot hard-delete; a revision is kept
+before each of their edits.
+
+What is "open" comes from the browser: it reports its view and thought when they change
+and every minute (`POST /api/focus`, table `user_focus`), and an agent sees it for ten
+minutes. On screen, what an agent changes carries its name for a few seconds, in uva, the
+colour reserved for agents: a halo on the card or node, its edges drawing themselves, a
+"… is writing" pill, and the map follows the newest idea unless the person moved it in the
+last five seconds. An idea with no position yet is placed next to the idea it hangs from,
+the same way on every device.

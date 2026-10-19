@@ -64,6 +64,12 @@ database and compare row counts). For point-in-time recovery, use WAL archiving
 
 ## Connecting agents
 
-Once it runs, your instance's MCP endpoint is `https://<your domain>/mcp`. Add it as a
-custom connector in ChatGPT, Claude or Grok, or create a personal token in Settings →
-Agents for scripts and other clients.
+Once it runs, your instance's MCP endpoint is `https://<your domain>/mcp`, and
+`https://<your domain>/agents` explains how to add it to each client. ChatGPT, Claude,
+Grok, Claude Code and Cursor sign in with OAuth on their own: the person approves on
+noergo's consent page and can disconnect them on the Agents page. For scripts and other
+clients, create a personal token there. `MCP_ACCESS=granted` limits agents to the
+accounts you enable; see [mcp-clients.md](mcp-clients.md) for what each client supports.
+
+The reverse proxy must keep `/internal/*` away from the internet: web reaches mcp there
+directly. Its requests are signed, but nothing outside should reach that path.
