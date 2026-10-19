@@ -196,14 +196,14 @@
 
 /* ---------- seletor de visão ---------- */
 .nr-visoes { display: inline-flex; gap: 2px; padding: 4px; border-radius: var(--nr-radius-full); background: var(--nr-fill-hover); }
-.nr-visoes button {
+.nr-visoes button, .nr-visoes a {
   display: inline-flex; align-items: center; gap: 6px; min-height: 36px; padding: 0 var(--nr-space-4);
   border: 0; border-radius: var(--nr-radius-full); background: transparent; color: var(--nr-text-muted);
-  font: var(--nr-weight-semibold) var(--nr-text-sm)/1 var(--nr-font-ui); cursor: pointer;
+  font: var(--nr-weight-semibold) var(--nr-text-sm)/1 var(--nr-font-ui); text-decoration: none; cursor: pointer;
   transition: background-color var(--nr-dur-fast) var(--nr-ease-out), color var(--nr-dur-fast) var(--nr-ease-out);
 }
-.nr-visoes button:hover { color: var(--nr-text); }
-.nr-visoes button[aria-pressed="true"], .nr-visoes button[aria-selected="true"] { background: var(--nr-surface); color: var(--nr-text); box-shadow: var(--nr-shadow-1); }
+.nr-visoes button:hover, .nr-visoes a:hover { color: var(--nr-text); }
+.nr-visoes button[aria-pressed="true"], .nr-visoes button[aria-selected="true"], .nr-visoes a[aria-current="page"] { background: var(--nr-surface); color: var(--nr-text); box-shadow: var(--nr-shadow-1); }
 .nr-visoes svg { width: 16px; height: 16px; }
 
 /* ---------- aviso ---------- */

@@ -1,8 +1,10 @@
 'use client';
 
 import { LIMITS } from '@noergo/core/limits';
-import { useTranslations } from 'next-intl';
+import { languageNames, locales } from '@noergo/i18n';
+import { useLocale, useTranslations } from 'next-intl';
 import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore, type RefObject } from 'react';
+import { PREFIX } from '@/i18n/routing';
 import { Actions } from './actions';
 import { Board } from './Board';
 import { CommandPalette } from './CommandPalette';
@@ -481,6 +483,7 @@ function Notices({ state, store }: { state: WorkspaceState; store: WorkspaceStor
 function AccountMenu({ store, data, agentsHref, sourceUrl, signOut, onImported }: { store: WorkspaceStore; data: Data | null; agentsHref: string; sourceUrl: string; signOut: () => Promise<void>; onImported: (boardId: string) => void }) {
   const t = useTranslations('app');
   const tNav = useTranslations('nav');
+  const locale = useLocale();
   const file = useRef<HTMLInputElement>(null);
 
   const importFile = async (f: File) => {
@@ -528,6 +531,18 @@ function AccountMenu({ store, data, agentsHref, sourceUrl, signOut, onImported }
             <a className="w-menu__item" href={sourceUrl} target="_blank" rel="noopener noreferrer">
               {tNav('sourceCode')}
             </a>
+            {/* A real navigation, not <Link>: the proxy writes the language cookie only then. */}
+            <div className="w-menu__group" role="group" aria-label={tNav('language')}>
+              <div className="w-menu__label" aria-hidden="true">
+                {tNav('language')}
+              </div>
+              {locales.map((l) => (
+                <a key={l} className="w-menu__item w-menu__item--lang" href={`/${PREFIX[l]}/app`} hrefLang={l} lang={l} aria-current={l === locale ? 'true' : undefined}>
+                  <span className="w-menu__text">{languageNames[l]}</span>
+                  {l === locale && <IconCheck />}
+                </a>
+              ))}
+            </div>
             <form
               action={async () => {
                 store.stop();

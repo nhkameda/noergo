@@ -1,4 +1,4 @@
-import type { Locale } from '@noergo/i18n';
+import { languageNames, locales, type Locale } from '@noergo/i18n';
 import { redirect as redirectTo } from 'next/navigation';
 import { getTranslations, setRequestLocale } from 'next-intl/server';
 import { auth, signIn, signInOptions } from '@/auth';
@@ -30,11 +30,14 @@ export default async function SignInPage({ params, searchParams }: { params: Pro
   }
 
   const t = await getTranslations('auth');
+  const tNav = await getTranslations('nav');
+  // Another language keeps where the person was going; the app itself follows the language.
+  const signInIn = (l: Locale) => getPathname({ href: { pathname: '/signin', query: { callbackUrl: target === appPath ? getPathname({ href: '/app', locale: l }) : target } }, locale: l });
   const reason = reasonOf(query.error);
   const options = signInOptions();
 
   return (
-    <main className="nr-tela" style={{ display: 'grid', placeItems: 'center', minHeight: '100vh', padding: '2rem' }}>
+    <main className="nr-tela" style={{ display: 'grid', placeItems: 'center', alignContent: 'center', gap: '1.5rem', minHeight: '100vh', padding: '2rem' }}>
       <section className="nr-card" style={{ display: 'grid', gap: '1rem', width: 'min(100%, 24rem)', padding: '2rem' }}>
         <img src="/favicon.svg" alt="" width={48} height={48} />
         <h1 className="nr-h3">{t('title')}</h1>
@@ -59,6 +62,14 @@ export default async function SignInPage({ params, searchParams }: { params: Pro
         ))}
         <p className="nr-lead">{t('free')}</p>
       </section>
+      {/* Plain <a>: the proxy writes the language cookie only on a real navigation. */}
+      <nav className="nr-visoes" aria-label={tNav('language')}>
+        {locales.map((l) => (
+          <a key={l} href={signInIn(l)} hrefLang={l} lang={l} aria-current={l === locale ? 'page' : undefined}>
+            {languageNames[l]}
+          </a>
+        ))}
+      </nav>
     </main>
   );
 }

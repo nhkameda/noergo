@@ -152,6 +152,8 @@
 .w-menu__group { display: grid; gap: 2px; max-height: min(50vh, 18rem); overflow-y: auto; border-block: 1px solid var(--nr-border); margin-block: var(--nr-space-1); padding-block: var(--nr-space-1); }
 .w-menu__hint { margin: 0; padding: var(--nr-space-1) var(--nr-space-3) var(--nr-space-2); color: var(--nr-text-muted); font-size: var(--nr-text-sm); }
 .w-menu__item--board { gap: var(--nr-space-2); }
+.w-menu__item--lang { justify-content: space-between; gap: var(--nr-space-2); }
+.w-menu__item--lang[aria-current] { font-weight: var(--nr-weight-bold); }
 .w-menu__item--board[data-cor]::before { content: ""; flex: none; width: 8px; height: 8px; border-radius: 50%; background: var(--c); }
 .w-menu__text { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 

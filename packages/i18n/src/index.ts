@@ -12,6 +12,9 @@ export const defaultLocale: Locale = 'en';
 
 export type Messages = typeof en;
 
+/** Each language named in itself, for language switchers. Never translated. */
+export const languageNames: Record<Locale, string> = { 'pt-BR': 'Português', en: 'English', 'zh-CN': '中文' };
+
 export const messages: Record<Locale, Messages> = { 'pt-BR': ptBR, en, 'zh-CN': zhCN };
 
 export function isLocale(v: unknown): v is Locale {
