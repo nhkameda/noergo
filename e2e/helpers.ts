@@ -5,13 +5,22 @@ const IDP = `http://127.0.0.1:${process.env.E2E_IDP_PORT ?? 9311}`;
 /** A person no earlier run has seen, so every test starts from the welcome board. */
 export const freshUser = (name: string) => `${name}-${Date.now().toString(36)}${Math.floor(Math.random() * 1e4)}`;
 
-/** Signs `user` in through the test identity provider and waits for the board. */
-export async function signIn(page: Page, user: string, locale = 'en') {
+/**
+ * Signs `user` in through the test identity provider. A person starts on Cards; most tests
+ * work on columns, so this switches to them (the choice is kept on this browser) unless
+ * `layout` says otherwise.
+ */
+export async function signIn(page: Page, user: string, locale = 'en', { layout = 'columns' }: { layout?: 'cards' | 'columns' } = {}) {
   await page.context().addCookies([{ name: 'e2e_user', value: user, url: IDP }]);
   await page.goto(`/${locale}/app`);
   await page.waitForURL(/\/signin/);
   await page.getByRole('button', { name: /Test IdP/ }).click();
   await page.waitForURL(new RegExp(`/${locale}/app`));
+  const views = page.locator('.nr-visoes button'); // Cards, Columns, Due, in every language
+  await expect(page.locator('.w-gallery')).toBeVisible();
+  await expect(views.nth(0)).toHaveAttribute('aria-pressed', 'true');
+  if (layout === 'cards') return;
+  await views.nth(1).click();
   await expect(page.locator('.w-board')).toBeVisible();
 }
 

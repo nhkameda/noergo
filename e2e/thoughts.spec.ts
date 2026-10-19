@@ -25,6 +25,23 @@ async function drag(page: Page, from: Locator, to: Locator, check?: () => Promis
   await page.mouse.up();
 }
 
+test('a board opens on Cards, the first view; a switch to Columns is remembered', async ({ page }) => {
+  await signIn(page, freshUser('first'), 'en', { layout: 'cards' });
+  const views = page.getByRole('group', { name: 'View' }).getByRole('button');
+  await expect(views).toHaveText(['Cards', 'Columns', 'Due']);
+  await expect(views.nth(0)).toHaveAttribute('aria-pressed', 'true');
+  await expect(tile(page, 'Inbox')).toBeVisible();
+
+  await page.reload();
+  await expect(tile(page, 'Inbox')).toBeVisible();
+
+  await views.nth(1).click();
+  await expect(lane(page, 'Inbox')).toBeVisible();
+  await page.reload();
+  await expect(lane(page, 'Inbox')).toBeVisible();
+  await expect(views.nth(1)).toHaveAttribute('aria-pressed', 'true');
+});
+
 test('a card dragged onto another board’s tab moves the thought there, notes and all; ⌘Z brings it back', async ({ page }) => {
   await signIn(page, freshUser('totab'));
   await newBoard(page, 'Garden');

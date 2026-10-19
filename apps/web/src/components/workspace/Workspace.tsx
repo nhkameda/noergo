@@ -300,13 +300,13 @@ export function Workspace({ userId, signInHref, homeHref, agentsHref, sourceUrl,
 
           <div className="w-top__tools">
             <div className="nr-visoes" role="group" aria-label={t('viewLabel')}>
-              <button type="button" aria-pressed={view === 'board' && layout === 'columns'} onClick={() => { setView('board'); LAYOUT.write('columns'); }}>
-                <IconColumns />
-                <span className="w-xs-sr">{t('viewColumns')}</span>
-              </button>
               <button type="button" aria-pressed={view === 'board' && layout === 'cards'} onClick={() => { setView('board'); LAYOUT.write('cards'); }}>
                 <IconCards />
                 <span className="w-xs-sr">{t('viewCards')}</span>
+              </button>
+              <button type="button" aria-pressed={view === 'board' && layout === 'columns'} onClick={() => { setView('board'); LAYOUT.write('columns'); }}>
+                <IconColumns />
+                <span className="w-xs-sr">{t('viewColumns')}</span>
               </button>
               <button type="button" aria-pressed={view === 'due'} onClick={() => setView('due')}>
                 <IconClock />

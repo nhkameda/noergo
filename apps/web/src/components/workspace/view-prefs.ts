@@ -38,9 +38,9 @@ export function deviceSetting<T extends string | number>(key: string, parse: (ra
 
 const clamp = (v: number, lo: number, hi: number) => Math.min(hi, Math.max(lo, v));
 
-/** Columns or cards: how a board is shown. */
-export type Layout = 'columns' | 'cards';
-export const LAYOUT = deviceSetting<Layout>('noergo:layout', (raw) => (raw === 'cards' ? 'cards' : 'columns'), 'columns');
+/** Cards or columns: how a board is shown. Cards first: a board is its thoughts at a glance. */
+export type Layout = 'cards' | 'columns';
+export const LAYOUT = deviceSetting<Layout>('noergo:layout', (raw) => (raw === 'columns' ? 'columns' : 'cards'), 'cards');
 
 /** The map's camera follows what an agent adds (on unless the person turns it off). */
 export const FOLLOW_AGENT = deviceSetting<'on' | 'off'>('noergo:follow-agent', (raw) => (raw === 'off' ? 'off' : 'on'), 'on');
