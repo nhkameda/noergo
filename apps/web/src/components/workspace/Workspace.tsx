@@ -176,10 +176,14 @@ export function Workspace({ userId, signInHref, homeHref, agentsHref, sourceUrl,
     const id = noteInUrl();
     if (!id) return;
     const off = store.subscribe(() => {
-      if (!store.getState().data) return;
+      const { data, connection } = store.getState();
+      if (!data) return;
+      const found = locate(data, id);
+      // The cached snapshot comes first and may predate the note: wait for the server's.
+      if (!found && connection !== 'live' && connection !== 'offline') return;
       off();
       window.history.replaceState(window.history.state, '', window.location.pathname + window.location.search);
-      openNote(id);
+      if (found) openNote(id);
     });
     return () => void off();
   }, [store, openNote]);

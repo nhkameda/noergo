@@ -157,6 +157,45 @@ test('an agent finds the server, connects over OAuth, writes on the board, refre
   await agent.dispose();
 });
 
+test('a note link from an agent opens the note even when the browser’s copy of the board predates it', async ({ page, playwright }) => {
+  await signIn(page, freshUser('eco'));
+  await page.goto('/en/agents');
+  await page.getByRole('textbox', { name: 'Name' }).fill('Script');
+  await page.getByRole('button', { name: 'Create token' }).click();
+  const token = await page.locator('#nr-token').inputValue();
+
+  // The board is seen once and kept in the browser; then the person goes elsewhere.
+  await page.goto('/en/app');
+  await expect(page.locator('.w-board')).toBeVisible();
+  await expect
+    .poll(() =>
+      page.evaluate(
+        () =>
+          new Promise<number>((resolve) => {
+            const open = indexedDB.open('noergo');
+            open.onsuccess = () => {
+              const req = open.result.transaction('cache').objectStore('cache').getAllKeys();
+              req.onsuccess = () => resolve(req.result.filter((k) => String(k).startsWith('snap:')).length);
+            };
+          }),
+      ),
+    )
+    .toBe(1);
+  await page.goto('/en/agents');
+
+  const agent = await playwright.request.newContext({ baseURL: BASE });
+  const boards = (await tool(agent, token, 'list_boards')) as { boards: Array<{ thoughts: Array<{ id: string; title: string }> }> };
+  const inbox = boards.boards.flatMap((b) => b.thoughts).find((t) => t.title === 'Inbox')!;
+  await tool(agent, token, 'add_notes', { thought_id: inbox.id, ideas: [{ title: 'Written while away' }] });
+  const found = (await tool(agent, token, 'search', { query: 'Written while away' })) as { results: Array<{ title: string; url: string }> };
+  const link = new URL(found.results.find((r) => r.title === 'Written while away')!.url);
+
+  // The cached board shows first and lacks the note; the link waits for the server's.
+  await page.goto(`${link.pathname}${link.hash}`);
+  await expect(page.getByRole('dialog').getByRole('textbox', { name: 'Title' })).toHaveValue('Written while away');
+  expect(new URL(page.url()).hash).toBe('');
+});
+
 test('a read-only connection cannot write, and a replayed refresh token ends the whole connection', async ({ page, playwright }) => {
   await signIn(page, freshUser('ler'));
   const agent = await playwright.request.newContext({ baseURL: BASE });
