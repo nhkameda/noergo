@@ -1,8 +1,10 @@
 export * from './actors';
+export * from './agents';
 export * from './dto';
 export * from './errors';
 export * from './files';
 export * from './identity';
+export * from './internal-auth';
 export * from './ids';
 export * from './limits';
 export * from './position';
@@ -11,6 +13,6 @@ export * from './read';
 export * from './redact';
 export * from './workspace';
 export { applyOp, type Applied, type ChangeEffect, type OpCtx } from './ops/apply';
-export { CHANGES_CHANNEL, executeOps, type ExecCtx, type OpOutcome } from './ops/execute';
+export { CHANGES_CHANNEL, executeAtomic, executeOps, type AppliedOutcome, type ExecCtx, type OpOutcome, type RefusedOutcome } from './ops/execute';
 export { batchSchema, envelopeSchema, opSchema, placement, type Envelope, type NodeRef, type Op, type OpType, type Placement } from './ops/schema';
 export { parseWikilinks, renameInBody } from './ops/wikilinks';

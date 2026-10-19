@@ -185,6 +185,8 @@ export interface ChangeRow {
   seq: number;
   op: string;
   actorId: string | null;
+  /** Who made it, so the screen can show an agent at work (its halo, "Grok is writing…"). */
+  actor: { kind: ActorKind; label: string } | null;
   createdAt: string;
   effects: Effect[];
 }
@@ -205,11 +207,12 @@ export async function changesSince(workspaceId: string, since: number, limit = 5
       if (since > ws.seq) return { reset: true };
       if (since === ws.seq) return { reset: false, seq: ws.seq, changes: [], more: false };
       const rows = await tx
-        .selectFrom('changes')
-        .select(['seq', 'op', 'actor_id', 'created_at', 'effects'])
-        .where('workspace_id', '=', workspaceId)
-        .where('seq', '>', since)
-        .orderBy('seq')
+        .selectFrom('changes as c')
+        .leftJoin('actors as a', (j) => j.onRef('a.id', '=', 'c.actor_id').onRef('a.workspace_id', '=', 'c.workspace_id'))
+        .select(['c.seq', 'c.op', 'c.actor_id', 'c.created_at', 'c.effects', 'a.kind', 'a.label'])
+        .where('c.workspace_id', '=', workspaceId)
+        .where('c.seq', '>', since)
+        .orderBy('c.seq')
         .limit(limit)
         .execute();
       const first = rows[0];
@@ -219,6 +222,7 @@ export async function changesSince(workspaceId: string, since: number, limit = 5
         seq: r.seq,
         op: r.op,
         actorId: r.actor_id,
+        actor: r.kind ? { kind: r.kind, label: r.label ?? '' } : null,
         createdAt: new Date(r.created_at).toISOString(),
         effects: (r.effects as ChangeEffect[]).map((e) => e.after),
       }));
@@ -333,6 +337,112 @@ export async function getBoard(workspaceId: string, boardId: string, opts: { not
         columns.push({ ...laneDto(l), notes: notes.map((n) => noteDto(n)), total });
       }
       return { board: boardDto(b), columns };
+    },
+    { db, snapshot: true },
+  );
+}
+
+export interface OutlineBoard extends BoardDto {
+  thoughts: Array<{ id: string; title: string; color: string | null; ideas: number; updatedAt: string }>;
+}
+
+/** Every board with its thoughts (columns) and how many open ideas each holds: the map of the workspace for an agent. */
+export async function outline(workspaceId: string, db?: Db): Promise<OutlineBoard[]> {
+  return withWorkspace(
+    workspaceId,
+    async (tx) => {
+      const boards = await tx.selectFrom('boards').selectAll().where('workspace_id', '=', workspaceId).where('deleted_at', 'is', null).orderBy('position').orderBy('id').execute();
+      const lanes = await tx
+        .selectFrom('lanes as l')
+        .leftJoin('notes as n', (j) => j.onRef('n.lane_id', '=', 'l.id').onRef('n.workspace_id', '=', 'l.workspace_id').on('n.deleted_at', 'is', null).on('n.done_at', 'is', null))
+        .select(['l.id', 'l.board_id', 'l.title', 'l.color', 'l.position', 'l.updated_at', (eb) => eb.fn.count<number>('n.id').as('ideas')])
+        .where('l.workspace_id', '=', workspaceId)
+        .where('l.deleted_at', 'is', null)
+        .groupBy(['l.id', 'l.board_id', 'l.title', 'l.color', 'l.position', 'l.updated_at'])
+        .orderBy('l.position')
+        .orderBy('l.id')
+        .execute();
+      return boards.map((b) => ({
+        ...boardDto(b),
+        thoughts: lanes.filter((l) => l.board_id === b.id).map((l) => ({ id: l.id, title: l.title, color: l.color, ideas: Number(l.ideas), updatedAt: new Date(l.updated_at).toISOString() })),
+      }));
+    },
+    { db, snapshot: true },
+  );
+}
+
+export interface ThoughtDetail {
+  thought: LaneDto;
+  board: { id: string; title: string };
+  /** The ideas (notes) of the thought, in column order, done ones included. */
+  ideas: NoteDto[];
+  /** Links among the thought and its ideas: the edges of its mind map. */
+  links: LinkDto[];
+  /** Where each node sits on the thought's map, when someone placed it. */
+  layout: LayoutDto[];
+}
+
+/** A thought as its mind map: the centre, every idea, the links between them and their positions. */
+export async function thoughtDetail(workspaceId: string, laneId: string, db?: Db): Promise<ThoughtDetail> {
+  return withWorkspace(
+    workspaceId,
+    async (tx) => {
+      const l = await tx.selectFrom('lanes').selectAll().where('workspace_id', '=', workspaceId).where('id', '=', laneId).where('deleted_at', 'is', null).executeTakeFirst();
+      if (!l) throw notFound('thought');
+      const board = await tx.selectFrom('boards').select(['id', 'title']).where('workspace_id', '=', workspaceId).where('id', '=', l.board_id).executeTakeFirstOrThrow();
+      const notes = await tx.selectFrom('notes').selectAll().where('workspace_id', '=', workspaceId).where('lane_id', '=', laneId).where('deleted_at', 'is', null).orderBy('position').orderBy('id').limit(LIMITS.thoughtIdeas).execute();
+      const ids = [laneId, ...notes.map((n) => n.id)];
+      const links = await tx
+        .selectFrom('links')
+        .selectAll()
+        .where('workspace_id', '=', workspaceId)
+        .where('deleted_at', 'is', null)
+        .where('from_kind', 'in', ['lane', 'note'])
+        .where('to_kind', 'in', ['lane', 'note'])
+        .where('from_id', 'in', ids)
+        .where('to_id', 'in', ids)
+        .execute();
+      const layout = await tx.selectFrom('node_layouts').selectAll().where('workspace_id', '=', workspaceId).where('view_kind', '=', 'lane_map').where('view_id', '=', laneId).execute();
+      return { thought: laneDto(l), board, ideas: notes.map((n) => noteDto(n)), links: links.map(linkDto), layout: layout.map(layoutDto) };
+    },
+    { db, snapshot: true },
+  );
+}
+
+/** What an id names in this workspace (agents pass bare ids), or null when it is nothing live here. */
+export async function nodeKindOf(workspaceId: string, id: string, db?: Db): Promise<'note' | 'lane' | 'board' | null> {
+  return withWorkspace(
+    workspaceId,
+    async (tx) => {
+      for (const [kind, table] of [['note', 'notes'], ['lane', 'lanes'], ['board', 'boards']] as const) {
+        const hit = await tx.selectFrom(table).select('id').where('workspace_id', '=', workspaceId).where('id', '=', id).where('deleted_at', 'is', null).executeTakeFirst();
+        if (hit) return kind;
+      }
+      return null;
+    },
+    { db, snapshot: true },
+  );
+}
+
+/** The manual link between two nodes, in either direction, if there is one. */
+export async function linkBetween(workspaceId: string, a: { kind: string; id: string }, b: { kind: string; id: string }, db?: Db): Promise<LinkDto | null> {
+  return withWorkspace(
+    workspaceId,
+    async (tx) => {
+      const row = await tx
+        .selectFrom('links')
+        .selectAll()
+        .where('workspace_id', '=', workspaceId)
+        .where('deleted_at', 'is', null)
+        .where('origin', '=', 'manual')
+        .where((eb) =>
+          eb.or([
+            eb.and([eb('from_kind', '=', a.kind as 'note'), eb('from_id', '=', a.id), eb('to_kind', '=', b.kind as 'note'), eb('to_id', '=', b.id)]),
+            eb.and([eb('from_kind', '=', b.kind as 'note'), eb('from_id', '=', b.id), eb('to_kind', '=', a.kind as 'note'), eb('to_id', '=', a.id)]),
+          ]),
+        )
+        .executeTakeFirst();
+      return row ? linkDto(row) : null;
     },
     { db, snapshot: true },
   );

@@ -1,4 +1,4 @@
-import { sql, withWorkspace, type Db, getDb } from '../db';
+import { sql, withWorkspace, type Db, type Tx, getDb } from '../db';
 import type { Effect } from '../dto';
 import { DomainError, isDomainError, type DomainErrorCode } from '../errors';
 import { applyOp, type OpCtx } from './apply';
@@ -9,9 +9,9 @@ export interface ExecCtx extends OpCtx {
   readOnly?: boolean;
 }
 
-export type OpOutcome =
-  | { opId: string; status: 'applied'; seq: number | null; result: Record<string, unknown>; effects: Effect[] }
-  | { opId: string; status: 'conflict' | 'rejected'; error: { code: DomainErrorCode; message: string; details?: Record<string, unknown> } };
+export type AppliedOutcome = { opId: string; status: 'applied'; seq: number | null; result: Record<string, unknown>; effects: Effect[] };
+export type RefusedOutcome = { opId: string; status: 'conflict' | 'rejected'; error: { code: DomainErrorCode; message: string; details?: Record<string, unknown> } };
+export type OpOutcome = AppliedOutcome | RefusedOutcome;
 
 /** NOTIFY channel; the payload is "<workspace id>:<seq>". */
 export const CHANGES_CHANNEL = 'ws';
@@ -44,57 +44,94 @@ function toDomain(e: unknown): DomainError {
  */
 export async function executeOps(ctx: ExecCtx, envelopes: Envelope[], db: Db = getDb()): Promise<OpOutcome[]> {
   const outcomes: OpOutcome[] = [];
-  for (const { opId, op } of envelopes) {
+  for (const envelope of envelopes) {
     if (ctx.readOnly) {
-      outcomes.push({ opId, status: 'rejected', error: { code: 'read_only_connection', message: 'this connection is read-only' } });
+      outcomes.push(readOnlyRefusal(envelope.opId));
       continue;
     }
     try {
-      outcomes.push(
-        await withWorkspace(
-          ctx.workspaceId,
-          async (tx) => {
-            const ws = await tx.selectFrom('workspaces').select('seq').where('id', '=', ctx.workspaceId).forUpdate().executeTakeFirst();
-            if (!ws) throw new DomainError('not_found', 'workspace not found');
-
-            const receipt = await tx.selectFrom('op_receipts').select('result').where('workspace_id', '=', ctx.workspaceId).where('op_id', '=', opId).executeTakeFirst();
-            if (receipt) return receipt.result as OpOutcome;
-
-            const applied = await applyOp(tx, ctx, op);
-            let seq: number | null = null;
-            if (applied.effects.length) {
-              seq = ws.seq + 1;
-              await tx.updateTable('workspaces').set({ seq }).where('id', '=', ctx.workspaceId).execute();
-              await tx
-                .insertInto('changes')
-                .values({
-                  workspace_id: ctx.workspaceId,
-                  seq,
-                  actor_id: ctx.actorId,
-                  op_id: opId,
-                  op: op.type,
-                  entity_kind: applied.entity.kind,
-                  entity_id: applied.entity.id,
-                  effects: JSON.stringify(applied.effects),
-                })
-                .execute();
-            }
-            const outcome: OpOutcome = { opId, status: 'applied', seq, result: applied.result, effects: applied.effects.map((e) => e.after) };
-            await tx.insertInto('op_receipts').values({ workspace_id: ctx.workspaceId, op_id: opId, result: JSON.stringify(outcome) }).execute();
-            if (seq !== null) await sql`SELECT pg_notify(${CHANGES_CHANNEL}, ${`${ctx.workspaceId}:${seq}`})`.execute(tx);
-            return outcome;
-          },
-          { db },
-        ),
-      );
+      outcomes.push(await withWorkspace(ctx.workspaceId, async (tx) => runOne(tx, ctx, await lockWorkspace(tx, ctx), envelope), { db }));
     } catch (e) {
-      const err = toDomain(e);
-      outcomes.push({
-        opId,
-        status: err.code === 'version_conflict' ? 'conflict' : 'rejected',
-        error: { code: err.code, message: err.message, ...(err.details ? { details: err.details } : {}) },
-      });
+      outcomes.push(refusal(envelope.opId, toDomain(e)));
     }
   }
   return outcomes;
+}
+
+/**
+ * Applies operations all or nothing, in one transaction: an agent's batch of ideas and the
+ * links that hang them on the map lands at once or not at all. Each op still takes its own
+ * seq and change row, so the live stream and undo see them one by one. On the first
+ * failure everything rolls back and the answer says which op failed.
+ */
+export async function executeAtomic(
+  ctx: ExecCtx,
+  envelopes: Envelope[],
+  db: Db = getDb(),
+): Promise<{ ok: true; outcomes: AppliedOutcome[] } | { ok: false; index: number; outcome: RefusedOutcome }> {
+  if (ctx.readOnly) return { ok: false, index: 0, outcome: readOnlyRefusal(envelopes[0]?.opId ?? '') };
+  let index = 0;
+  try {
+    const outcomes = await withWorkspace(
+      ctx.workspaceId,
+      async (tx) => {
+        const ws = await lockWorkspace(tx, ctx);
+        const out: AppliedOutcome[] = [];
+        for (index = 0; index < envelopes.length; index++) {
+          const o = await runOne(tx, ctx, ws, envelopes[index]!);
+          if (o.status !== 'applied') throw new DomainError(o.error.code, o.error.message, o.error.details);
+          out.push(o);
+        }
+        return out;
+      },
+      { db },
+    );
+    return { ok: true, outcomes };
+  } catch (e) {
+    const err = toDomain(e);
+    return { ok: false, index, outcome: refusal(envelopes[index]?.opId ?? '', err) };
+  }
+}
+
+const readOnlyRefusal = (opId: string): RefusedOutcome => ({ opId, status: 'rejected', error: { code: 'read_only_connection', message: 'this connection is read-only' } });
+
+function refusal(opId: string, err: DomainError): RefusedOutcome {
+  return { opId, status: err.code === 'version_conflict' ? 'conflict' : 'rejected', error: { code: err.code, message: err.message, ...(err.details ? { details: err.details } : {}) } };
+}
+
+/** Locks the workspace row (first, always: see executeOps) and returns its seq, kept current as ops apply. */
+async function lockWorkspace(tx: Tx, ctx: ExecCtx): Promise<{ seq: number }> {
+  const ws = await tx.selectFrom('workspaces').select('seq').where('id', '=', ctx.workspaceId).forUpdate().executeTakeFirst();
+  if (!ws) throw new DomainError('not_found', 'workspace not found');
+  return ws;
+}
+
+async function runOne(tx: Tx, ctx: ExecCtx, ws: { seq: number }, { opId, op }: Envelope): Promise<OpOutcome> {
+  const receipt = await tx.selectFrom('op_receipts').select('result').where('workspace_id', '=', ctx.workspaceId).where('op_id', '=', opId).executeTakeFirst();
+  if (receipt) return receipt.result as OpOutcome;
+
+  const applied = await applyOp(tx, ctx, op);
+  let seq: number | null = null;
+  if (applied.effects.length) {
+    seq = ws.seq + 1;
+    ws.seq = seq;
+    await tx.updateTable('workspaces').set({ seq }).where('id', '=', ctx.workspaceId).execute();
+    await tx
+      .insertInto('changes')
+      .values({
+        workspace_id: ctx.workspaceId,
+        seq,
+        actor_id: ctx.actorId,
+        op_id: opId,
+        op: op.type,
+        entity_kind: applied.entity.kind,
+        entity_id: applied.entity.id,
+        effects: JSON.stringify(applied.effects),
+      })
+      .execute();
+  }
+  const outcome: OpOutcome = { opId, status: 'applied', seq, result: applied.result, effects: applied.effects.map((e) => e.after) };
+  await tx.insertInto('op_receipts').values({ workspace_id: ctx.workspaceId, op_id: opId, result: JSON.stringify(outcome) }).execute();
+  if (seq !== null) await sql`SELECT pg_notify(${CHANGES_CHANNEL}, ${`${ctx.workspaceId}:${seq}`})`.execute(tx);
+  return outcome;
 }

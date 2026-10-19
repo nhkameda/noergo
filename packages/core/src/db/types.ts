@@ -362,6 +362,25 @@ export interface SecurityEventsTable {
   count: Defaulted<number>;
   first_at: Defaulted<Date>;
   last_at: Defaulted<Date>;
+  severity: Defaulted<SecuritySeverity>;
+  ip: string | null;
+  country: string | null;
+  user_agent: string | null;
+  path: string | null;
+  user_id: string | null;
+  seen_at: Timestamp | null;
+}
+
+export type SecuritySeverity = 'low' | 'medium' | 'high' | 'critical';
+export type FocusView = 'board' | 'cards' | 'dates' | 'map';
+
+export interface UserFocusTable {
+  workspace_id: string;
+  user_id: string;
+  board_id: string | null;
+  lane_id: string | null;
+  view: FocusView;
+  at: Defaulted<Date>;
 }
 
 export interface Database {
@@ -390,6 +409,7 @@ export interface Database {
   stripe_events: StripeEventsTable;
   audit_log: AuditLogTable;
   security_events: SecurityEventsTable;
+  user_focus: UserFocusTable;
 }
 
 export type User = Selectable<UsersTable>;

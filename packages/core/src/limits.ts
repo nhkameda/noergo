@@ -18,6 +18,10 @@ export const LIMITS = {
   snapshotBodyInline: 4_000,
   excerpt: 280,
   searchResults: 50,
+  /** Ideas an agent reads of one thought at once (get_thought). */
+  thoughtIdeas: 300,
+  /** Calls one agent connection or token may make per minute. */
+  agentCallsPerMinute: 120,
   fileBytes: 50 * 1024 * 1024,
   /** An image as sent (a screenshot), before it is decoded and re-encoded. */
   imageUploadBytes: 12 * 1024 * 1024,
