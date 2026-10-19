@@ -8,6 +8,7 @@ import type { Edge } from '@atlaskit/pragmatic-drag-and-drop-hitbox/types';
 import type { NoteDto } from '@noergo/core/dto';
 import { useFormatter, useTranslations } from 'next-intl';
 import { memo, useEffect, useRef, useState, type KeyboardEvent } from 'react';
+import { agentProps, useAgentMark } from './agent-marks';
 import { isEditable, useWorkspace } from './context';
 import { IconCalendar, IconCheck, IconLink } from './icons';
 import { corProps } from './cover';
@@ -45,6 +46,7 @@ export const NoteCard = memo(function NoteCard({ note }: { note: NoteDto }) {
   const ref = useRef<HTMLElement>(null);
   const [dragging, setDragging] = useState(false);
   const [edge, setEdge] = useState<Edge | null>(null);
+  const agent = useAgentMark(note.id);
 
   useEffect(() => {
     const el = ref.current;
@@ -102,6 +104,7 @@ export const NoteCard = memo(function NoteCard({ note }: { note: NoteDto }) {
         ref={ref}
         className={`nr-card w-card${done ? ' nr-card--feito' : ''}${dragging ? ' w-card--dragging' : ''}`}
         {...corProps(note.color)}
+        {...agentProps(agent)}
         data-note-id={note.id}
         tabIndex={0}
         aria-label={title}

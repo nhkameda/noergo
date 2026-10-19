@@ -26,6 +26,22 @@ const config: NextConfig = {
   async headers() {
     return [{ source: '/:path*', headers: securityHeaders }];
   },
+  // Development and end-to-end tests only: one origin for web and mcp, as the reverse
+  // proxy gives in production. Unset in production, where these paths never reach web.
+  async rewrites() {
+    const mcp = process.env.NOERGO_MCP_PROXY?.replace(/\/+$/, '');
+    if (!mcp) return [];
+    return {
+      beforeFiles: [
+        { source: '/mcp', destination: `${mcp}/mcp` },
+        { source: '/oauth/:endpoint(authorize|token|register|revoke|jwks|par)', destination: `${mcp}/oauth/:endpoint` },
+        { source: '/oauth/authorize/:uid', destination: `${mcp}/oauth/authorize/:uid` },
+        { source: '/.well-known/:path*', destination: `${mcp}/.well-known/:path*` },
+      ],
+      afterFiles: [],
+      fallback: [],
+    };
+  },
 };
 
 export default withNextIntl(config);

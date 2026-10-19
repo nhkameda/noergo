@@ -31,8 +31,26 @@ export interface Notice {
   undo?: () => void;
 }
 
+/** An entity an agent just touched: the screen lights it up for a moment. */
+export interface AgentMark {
+  label: string;
+  at: number;
+  /** Created by the agent (it enters with its halo), not just changed. */
+  fresh: boolean;
+}
+
+/** How long a mark lasts, and "… is writing" after the agent's last change. */
+export const AGENT_MARK_MS = 4000;
+export const AGENT_WRITING_MS = 5000;
+
 export interface WorkspaceState {
   data: Data | null;
+  /** By entity id (note, thought, link, board). A thought is marked too when its ideas change. */
+  agentMarks: ReadonlyMap<string, AgentMark>;
+  /** The agent writing now, shown until a few seconds after its last change. */
+  agentWriting: string | null;
+  /** An agent wrote here since the page opened (the map then offers "Follow the agent"). */
+  agentSeen: boolean;
   connection: Connection;
   /** Ops made here that the server has not confirmed yet. */
   unsynced: number;
@@ -59,7 +77,7 @@ const jitter = (ms: number) => ms / 2 + Math.random() * (ms / 2);
 export class WorkspaceStore {
   private confirmed: Data | null = null;
   private pending: Pending[] = [];
-  private state: WorkspaceState = { data: null, connection: 'loading', unsynced: 0, notices: [], canUndo: false, canRedo: false };
+  private state: WorkspaceState = { data: null, agentMarks: new Map(), agentWriting: null, agentSeen: false, connection: 'loading', unsynced: 0, notices: [], canUndo: false, canRedo: false };
   private listeners = new Set<() => void>();
   private waiters = new Map<string, (o: Outcome) => void>();
   private undoStack: Step[] = [];
@@ -229,6 +247,7 @@ export class WorkspaceStore {
       }
       this.confirmed = applyEffects(this.confirmed, row.effects, row.seq);
       this.recompute();
+      if (row.actor?.kind === 'agent' || row.actor?.kind === 'token') this.agentChanged(row, row.actor.label);
       this.saveCacheSoon();
     });
     es.addEventListener('reset', () => void this.reload());
@@ -250,6 +269,31 @@ export class WorkspaceStore {
         this.emit({ connection: navigator.onLine ? 'connecting' : 'offline' }); // it retries by itself, with Last-Event-ID
       }
     });
+  }
+
+  // ───────────────────────────── agents at work
+
+  private agentChanged(row: ChangeRow, label: string) {
+    const at = Date.now();
+    const created = row.op.endsWith('.create');
+    const marks = new Map(this.state.agentMarks);
+    const mark = (id: string, fresh: boolean) => marks.set(id, { label, at, fresh: fresh || (marks.get(id)?.fresh ?? false) });
+    for (const e of row.effects) {
+      if (e.kind === 'layout' || e.kind === 'layout.removed') continue;
+      mark(e.data.id, created);
+      if (e.kind === 'note') mark(e.data.laneId, false);
+    }
+    this.emit({ agentMarks: marks, agentWriting: label, agentSeen: true });
+    this.later(() => this.expireAgentMarks(), AGENT_MARK_MS + 50);
+    this.later(() => this.expireAgentMarks(), AGENT_WRITING_MS + 50);
+  }
+
+  private expireAgentMarks() {
+    const now = Date.now();
+    const all = [...this.state.agentMarks.values()];
+    const last = all.reduce((t, m) => Math.max(t, m.at), 0);
+    const marks = new Map([...this.state.agentMarks].filter(([, m]) => now - m.at < AGENT_MARK_MS));
+    this.emit({ agentMarks: marks, agentWriting: now - last < AGENT_WRITING_MS ? this.state.agentWriting : null });
   }
 
   private closeStream() {

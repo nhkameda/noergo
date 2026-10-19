@@ -10,6 +10,7 @@ import type { LaneDto } from '@noergo/core/dto';
 import { LIMITS } from '@noergo/core/limits';
 import { useTranslations } from 'next-intl';
 import { memo, useEffect, useMemo, useRef, useState, type CSSProperties, type KeyboardEvent } from 'react';
+import { agentProps, useAgentMark } from './agent-marks';
 import { useWorkspace } from './context';
 import { CoverArt } from './CoverArt';
 import { initials, laneStyle } from './cover';
@@ -146,6 +147,7 @@ const Tile = memo(function Tile({ lane, count, index, total, onOpen }: { lane: L
   const t = useTranslations('app');
   const { actions, announce, customize, openMap, store } = useWorkspace();
   const look = useLaneLook(lane);
+  const agent = useAgentMark(lane.id);
   const files = useFileDrag();
   const ref = useRef<HTMLDivElement>(null);
   const [edge, setEdge] = useState<Edge | null>(null);
@@ -189,7 +191,7 @@ const Tile = memo(function Tile({ lane, count, index, total, onOpen }: { lane: L
 
   return (
     <li className="w-tile-slot" data-edge={edge ?? undefined}>
-      <div ref={ref} className={`w-tile${dragging ? ' w-tile--dragging' : ''}`} {...laneStyle(look.color)} data-lane-tile={lane.id} {...drop.props} data-over={drop.over || undefined}>
+      <div ref={ref} className={`w-tile${dragging ? ' w-tile--dragging' : ''}`} {...laneStyle(look.color)} {...agentProps(agent)} data-lane-tile={lane.id} {...drop.props} data-over={drop.over || undefined}>
         <button type="button" className="w-tile__open" onClick={() => onOpen(lane.id)} onKeyDown={onKeyDown} aria-label={t('cards.open', { title: lane.title, count, position: index + 1, total })}>
           {look.cover ? (
             <CoverArt look={look.cover} className="w-tile__cover" />

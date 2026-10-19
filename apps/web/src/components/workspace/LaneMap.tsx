@@ -6,8 +6,9 @@ import type { Op } from '@noergo/core/ops/schema';
 import { between } from '@noergo/core/position';
 import { useTranslations } from 'next-intl';
 import { memo, useCallback, useEffect, useEffectEvent, useLayoutEffect, useMemo, useRef, useState, type MouseEvent as ReactMouseEvent, type PointerEvent as ReactPointerEvent, type ReactNode } from 'react';
+import { agentProps, useAgentMarks, useAgentSeen } from './agent-marks';
 import { isComposing, isEditable, useWorkspace } from './context';
-import { ARROW_ICONS, DASH_ICONS, FILL_ICONS, IconBrush, IconClose, IconEdit, IconImage, IconFit, IconLabel, IconLink, IconMinus, IconNote, IconOrganize, IconPlus, IconSwap, IconTrash, ROUTE_ICONS, SHAPE_ICONS, WidthIcon } from './icons';
+import { ARROW_ICONS, DASH_ICONS, FILL_ICONS, IconBrush, IconClose, IconEdit, IconImage, IconFit, IconFollow, IconLabel, IconLink, IconMinus, IconNote, IconOrganize, IconPlus, IconSwap, IconTrash, ROUTE_ICONS, SHAPE_ICONS, WidthIcon } from './icons';
 import { splitText } from './import-ideario';
 import {
   ARROWS,
@@ -51,7 +52,8 @@ import { CoverArt } from './CoverArt';
 import { corProps, laneStyle } from './cover';
 import { useFileDrag, useImageDrop, useLaneLook } from './cover-client';
 import { colorName, notesByLane, PALETTE, type Data } from './model';
-import { fromLogSlider, toLogSlider } from './view-prefs';
+import type { AgentMark } from './store';
+import { FOLLOW_AGENT, fromLogSlider, toLogSlider } from './view-prefs';
 import './map.css';
 
 /**
@@ -152,6 +154,12 @@ export function LaneMap({ data, laneId, blocked, onClose }: { data: Data; laneId
   const [labelEdit, setLabelEdit] = useState<string | null>(null);
   const [panning, setPanning] = useState(false);
   const [space, setSpace] = useState(false);
+  const agentMarks = useAgentMarks();
+  const follow = FOLLOW_AGENT.use() === 'on';
+  const agentSeen = useAgentSeen();
+  /** When the person last moved the map (event time): the camera never follows an agent against their hand. */
+  const touched = useRef(-Infinity);
+  const followed = useRef(0);
 
   const boxes = useMemo(() => {
     const out = new Map<NodeKey, Box>();
@@ -245,6 +253,21 @@ export function LaneMap({ data, laneId, blocked, onClose }: { data: Data; laneId
     if (sx > 90 && sy > 90 && sx < w - 90 && sy < h - 160) return;
     animateView({ ...v, x: w / 2 - p.x * v.z, y: (h - 70) / 2 - p.y * v.z });
   };
+
+  // Follow the agent: the newest idea it added, if off screen, comes into view, unless the
+  // person moved the map in the last few seconds. Focus never moves.
+  useEffect(() => {
+    let newest: { key: NodeKey; at: number } | null = null;
+    for (const n of map?.nodes ?? []) {
+      const m = n.note ? agentMarks.get(n.note.id) : undefined;
+      if (m?.fresh && m.at > followed.current && (!newest || m.at > newest.at)) newest = { key: n.key, at: m.at };
+    }
+    if (!newest) return;
+    followed.current = newest.at;
+    const b = boxes.get(newest.key);
+    if (follow && b && performance.now() - touched.current > 5000) reveal(b);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- runs on new marks only; boxes is read as of now
+  }, [agentMarks, map, follow]);
 
   // The first frame already framed: measure what was just drawn, before the paint.
   useLayoutEffect(() => {
@@ -520,6 +543,7 @@ export function LaneMap({ data, laneId, blocked, onClose }: { data: Data; laneId
   };
 
   const onPointerDown = (e: ReactPointerEvent<HTMLDivElement>) => {
+    touched.current = e.timeStamp;
     const target = e.target as HTMLElement;
     if (target.closest('[contenteditable], [data-chip]')) return;
     if (e.pointerType === 'mouse' && e.button !== 0 && e.button !== 1) return;
@@ -773,6 +797,7 @@ export function LaneMap({ data, laneId, blocked, onClose }: { data: Data; laneId
     if (!c) return;
     const wheel = (e: WheelEvent) => {
       e.preventDefault();
+      touched.current = e.timeStamp;
       cancelAnimationFrame(viewAnim.current);
       const k = e.deltaMode === 1 ? 16 : 1;
       const v = view.current;
@@ -850,7 +875,7 @@ export function LaneMap({ data, laneId, blocked, onClose }: { data: Data; laneId
           onDoubleClick={onDoubleClick}
         >
           <div ref={world} className="w-map__world">
-            <MapEdges edges={map.edges} boxes={boxes} colors={colors} selected={sel.edge} extra={extra} />
+            <MapEdges edges={map.edges} boxes={boxes} colors={colors} selected={sel.edge} extra={extra} marks={agentMarks} />
             {map.nodes.map((n) => {
               const b = boxes.get(n.key)!;
               return (
@@ -866,6 +891,7 @@ export function LaneMap({ data, laneId, blocked, onClose }: { data: Data; laneId
                   label={t('map.placeholder')}
                   linkLabel={t('note.openLink')}
                   observe={observe}
+                  agent={n.note ? agentMarks.get(n.note.id) : undefined}
                   onEdited={editing === n.key ? (text, then) => finishEdit(n.key, text, then) : undefined}
                 />
               );
@@ -945,6 +971,11 @@ export function LaneMap({ data, laneId, blocked, onClose }: { data: Data; laneId
           <button type="button" className="w-icon-btn" onClick={() => fitTo()} aria-label={t('map.fit')} title={t('map.fit')}>
             <IconFit />
           </button>
+          {agentSeen && (
+            <button type="button" className="w-icon-btn w-map__follow" aria-pressed={follow} onClick={() => FOLLOW_AGENT.write(follow ? 'off' : 'on')} aria-label={t('map.followAgent')} title={t('map.followAgent')}>
+              <IconFollow />
+            </button>
+          )}
         </div>
       </div>
     </section>
@@ -964,6 +995,7 @@ const MapNodeView = memo(function MapNodeView({
   label,
   linkLabel,
   observe,
+  agent,
   onEdited,
 }: {
   node: MapNode;
@@ -976,6 +1008,7 @@ const MapNodeView = memo(function MapNodeView({
   label: string;
   linkLabel: string;
   observe: (el: HTMLElement) => () => void;
+  agent?: AgentMark;
   onEdited?: (text: string | null, then?: 'child') => void;
 }) {
   const ref = useRef<HTMLDivElement>(null);
@@ -996,8 +1029,14 @@ const MapNodeView = memo(function MapNodeView({
       data-target={target || undefined}
       data-done={node.note?.doneAt ? true : undefined}
       data-editing={editing || undefined}
+      {...agentProps(agent)}
       style={{ ...paint.style, left: x, top: y }}
     >
+      {agent?.fresh && (
+        <span className="w-map__agent" aria-hidden="true">
+          {agent.label}
+        </span>
+      )}
       {editing && onEdited ? <TitleEditor initial={node.title} label={label} onDone={onEdited} /> : <span className="w-map__text">{node.title}</span>}
       {url && !editing && (
         <a className="w-map__chip" href={url} target="_blank" rel="noopener noreferrer" data-chip aria-label={linkLabel} title={url}>
@@ -1057,7 +1096,7 @@ function TitleEditor({ initial, label, onDone }: { initial: string; label: strin
   );
 }
 
-const MapEdges = memo(function MapEdges({ edges, boxes, colors, selected, extra }: { edges: readonly MapEdge[]; boxes: ReadonlyMap<NodeKey, Box>; colors: ReadonlyMap<NodeKey, string | undefined>; selected: string | null; extra: readonly string[] }) {
+const MapEdges = memo(function MapEdges({ edges, boxes, colors, selected, extra, marks }: { edges: readonly MapEdge[]; boxes: ReadonlyMap<NodeKey, Box>; colors: ReadonlyMap<NodeKey, string | undefined>; selected: string | null; extra: readonly string[]; marks: ReadonlyMap<string, AgentMark> }) {
   return (
     <svg className="w-map__edges" aria-hidden="true">
       {edges.map((e) => {
@@ -1066,7 +1105,7 @@ const MapEdges = memo(function MapEdges({ edges, boxes, colors, selected, extra 
         if (!A || !B) return null;
         const { d, heads, mid } = buildPath(geometry(A, B, e.style.route), e.style.arrow, e.style.width);
         return (
-          <g key={e.id} className="w-map__edge" data-edge={e.id} {...corProps(e.style.color ?? colors.get(e.to))} data-selected={selected === e.id || undefined}>
+          <g key={e.id} className="w-map__edge" data-edge={e.id} {...corProps(e.style.color ?? colors.get(e.to))} {...agentProps(marks.get(e.id))} data-selected={selected === e.id || undefined}>
             <path className="w-map__hit" d={d} />
             <path className="w-map__line" d={d} strokeWidth={e.style.width} strokeDasharray={dashArray(e.style.dash, e.style.width)} strokeLinecap={e.style.dash === 'dashed' ? 'butt' : 'round'} />
             {heads.map((h, i) => (

@@ -19,6 +19,7 @@ export default async function AppPage({ params }: { params: Promise<{ locale: st
   setRequestLocale(locale);
   const appPath = getPathname({ href: '/app', locale });
   const home = getPathname({ href: '/', locale });
+  const agents = getPathname({ href: '/agents', locale });
   const { userId } = await requireUser(appPath);
   const signInHref = getPathname({ href: { pathname: '/signin', query: { callbackUrl: appPath } }, locale });
 
@@ -27,5 +28,5 @@ export default async function AppPage({ params }: { params: Promise<{ locale: st
     await signOut({ redirectTo: home });
   }
 
-  return <Workspace key={userId} userId={userId} signInHref={signInHref} homeHref={home} sourceUrl={SOURCE_URL} signOut={signOutAction} />;
+  return <Workspace key={userId} userId={userId} signInHref={signInHref} homeHref={home} agentsHref={agents} sourceUrl={SOURCE_URL} signOut={signOutAction} />;
 }

@@ -1,4 +1,5 @@
 import type { Locale } from '@noergo/i18n';
+import { redirect as redirectTo } from 'next/navigation';
 import { getTranslations, setRequestLocale } from 'next-intl/server';
 import { auth, signIn, signInOptions } from '@/auth';
 import { getPathname, redirect } from '@/i18n/navigation';
@@ -22,7 +23,11 @@ export default async function SignInPage({ params, searchParams }: { params: Pro
   const appPath = getPathname({ href: '/app', locale });
   const target = safeReturnPath(query.callbackUrl, appPath);
 
-  if ((await auth())?.user?.id) redirect({ href: target, locale });
+  if ((await auth())?.user?.id) {
+    // The agents' consent page has no language prefix; next-intl would add one.
+    if (target.startsWith('/oauth/interaction/')) redirectTo(target);
+    redirect({ href: target, locale });
+  }
 
   const t = await getTranslations('auth');
   const reason = reasonOf(query.error);

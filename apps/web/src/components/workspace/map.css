@@ -317,3 +317,29 @@
 @media (prefers-reduced-motion: reduce) {
   .w-map, .w-map__toolbar { animation: none; }
 }
+
+/* ---------- an agent at work (Uva is the agents' colour alone) ---------- */
+.w-map__node[data-agent] { box-shadow: var(--nr-shadow-1), 0 0 0 4px var(--nr-agent-tint), 0 0 0 6px color-mix(in srgb, var(--nr-agent) 60%, transparent); transition: outline-color var(--nr-dur-fast), box-shadow 900ms var(--nr-ease-out); }
+.w-map__edge[data-agent] { --line: var(--nr-agent); }
+.w-map__agent {
+  position: absolute;
+  left: 50%;
+  bottom: calc(100% + 8px);
+  transform: translateX(-50%);
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: var(--nr-agent-fill);
+  color: #fff;
+  font: 600 11px/1.4 var(--nr-font-ui);
+  white-space: nowrap;
+  pointer-events: none;
+}
+.w-map__follow[aria-pressed="true"] { color: var(--nr-agent-text); background: var(--nr-agent-tint); }
+@media (prefers-reduced-motion: no-preference) {
+  .w-map__node[data-agent="new"] { animation: w-agent-node-in 240ms var(--nr-ease-out); }
+  .w-map__edge[data-agent="new"] .w-map__line { stroke-dasharray: 2400; stroke-dashoffset: 2400; animation: w-agent-edge-draw 600ms var(--nr-ease-out) forwards; }
+  .w-map__agent { animation: w-agent-badge 4s ease forwards; }
+}
+@keyframes w-agent-node-in { from { opacity: 0; transform: translate(-50%, -50%) scale(0.6); } }
+@keyframes w-agent-edge-draw { to { stroke-dashoffset: 0; } }
+@keyframes w-agent-badge { 0%, 80% { opacity: 1; } 100% { opacity: 0; } }

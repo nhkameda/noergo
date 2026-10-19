@@ -87,6 +87,32 @@ describe('laneMap: the column as a map', () => {
     expect(edgeBetween(m.edges, 'note:b', 'note:a')?.id).toBe('ab');
   });
 
+  it('puts a note nobody placed next to the idea it hangs from, outwards, even when the child is older', () => {
+    const d = data(
+      [note('kid', { createdAt: '2026-10-01T00:00:00Z' }), note('a', { createdAt: '2026-10-02T00:00:00Z' }), note('b', { createdAt: '2026-10-03T00:00:00Z' })],
+      [link('ra', L, 'a'), link('rb', L, 'b'), link('akid', 'a', 'kid')],
+    );
+    const m = laneMap(d, L)!;
+    const at = (k: string) => m.nodes.find((n) => n.key === k)!;
+    const dist = (p: { x: number; y: number }, q: { x: number; y: number }) => Math.hypot(p.x - q.x, p.y - q.y);
+    const a = at('note:a');
+    const kid = at('note:kid');
+    expect(dist(kid, a)).toBeLessThan(dist(kid, m.nodes[0]!));
+    // Away from the centre, on the side its parent is on.
+    expect(Math.sign(kid.x - a.x)).toBe(Math.sign(a.x) || 1);
+    for (const p of m.nodes) for (const q of m.nodes) if (p !== q) expect(overlaps(p, q, 200, 50)).toBe(false);
+  });
+
+  it('places the same whatever order the links arrived in, and survives a cycle', () => {
+    const notes = [note('a'), note('b'), note('c')];
+    const links = [link('ra', L, 'a'), link('ab', 'a', 'b'), link('bc', 'b', 'c'), link('cb', 'c', 'b')];
+    const one = laneMap(data(notes, links), L)!;
+    const two = laneMap(data(notes, [...links].reverse()), L)!;
+    expect(two.nodes.map((n) => [n.key, n.x, n.y])).toEqual(one.nodes.map((n) => [n.key, n.x, n.y]));
+    const loop = laneMap(data([note('p'), note('q')], [link('pq', 'p', 'q'), link('qp', 'q', 'p')]), L)!;
+    expect(loop.nodes.map((n) => n.key).sort()).toEqual([`lane:${L}`, 'note:p', 'note:q'].sort());
+  });
+
   it('has no map for a column in the trash', () => {
     const d = fromSnapshot({ seq: 1, inboxLaneId: null, boards: [], lanes: [{ ...lane, deletedAt: T }], notes: [], links: [], layouts: [] });
     expect(laneMap(d, L)).toBeNull();

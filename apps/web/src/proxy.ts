@@ -57,6 +57,9 @@ export default function proxy(request: NextRequest) {
 
   const chosen = LOCALE_OF_PREFIX[pathname.split('/')[1] ?? ''];
   const interaction = pathname.startsWith('/oauth/interaction/');
+  // The agents' endpoints belong to mcp. The reverse proxy sends them there; in development
+  // next.config.ts rewrites them (NOERGO_MCP_PROXY). They are never pages to localise.
+  if (pathname === '/mcp' || (pathname.startsWith('/oauth/') && !interaction)) return NextResponse.next();
 
   // A page without a language prefix (/, or /signin from Auth.js) goes to the person's
   // language: the saved choice, else the browser's.

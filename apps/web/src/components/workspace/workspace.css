@@ -93,6 +93,21 @@
 .w-icon-btn[disabled] { opacity: 0.4; cursor: default; background: transparent; }
 .w-icon-btn[aria-pressed="true"] { background: var(--nr-fill-active); color: var(--nr-text); }
 
+/* ---------- an agent at work: "Grok is writing…", and what it touches lights up in Uva ---------- */
+.w-agent-pill { display: inline-flex; align-items: center; gap: var(--nr-space-1-5); min-width: 0; padding: 3px 10px 3px 3px; border-radius: 999px; background: var(--nr-agent-tint); color: var(--nr-agent-text); font: 600 var(--nr-text-xs)/1.2 var(--nr-font-ui); white-space: nowrap; }
+.w-agent-pill__avatar { display: grid; place-items: center; flex: none; width: 20px; height: 20px; border-radius: 7px; background: var(--nr-agent-fill); color: #fff; font-size: 11px; }
+.w-agent-pill__text { max-width: 14rem; overflow: hidden; text-overflow: ellipsis; }
+.w-card[data-agent], .w-tile[data-agent] { box-shadow: 0 0 0 2px var(--nr-agent), 0 0 0 6px var(--nr-agent-tint); }
+@media (max-width: 600px) { .w-agent-pill__text { max-width: 6.5rem; } }
+@media (prefers-reduced-motion: no-preference) {
+  .w-agent-pill { animation: w-agent-pill-in 200ms var(--nr-ease-out); }
+  .w-agent-pill__avatar { animation: w-agent-pulse 1.4s ease-in-out infinite; }
+  .w-card[data-agent="new"] { animation: w-agent-card-in 320ms var(--nr-ease-out); }
+}
+@keyframes w-agent-pill-in { from { opacity: 0; transform: translateY(-4px); } }
+@keyframes w-agent-pulse { 50% { transform: scale(0.86); } }
+@keyframes w-agent-card-in { from { opacity: 0; transform: translateY(-6px) scale(0.98); } }
+
 .w-status { display: inline-flex; align-items: center; gap: var(--nr-space-1-5); color: var(--nr-text-muted); font-size: var(--nr-text-xs); white-space: nowrap; }
 .w-status__dot { width: 8px; height: 8px; border-radius: 50%; background: var(--nr-warning); }
 .w-status[data-tone="on"] .w-status__dot { background: var(--nr-success); }

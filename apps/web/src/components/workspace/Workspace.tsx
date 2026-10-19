@@ -11,6 +11,7 @@ import { CustomizePanel, type CustomizeTarget } from './Customize';
 import { Gallery } from './Gallery';
 import { isComposing, isEditable, useWorkspace, WorkspaceContext, type WorkspaceApi } from './context';
 import { DueList } from './DueList';
+import { useFocusHeartbeat } from './focus';
 import { IconCards, IconCheck, IconClock, IconColumns, IconPlus, IconRedo, IconSearch, IconUndo, IconUser } from './icons';
 import { LaneMap } from './LaneMap';
 import { isIdeario, planIdeario } from './import-ideario';
@@ -32,6 +33,11 @@ function mapInUrl(): string | null {
   return /^#map=([0-9a-f-]{36})$/i.exec(window.location.hash)?.[1] ?? null;
 }
 
+/** /app#note=<id>: the link agents hand out (search, fetch). */
+function noteInUrl(): string | null {
+  return /^#note=([0-9a-f-]{36})$/i.exec(window.location.hash)?.[1] ?? null;
+}
+
 function readStoredBoard(userId: string): string | null {
   try {
     return localStorage.getItem(boardKey(userId));
@@ -41,7 +47,7 @@ function readStoredBoard(userId: string): string | null {
 }
 
 /** The signed-in workspace: boards, the capture bar, the open note and search. */
-export function Workspace({ userId, signInHref, homeHref, sourceUrl, signOut }: { userId: string; signInHref: string; homeHref: string; sourceUrl: string; signOut: () => Promise<void> }) {
+export function Workspace({ userId, signInHref, homeHref, agentsHref, sourceUrl, signOut }: { userId: string; signInHref: string; homeHref: string; agentsHref: string; sourceUrl: string; signOut: () => Promise<void> }) {
   const t = useTranslations('app');
   const [store] = useState(() => new WorkspaceStore(userId, () => window.location.assign(signInHref)));
   const [actions] = useState(() => new Actions(store));
@@ -74,6 +80,9 @@ export function Workspace({ userId, signInHref, homeHref, sourceUrl, signOut }: 
   const wanted = data ? (map?.boardId ?? chosenBoard ?? readStoredBoard(userId)) : null;
   const boardId = boards.find((b) => b.id === wanted)?.id ?? boards[0]?.id ?? null;
   const board = boardId ? data?.boards.get(boardId) : undefined;
+  // "Here", for an agent: the thought whose map or note is open, else the board on screen.
+  const openLane = map?.id ?? (openId ? (data?.notes.get(openId)?.laneId ?? null) : null);
+  useFocusHeartbeat(!!data, view === 'due' ? 'dates' : map ? 'map' : layout === 'cards' ? 'cards' : 'board', boardId, openLane);
 
   const showBoard = useCallback(
     (id: string) => {
@@ -161,6 +170,19 @@ export function Workspace({ userId, signInHref, homeHref, sourceUrl, signOut }: 
     },
     [store, showBoard],
   );
+
+  // A link from an agent opens its note once, when the workspace first has data.
+  useEffect(() => {
+    const id = noteInUrl();
+    if (!id) return;
+    const off = store.subscribe(() => {
+      if (!store.getState().data) return;
+      off();
+      window.history.replaceState(window.history.state, '', window.location.pathname + window.location.search);
+      openNote(id);
+    });
+    return () => void off();
+  }, [store, openNote]);
 
   const announce = useCallback((text: string) => {
     setAnnouncement('');
@@ -303,8 +325,9 @@ export function Workspace({ userId, signInHref, homeHref, sourceUrl, signOut }: 
               <span className="w-hide-sm">{t('search')}</span>
               <kbd className="nr-kbd w-hide-sm">⌘K</kbd>
             </button>
+            {state.agentWriting && <AgentPill name={state.agentWriting} />}
             <Status state={state} />
-            <AccountMenu store={store} data={data} sourceUrl={sourceUrl} signOut={signOut} onImported={showBoard} />
+            <AccountMenu store={store} data={data} agentsHref={agentsHref} sourceUrl={sourceUrl} signOut={signOut} onImported={showBoard} />
           </div>
         </header>
 
@@ -348,6 +371,19 @@ export function Workspace({ userId, signInHref, homeHref, sourceUrl, signOut }: 
         </div>
       </div>
     </WorkspaceContext.Provider>
+  );
+}
+
+/** "Grok is writing…": an agent is changing this workspace right now. Uva is the agents' colour. */
+function AgentPill({ name }: { name: string }) {
+  const t = useTranslations('app');
+  return (
+    <span className="w-agent-pill" role="status">
+      <span className="w-agent-pill__avatar" aria-hidden="true">
+        {name.trim().charAt(0).toUpperCase() || '✦'}
+      </span>
+      <span className="w-agent-pill__text">{t('agentWriting', { name })}</span>
+    </span>
   );
 }
 
@@ -438,7 +474,7 @@ function Notices({ state, store }: { state: WorkspaceState; store: WorkspaceStor
   );
 }
 
-function AccountMenu({ store, data, sourceUrl, signOut, onImported }: { store: WorkspaceStore; data: Data | null; sourceUrl: string; signOut: () => Promise<void>; onImported: (boardId: string) => void }) {
+function AccountMenu({ store, data, agentsHref, sourceUrl, signOut, onImported }: { store: WorkspaceStore; data: Data | null; agentsHref: string; sourceUrl: string; signOut: () => Promise<void>; onImported: (boardId: string) => void }) {
   const t = useTranslations('app');
   const tNav = useTranslations('nav');
   const file = useRef<HTMLInputElement>(null);
@@ -482,6 +518,9 @@ function AccountMenu({ store, data, sourceUrl, signOut, onImported }: { store: W
             >
               {t('import')}
             </button>
+            <a className="w-menu__item" href={agentsHref}>
+              {tNav('agents')}
+            </a>
             <a className="w-menu__item" href={sourceUrl} target="_blank" rel="noopener noreferrer">
               {tNav('sourceCode')}
             </a>

@@ -109,14 +109,53 @@ export function laneMap(data: Pick<Data, 'lanes' | 'notes' | 'links' | 'layouts'
     if (!l) missing.push(note);
     else nodes.push({ key: keyOf({ kind: 'note', id: note.id }), ref: { kind: 'note', id: note.id }, x: l.x, y: l.y, ...styleFrom(l), placed: true, note, title: note.title });
   }
-  // Same spots on every device: guessed sizes, oldest first, so a note added later never
-  // moves the ones already shown.
+  // A note nobody placed goes next to the node it hangs from (its first link in, by link
+  // id), parents before children, else in a ring around the centre. Same spots on every
+  // device: guessed sizes, oldest first, so a note added later never moves the ones shown.
   missing.sort((a, b) => a.createdAt.localeCompare(b.createdAt) || (a.id < b.id ? -1 : a.id > b.id ? 1 : 0));
+  const inMap = new Set([root.key, ...notes.map((n) => keyOf({ kind: 'note', id: n.id }))]);
+  const parentOf = new Map<NodeKey, { key: NodeKey; link: string }>();
+  for (const l of data.links.values()) {
+    if (l.deletedAt !== null || l.to.kind !== 'note') continue;
+    const from = keyOf(l.from);
+    const to = keyOf(l.to);
+    if (from === to || !inMap.has(from) || !inMap.has(to)) continue;
+    const cur = parentOf.get(to);
+    if (!cur || l.id < cur.link) parentOf.set(to, { key: from, link: l.id });
+  }
   const taken: Box[] = nodes.map((n) => ({ x: n.x, y: n.y, ...GUESS, shape: n.shape }));
-  for (const note of missing) {
-    const [x, y] = ringSpot(root, GUESS, taken);
-    taken.push({ x, y, ...GUESS, shape: 'pill' });
-    nodes.push({ key: keyOf({ kind: 'note', id: note.id }), ref: { kind: 'note', id: note.id }, x, y, ...NODE_DEFAULT, placed: false, note, title: note.title });
+  const at = new Map<NodeKey, Box>(nodes.map((n, i) => [n.key, taken[i]!]));
+  let queue = missing;
+  while (queue.length) {
+    const later: NoteDto[] = [];
+    for (const note of queue) {
+      const key = keyOf({ kind: 'note', id: note.id });
+      const parent = parentOf.get(key)?.key;
+      const from = parent ? at.get(parent) : undefined;
+      // A parent still to be placed goes first; a cycle falls back to the ring below.
+      if (parent && !from) {
+        later.push(note);
+        continue;
+      }
+      const spot = from && parent !== root.key ? childSpot(taken, from, false, root.x) : (([x, y]) => ({ x, y }))(ringSpot(root, GUESS, taken));
+      const box: Box = { ...spot, ...GUESS, shape: 'pill' };
+      taken.push(box);
+      at.set(key, box);
+      nodes.push({ key, ref: { kind: 'note', id: note.id }, x: spot.x, y: spot.y, ...NODE_DEFAULT, placed: false, note, title: note.title });
+    }
+    // No progress means what is left waits on itself: place it around the centre.
+    if (later.length === queue.length) {
+      for (const note of later) {
+        const [x, y] = ringSpot(root, GUESS, taken);
+        const key = keyOf({ kind: 'note', id: note.id });
+        const box: Box = { x, y, ...GUESS, shape: 'pill' };
+        taken.push(box);
+        at.set(key, box);
+        nodes.push({ key, ref: { kind: 'note', id: note.id }, x, y, ...NODE_DEFAULT, placed: false, note, title: note.title });
+      }
+      break;
+    }
+    queue = later;
   }
 
   const present = new Set(nodes.map((n) => n.key));

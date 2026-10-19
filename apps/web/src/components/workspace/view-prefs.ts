@@ -42,6 +42,9 @@ const clamp = (v: number, lo: number, hi: number) => Math.min(hi, Math.max(lo, v
 export type Layout = 'columns' | 'cards';
 export const LAYOUT = deviceSetting<Layout>('noergo:layout', (raw) => (raw === 'cards' ? 'cards' : 'columns'), 'columns');
 
+/** The map's camera follows what an agent adds (on unless the person turns it off). */
+export const FOLLOW_AGENT = deviceSetting<'on' | 'off'>('noergo:follow-agent', (raw) => (raw === 'off' ? 'off' : 'on'), 'on');
+
 /** Cards per row: the person’s choice, but never more than fit (a card stays readable; the same 96 px minimum is in workspace.css). */
 export const CARDS = { min: 1, max: 12, fallback: 6, minWidth: 96 } as const;
 export const perRow = (n: number) => clamp(Math.round(n), CARDS.min, CARDS.max);
