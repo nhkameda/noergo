@@ -172,6 +172,23 @@ describe.skipIf(!testDb)('MCP tools', () => {
     await close();
   });
 
+  it('gives a thought its website, read back everywhere, and refuses one a click could run', async () => {
+    const a = await agentFor();
+    const [lane] = await lanesOf(a.workspaceId);
+    const { call, close } = await connect(a.principal);
+    expect((await call('update_thought', { thought_id: lane!.id, url: 'https://noergo.com/' })).isError).toBeFalsy();
+    const read = (await call('get_thought', { thought_id: lane!.id })).structuredContent as { thought: { url: string | null } };
+    expect(read.thought.url).toBe('https://noergo.com/');
+    const listed = (await call('list_boards')).structuredContent as { boards: Array<{ thoughts: Array<{ id: string; url: string | null }> }> };
+    expect(listed.boards.flatMap((b) => b.thoughts).find((t) => t.id === lane!.id)?.url).toBe('https://noergo.com/');
+    expect(errorCode(await call('update_thought', { thought_id: lane!.id, url: 'javascript:alert(1)' }))).toBe('invalid');
+    const made = (await call('create_thought', { title: 'Example', url: 'https://example.com/' })).structuredContent as { thought_id: string };
+    expect(((await call('get_thought', { thought_id: made.thought_id })).structuredContent as { thought: { url: string } }).thought.url).toBe('https://example.com/');
+    expect((await call('update_thought', { thought_id: lane!.id, url: null })).isError).toBeFalsy();
+    expect(((await call('get_thought', { thought_id: lane!.id })).structuredContent as { thought: { url: string | null } }).thought.url).toBeNull();
+    await close();
+  });
+
   it('never hands out e-mail addresses or internal columns', async () => {
     const a = await agentFor();
     const [lane] = await lanesOf(a.workspaceId);

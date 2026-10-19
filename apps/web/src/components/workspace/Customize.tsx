@@ -1,13 +1,16 @@
 'use client';
 
+import type { LaneDto } from '@noergo/core/dto';
+import { LIMITS } from '@noergo/core/limits';
 import { useTranslations } from 'next-intl';
 import { useEffect, useEffectEvent, useLayoutEffect, useRef, useState, type KeyboardEvent, type PointerEvent as ReactPointerEvent } from 'react';
 import { useWorkspace } from './context';
 import { CoverArt } from './CoverArt';
 import { clampZoom, corProps, FRAME_DEFAULT, panFrame, sameColor, sliderToZoom, zoomToSlider, type Frame } from './cover';
 import { abandonCover, analyze, clearPreview, firstImage, peekPreview, setPreview, takePicture, uploadingCover, useImageDrop, useLaneLook, type CoverLook } from './cover-client';
-import { IconClose, IconImage, IconMinus, IconPlus, IconSwap, IconTrash } from './icons';
+import { IconClose, IconGlobe, IconImage, IconMinus, IconPlus, IconSwap, IconTrash } from './icons';
 import { colorName, PALETTE, type Data } from './model';
+import { siteUrl } from './site';
 
 export interface CustomizeTarget {
   laneId: string;
@@ -21,10 +24,10 @@ const INK = '#142b45';
 const SETTLE_MS = 350;
 
 /**
- * Everything that makes a column recognisable, in one place: the cover (dropped, pasted
- * or chosen, then dragged into place and zoomed) and the colour (the picture's own, the
- * palette or any other). Every change shows at once in the column, its card and its map;
- * each one is a single undo step.
+ * Everything that makes a column recognisable, in one place: its name, its website, the
+ * cover (dropped, pasted or chosen, then dragged into place and zoomed) and the colour (the
+ * picture's own, the palette or any other). Every change shows at once in the column, its
+ * card and its map; each one is a single undo step.
  */
 export function CustomizePanel({ data, target, onClose }: { data: Data; target: CustomizeTarget; onClose: () => void }) {
   const t = useTranslations('app');
@@ -165,18 +168,20 @@ export function CustomizePanel({ data, target, onClose }: { data: Data; target: 
   };
 
   return (
-    <div ref={panel} popover="auto" className="w-customize" role="dialog" aria-labelledby="w-customize-title" data-lane={laneId}>
+    <div ref={panel} popover="auto" className="w-customize" role="dialog" aria-labelledby="w-customize-kicker w-customize-title" data-lane={laneId}>
       <header className="w-customize__head">
         <div className="w-customize__names">
-          <div className="w-customize__kicker">{t('customize.kicker')}</div>
-          <h2 id="w-customize-title" className="w-customize__title">
-            {lane.title}
+          <h2 id="w-customize-kicker" className="w-customize__kicker">
+            {t('customize.kicker')}
           </h2>
+          <NameField lane={lane} />
         </div>
         <button type="button" className="w-icon-btn" onClick={close} aria-label={t('customize.close')} title={t('customize.close')}>
           <IconClose />
         </button>
       </header>
+
+      <SiteField lane={lane} />
 
       <section className="w-customize__section" aria-labelledby="w-customize-cover">
         <h3 id="w-customize-cover" className="w-customize__label">
@@ -270,6 +275,101 @@ export function CustomizePanel({ data, target, onClose }: { data: Data; target: 
 }
 
 /** What shows through a cover without a background: the column's colour. */
+/** The name, saved when it is left (Enter, Tab, a click elsewhere); Escape puts it back. */
+function NameField({ lane }: { lane: LaneDto }) {
+  const t = useTranslations('app');
+  const { actions } = useWorkspace();
+  const [draft, setDraft] = useState<string | null>(null);
+  const save = () => {
+    const title = draft?.trim();
+    if (title && title !== lane.title) actions.updateLane(lane.id, { title });
+    setDraft(null);
+  };
+  return (
+    <input
+      id="w-customize-title"
+      className="w-input w-customize__name"
+      aria-label={t('customize.name')}
+      maxLength={LIMITS.laneTitle}
+      autoComplete="off"
+      value={draft ?? lane.title}
+      onFocus={() => setDraft(lane.title)}
+      onChange={(e) => setDraft(e.target.value)}
+      onBlur={save}
+      onKeyDown={(e) => {
+        if (e.key === 'Enter') {
+          e.preventDefault();
+          e.currentTarget.blur();
+        } else if (e.key === 'Escape' && draft !== lane.title) {
+          // The first Escape undoes the typing; the next one closes the panel.
+          e.preventDefault();
+          e.stopPropagation();
+          setDraft(lane.title);
+        }
+      }}
+    />
+  );
+}
+
+/**
+ * The thought's website, typed the way people say it ("example.com"). It is saved when the
+ * field is left; a blank field removes it; something that is not a web address stays in
+ * the field with a note, and nothing is saved.
+ */
+function SiteField({ lane }: { lane: LaneDto }) {
+  const t = useTranslations('app');
+  const { actions } = useWorkspace();
+  const [draft, setDraft] = useState<string | null>(null);
+  const typed = draft?.trim() ?? '';
+  const invalid = draft !== null && typed !== '' && !siteUrl(typed);
+  const save = () => {
+    if (draft === null || invalid) return;
+    const url = typed ? siteUrl(typed) : null;
+    if (url !== lane.url) actions.updateLane(lane.id, { url });
+    setDraft(null);
+  };
+  return (
+    <section className="w-customize__section">
+      <label htmlFor="w-customize-site" className="w-customize__label">
+        {t('customize.site')}
+      </label>
+      <div className="w-customize__site">
+        <input
+          id="w-customize-site"
+          className="w-input"
+          inputMode="url"
+          autoComplete="url"
+          autoCapitalize="none"
+          spellCheck={false}
+          maxLength={LIMITS.url}
+          placeholder={t('customize.sitePlaceholder')}
+          aria-invalid={invalid || undefined}
+          aria-describedby="w-customize-site-note"
+          value={draft ?? lane.url ?? ''}
+          onFocus={() => setDraft((d) => d ?? lane.url ?? '')}
+          onChange={(e) => setDraft(e.target.value)}
+          onBlur={save}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter') {
+              e.preventDefault();
+              e.currentTarget.blur();
+            }
+          }}
+        />
+        {lane.url && draft === null && (
+          <a className="nr-btn nr-btn--sm nr-btn--fantasma" href={lane.url} target="_blank" rel="noopener noreferrer nofollow ugc">
+            <IconGlobe />
+            {t('customize.siteOpen')}
+          </a>
+        )}
+      </div>
+      <p id="w-customize-site-note" className={invalid ? 'w-customize__hint w-customize__error' : 'w-customize__hint'}>
+        {invalid ? t('customize.siteInvalid') : t('customize.siteHint')}
+      </p>
+    </section>
+  );
+}
+
 const laneBehind = (color: string | null) => (color ? { background: color } : undefined);
 
 /** Debounced save, flushed when the panel goes away. */

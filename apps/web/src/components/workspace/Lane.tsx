@@ -14,9 +14,10 @@ import { isComposing, useWorkspace } from './context';
 import { CoverArt } from './CoverArt';
 import { laneStyle } from './cover';
 import { useFileDrag, useImageDrop, useLaneLook } from './cover-client';
-import { IconBrush, IconImage, IconMap, IconPlus } from './icons';
+import { IconBrush, IconGlobe, IconImage, IconMap, IconPlus } from './icons';
 import { NoteCard } from './NoteCard';
 import { MoveToBoard } from './MoveToBoard';
+import { siteHost } from './site';
 import { InlineEdit, Menu } from './ui';
 
 export const Lane = memo(function Lane({ lane, notes, hideDone, index, total }: { lane: LaneDto; notes: NoteDto[]; hideDone: boolean; index: number; total: number }) {
@@ -126,6 +127,11 @@ export const Lane = memo(function Lane({ lane, notes, hideDone, index, total }: 
           <span className="nr-coluna__conta" aria-label={t('notesCount', { count: shown.length })}>
             {shown.length}
           </span>
+          {lane.url && (
+            <a className="w-icon-btn" data-lane-site={lane.id} href={lane.url} target="_blank" rel="noopener noreferrer nofollow ugc" aria-label={t('site.open', { title: lane.title, host: siteHost(lane.url) })} title={siteHost(lane.url)}>
+              <IconGlobe />
+            </a>
+          )}
           <button type="button" className="w-icon-btn" data-lane-map={lane.id} aria-label={t('map.openColumn', { title: lane.title })} title={t('map.open')} onClick={() => openMap(lane.id)}>
             <IconMap />
           </button>

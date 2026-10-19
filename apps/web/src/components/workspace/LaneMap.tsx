@@ -8,7 +8,7 @@ import { useTranslations } from 'next-intl';
 import { memo, useCallback, useEffect, useEffectEvent, useLayoutEffect, useMemo, useRef, useState, type MouseEvent as ReactMouseEvent, type PointerEvent as ReactPointerEvent, type ReactNode } from 'react';
 import { agentProps, useAgentMarks, useAgentSeen } from './agent-marks';
 import { isComposing, isEditable, useWorkspace } from './context';
-import { ARROW_ICONS, DASH_ICONS, FILL_ICONS, IconBrush, IconClose, IconEdit, IconImage, IconFit, IconFollow, IconLabel, IconLink, IconMinus, IconNote, IconOrganize, IconPlus, IconSwap, IconTrash, ROUTE_ICONS, SHAPE_ICONS, WidthIcon } from './icons';
+import { ARROW_ICONS, DASH_ICONS, FILL_ICONS, IconBrush, IconClose, IconEdit, IconImage, IconFit, IconFollow, IconGlobe, IconLabel, IconLink, IconMinus, IconNote, IconOrganize, IconPlus, IconSwap, IconTrash, ROUTE_ICONS, SHAPE_ICONS, WidthIcon } from './icons';
 import { splitText } from './import-ideario';
 import {
   ARROWS,
@@ -52,6 +52,7 @@ import { CoverArt } from './CoverArt';
 import { corProps, laneStyle } from './cover';
 import { useFileDrag, useImageDrop, useLaneLook } from './cover-client';
 import { colorName, notesByLane, PALETTE, type Data } from './model';
+import { siteHost } from './site';
 import type { AgentMark } from './store';
 import { FOLLOW_AGENT, fromLogSlider, toLogSlider } from './view-prefs';
 import './map.css';
@@ -846,6 +847,12 @@ export function LaneMap({ data, laneId, blocked, onClose }: { data: Data; laneId
           </h2>
         </div>
         <div className="w-map__actions">
+          {map.lane.url && (
+            <a className="nr-btn nr-btn--sm nr-btn--fantasma" href={map.lane.url} target="_blank" rel="noopener noreferrer nofollow ugc" aria-label={t('site.open', { title: map.lane.title, host: siteHost(map.lane.url) })} title={siteHost(map.lane.url)}>
+              <IconGlobe />
+              <span className="w-hide-sm">{siteHost(map.lane.url)}</span>
+            </a>
+          )}
           <button type="button" className="nr-btn nr-btn--sm nr-btn--fantasma" onClick={newThought} aria-label={t('newNote')}>
             <IconPlus />
             <span className="w-hide-sm">{t('newNote')}</span>

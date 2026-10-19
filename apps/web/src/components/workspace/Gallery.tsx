@@ -15,9 +15,10 @@ import { useWorkspace } from './context';
 import { CoverArt } from './CoverArt';
 import { initials, laneStyle } from './cover';
 import { useFileDrag, useImageDrop, useLaneLook } from './cover-client';
-import { IconBrush, IconImage, IconMap, IconPlus } from './icons';
+import { IconBrush, IconGlobe, IconImage, IconMap, IconPlus } from './icons';
 import { lanesOf, notesByLane, type Data } from './model';
 import { MoveToBoard } from './MoveToBoard';
+import { siteHost } from './site';
 import { InlineEdit, Menu, ViewFoot, ZoomSlider } from './ui';
 import { CARDS, CARDS_PER_ROW, cardsThatFit, perRow } from './view-prefs';
 
@@ -209,6 +210,11 @@ const Tile = memo(function Tile({ lane, count, index, total, onOpen }: { lane: L
             </span>
           </span>
         </button>
+        {lane.url && (
+          <a className="w-icon-btn w-tile__site" href={lane.url} target="_blank" rel="noopener noreferrer nofollow ugc" aria-label={t('site.open', { title: lane.title, host: siteHost(lane.url) })} title={siteHost(lane.url)}>
+            <IconGlobe />
+          </a>
+        )}
         <button type="button" className="w-icon-btn w-tile__map" onClick={() => openMap(lane.id)} aria-label={t('map.openColumn', { title: lane.title })} title={t('map.open')}>
           <IconMap />
         </button>

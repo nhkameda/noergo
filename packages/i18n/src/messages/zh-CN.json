@@ -111,10 +111,16 @@
       "larger": "放大"
     },
     "customize": {
-      "menu": "自定义封面和颜色…",
+      "menu": "名称、网站、封面和颜色…",
       "open": "自定义“{title}”",
       "openShort": "自定义",
       "kicker": "自定义想法",
+      "name": "名称",
+      "site": "网站",
+      "sitePlaceholder": "example.com",
+      "siteHint": "在卡片和列上点一下，就会在新标签页打开。",
+      "siteInvalid": "这看起来不像网址，例如 example.com。",
+      "siteOpen": "打开",
       "close": "关闭",
       "cover": "封面",
       "dropShort": "把图片拖到这里",
@@ -140,6 +146,9 @@
       "imageColor": "图片颜色 {color}",
       "anyColor": "任意颜色…",
       "done": "完成"
+    },
+    "site": {
+      "open": "在新标签页打开“{title}”的网站 {host}"
     },
     "note": {
       "untitled": "无标题",

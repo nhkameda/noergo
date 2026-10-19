@@ -26,6 +26,18 @@ const safeUrl = z
       return false;
     }
   }, 'only http, https and mailto links are allowed');
+/** A website: an absolute http(s) address, nothing a click could run. */
+const webUrl = z
+  .string()
+  .trim()
+  .max(LIMITS.url)
+  .refine((u) => {
+    try {
+      return ['http:', 'https:'].includes(new URL(u).protocol);
+    } catch {
+      return false;
+    }
+  }, 'only http and https addresses are allowed');
 
 /** Where to put an item: an explicit key (client-computed) or a relative placement. */
 export const placement = z.union([
@@ -85,8 +97,8 @@ export const opSchema = z.discriminatedUnion('type', [
   z.object({ type: z.literal('board.delete'), id }),
   z.object({ type: z.literal('board.restore'), id }),
 
-  z.object({ type: z.literal('lane.create'), id, boardId: id, title: trimmed(LIMITS.laneTitle).pipe(z.string().min(1)), color: color.optional(), place: placement.optional() }),
-  z.object({ type: z.literal('lane.update'), id, title: trimmed(LIMITS.laneTitle).pipe(z.string().min(1)).optional(), color: color.optional(), cover: cover.optional() }),
+  z.object({ type: z.literal('lane.create'), id, boardId: id, title: trimmed(LIMITS.laneTitle).pipe(z.string().min(1)), color: color.optional(), url: webUrl.nullable().optional(), place: placement.optional() }),
+  z.object({ type: z.literal('lane.update'), id, title: trimmed(LIMITS.laneTitle).pipe(z.string().min(1)).optional(), color: color.optional(), cover: cover.optional(), url: webUrl.nullable().optional() }),
   z.object({ type: z.literal('lane.move'), id, boardId: id.optional(), place: placement }),
   z.object({ type: z.literal('lane.delete'), id }),
   z.object({ type: z.literal('lane.restore'), id }),

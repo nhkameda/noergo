@@ -111,10 +111,16 @@
       "larger": "Larger"
     },
     "customize": {
-      "menu": "Customise cover and colour…",
+      "menu": "Name, website, cover and colour…",
       "open": "Customise “{title}”",
       "openShort": "Customise",
       "kicker": "Customise thought",
+      "name": "Name",
+      "site": "Website",
+      "sitePlaceholder": "yoursite.com",
+      "siteHint": "Opens in a new tab, straight from the card and the column.",
+      "siteInvalid": "That doesn’t look like a web address, such as example.com.",
+      "siteOpen": "Open",
       "close": "Close",
       "cover": "Cover",
       "dropShort": "Drop the image here",
@@ -140,6 +146,9 @@
       "imageColor": "Image colour {color}",
       "anyColor": "Any colour…",
       "done": "Done"
+    },
+    "site": {
+      "open": "Open the website of “{title}”, {host}, in a new tab"
     },
     "note": {
       "untitled": "Untitled",

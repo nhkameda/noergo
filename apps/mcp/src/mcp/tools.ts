@@ -36,6 +36,7 @@ const COLOR_NAMES = ['yellow', 'orange', 'red', 'pink', 'blue', 'teal', 'green',
 const colorIn = z
   .union([z.enum(COLOR_NAMES), z.string().regex(/^#[0-9a-fA-F]{6}$/)])
   .describe(`A colour: one of ${COLOR_NAMES.join(', ')}, or a hex like #3366ff.`);
+const siteIn = z.string().max(2048).describe('A website, as an absolute https:// address.');
 const toHex = (c: string): string => {
   const i = (COLOR_NAMES as readonly string[]).indexOf(c);
   return i >= 0 ? COLORS[i]! : c.toLowerCase();
@@ -58,7 +59,7 @@ const ideaOut = z.object({
 });
 const linkOut = z.object({ id: z.string(), from: z.string(), to: z.string(), label: z.string() });
 const thoughtOut = {
-  thought: z.object({ id: z.string(), title: z.string(), color: z.string().nullable(), board: z.object({ id: z.string(), title: z.string() }) }),
+  thought: z.object({ id: z.string(), title: z.string(), color: z.string().nullable(), url: z.string().nullable().describe('The thought’s website, when it has one.'), board: z.object({ id: z.string(), title: z.string() }) }),
   ideas: z.array(ideaOut),
   links: z.array(linkOut).describe('Edges of the mind map. An end equal to thought.id is the centre.'),
 };
@@ -79,7 +80,7 @@ const idea = (n: NoteDto): z.infer<typeof ideaOut> => ({
 });
 const link = (l: LinkDto): z.infer<typeof linkOut> => ({ id: l.id, from: l.from.id, to: l.to.id, label: l.label });
 const thought = (t: ThoughtDetail) => ({
-  thought: { id: t.thought.id, title: t.thought.title, color: t.thought.color, board: t.board },
+  thought: { id: t.thought.id, title: t.thought.title, color: t.thought.color, url: t.thought.url, board: t.board },
   ideas: t.ideas.map(idea),
   links: t.links.map(link),
 });
@@ -195,7 +196,7 @@ export function registerTools(server: McpServer, ctx: ToolContext): void {
       inputSchema: {},
       outputSchema: {
         boards: z.array(
-          z.object({ id: z.string(), title: z.string(), color: z.string().nullable(), thoughts: z.array(z.object({ id: z.string(), title: z.string(), color: z.string().nullable(), ideas: z.number() })) }),
+          z.object({ id: z.string(), title: z.string(), color: z.string().nullable(), thoughts: z.array(z.object({ id: z.string(), title: z.string(), color: z.string().nullable(), url: z.string().nullable(), ideas: z.number() })) }),
         ),
       },
       annotations: { title: 'List boards and thoughts', ...READ },
@@ -203,7 +204,7 @@ export function registerTools(server: McpServer, ctx: ToolContext): void {
     () =>
       run(ctx, 'list_boards', async () => {
         const boards = await outline(p.workspaceId);
-        return ok({ boards: boards.map((b) => ({ id: b.id, title: b.title, color: b.color, thoughts: b.thoughts.map((t) => ({ id: t.id, title: t.title, color: t.color, ideas: t.ideas })) })) });
+        return ok({ boards: boards.map((b) => ({ id: b.id, title: b.title, color: b.color, thoughts: b.thoughts.map((t) => ({ id: t.id, title: t.title, color: t.color, url: t.url, ideas: t.ideas })) })) });
       }),
   );
 
@@ -284,11 +285,11 @@ export function registerTools(server: McpServer, ctx: ToolContext): void {
     {
       title: 'Create a thought',
       description: 'A new thought (a column, and a mind map with it as the centre) at the end of a board. Without board_id it goes to the board the person has open, else the first board.',
-      inputSchema: { title: z.string().min(1).max(200), board_id: uuid.optional(), color: colorIn.optional() },
+      inputSchema: { title: z.string().min(1).max(200), board_id: uuid.optional(), color: colorIn.optional(), url: siteIn.optional() },
       outputSchema: { thought_id: z.string(), board_id: z.string() },
       annotations: { title: 'Create a thought', ...ADD },
     },
-    ({ title, board_id, color }) =>
+    ({ title, board_id, color, url }) =>
       run(ctx, 'create_thought', async () => {
         let boardId = board_id;
         if (boardId) await requireKind(p, boardId, 'board', 'board');
@@ -298,7 +299,7 @@ export function registerTools(server: McpServer, ctx: ToolContext): void {
           if (!boardId) throw new DomainError('not_found', 'there is no board yet; create_board first');
         }
         const id = newId();
-        await apply(p, [{ type: 'lane.create', id, boardId, title, ...(color ? { color: toHex(color) } : {}), place: { at: 'bottom' } }]);
+        await apply(p, [{ type: 'lane.create', id, boardId, title, ...(color ? { color: toHex(color) } : {}), ...(url ? { url } : {}), place: { at: 'bottom' } }]);
         return ok({ thought_id: id, board_id: boardId });
       }),
   );
@@ -306,18 +307,20 @@ export function registerTools(server: McpServer, ctx: ToolContext): void {
   server.registerTool(
     'update_thought',
     {
-      title: 'Rename, recolour or move a thought',
-      description: 'Changes a thought’s title or colour, or moves it (with its ideas) to the end of another board.',
-      inputSchema: { thought_id: uuid, title: z.string().min(1).max(200).optional(), color: colorIn.nullable().optional(), board_id: uuid.optional() },
+      title: 'Rename, recolour, link or move a thought',
+      description: 'Changes a thought’s title, colour or website, or moves it (with its ideas) to the end of another board.',
+      inputSchema: { thought_id: uuid, title: z.string().min(1).max(200).optional(), color: colorIn.nullable().optional(), url: siteIn.nullable().optional(), board_id: uuid.optional() },
       outputSchema: { thought_id: z.string() },
-      annotations: { title: 'Rename, recolour or move a thought', ...CHANGE },
+      annotations: { title: 'Rename, recolour, link or move a thought', ...CHANGE },
     },
-    ({ thought_id, title, color, board_id }) =>
+    ({ thought_id, title, color, url, board_id }) =>
       run(ctx, 'update_thought', async () => {
         const ops: Op[] = [];
-        if (title !== undefined || color !== undefined) ops.push({ type: 'lane.update', id: thought_id, ...(title !== undefined ? { title } : {}), ...(color !== undefined ? { color: color === null ? null : toHex(color) } : {}) });
+        if (title !== undefined || color !== undefined || url !== undefined) {
+          ops.push({ type: 'lane.update', id: thought_id, ...(title !== undefined ? { title } : {}), ...(color !== undefined ? { color: color === null ? null : toHex(color) } : {}), ...(url !== undefined ? { url } : {}) });
+        }
         if (board_id) ops.push({ type: 'lane.move', id: thought_id, boardId: board_id, place: { at: 'bottom' } });
-        if (!ops.length) throw new DomainError('invalid', 'nothing to change: pass title, color or board_id');
+        if (!ops.length) throw new DomainError('invalid', 'nothing to change: pass title, color, url or board_id');
         await apply(p, ops);
         return ok({ thought_id });
       }),

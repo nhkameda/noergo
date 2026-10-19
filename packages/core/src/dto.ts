@@ -27,6 +27,8 @@ export interface LaneDto {
   title: string;
   color: string | null;
   cover: LaneCover | null;
+  /** The thought's website, absolute http(s). */
+  url: string | null;
   position: string;
   version: number;
   updatedAt: string;
@@ -107,6 +109,7 @@ export const laneDto = (l: Lane): LaneDto => ({
   title: l.title,
   color: l.color,
   cover: l.cover_id && l.cover ? { fileId: l.cover_id, ...l.cover } : null,
+  url: l.url,
   position: l.position,
   version: l.version,
   updatedAt: isoReq(l.updated_at),

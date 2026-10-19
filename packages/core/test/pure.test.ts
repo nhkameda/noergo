@@ -39,6 +39,16 @@ describe('op schema', () => {
     expect(opSchema.safeParse({ type: 'note.create', id, laneId: id, title: 'x', url: 'https://noergo.com' }).success).toBe(true);
   });
 
+  it('takes only an http(s) address as a thought’s website', () => {
+    for (const url of ['javascript:alert(1)', 'mailto:a@noergo.com', 'data:text/html,x', 'noergo.com', '/relative']) {
+      expect(opSchema.safeParse({ type: 'lane.update', id, url }).success).toBe(false);
+      expect(opSchema.safeParse({ type: 'lane.create', id, boardId: id, title: 'x', url }).success).toBe(false);
+    }
+    const op = opSchema.parse({ type: 'lane.update', id, url: ' https://noergo.com/ ' });
+    expect(op.type === 'lane.update' && op.url).toBe('https://noergo.com/');
+    expect(opSchema.safeParse({ type: 'lane.update', id, url: null }).success).toBe(true);
+  });
+
   it('rejects unknown link style keys and bad positions', () => {
     expect(opSchema.safeParse({ type: 'link.update', id, style: { onclick: 'x' } }).success).toBe(false);
     expect(opSchema.safeParse({ type: 'note.move', id, laneId: id, place: { position: "a0'; --" } }).success).toBe(false);

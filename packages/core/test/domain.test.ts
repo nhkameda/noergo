@@ -286,6 +286,22 @@ describe.skipIf(!testDb)('database', () => {
     });
   });
 
+  it('keeps a thought’s website, and refuses a scriptable one even past the op schema', async () => {
+    const a = await newAccount();
+    const lane = (await snapshot(a.workspaceId, pools().app)).lanes[0]!;
+    const [set] = await run(a.ctx, { type: 'lane.update', id: lane.id, url: 'https://noergo.com/' });
+    const after = applied(set).effects[0]!;
+    expect(after.kind === 'lane' && after.data.url).toBe('https://noergo.com/');
+    const seq = (await snapshot(a.workspaceId, pools().app)).seq;
+    const [same] = await run(a.ctx, { type: 'lane.update', id: lane.id, url: 'https://noergo.com/' });
+    expect(applied(same).result).toMatchObject({ unchanged: true });
+    expect((await snapshot(a.workspaceId, pools().app)).seq).toBe(seq);
+    await expect(pools().jobs.updateTable('lanes').set({ url: 'javascript:alert(1)' }).where('id', '=', lane.id).execute()).rejects.toThrow(/check constraint/);
+    const [off] = await run(a.ctx, { type: 'lane.update', id: lane.id, url: null });
+    const cleared = applied(off).effects[0]!;
+    expect(cleared.kind === 'lane' && cleared.data.url).toBeNull();
+  });
+
   it('keeps fractional positions in bytewise order in the database', async () => {
     const { app } = pools();
     const rows = await sql<{ p: string }>`SELECT p FROM unnest(ARRAY['a0', 'Zz', 'a0V', 'b00', 'A0']) AS p ORDER BY p`.execute(app);

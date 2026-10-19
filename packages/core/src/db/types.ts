@@ -152,6 +152,8 @@ export interface LanesTable extends Versioned {
   position: string;
   cover_id: Defaulted<string | null>;
   cover: ColumnType<CoverFrame | null, string | null | undefined, string | null>;
+  /** The thought's website, absolute http(s). */
+  url: Defaulted<string | null>;
 }
 
 /** How a column's cover image sits in its 3:1 frame (lanes.cover). */

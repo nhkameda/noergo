@@ -64,10 +64,10 @@ export class Actions {
     return id;
   }
 
-  updateLane(id: string, patch: { title?: string; color?: string | null }) {
+  updateLane(id: string, patch: { title?: string; color?: string | null; url?: string | null }) {
     const cur = this.data?.lanes.get(id);
     if (!cur) return;
-    const before = { ...(patch.title !== undefined ? { title: cur.title } : {}), ...(patch.color !== undefined ? { color: cur.color } : {}) };
+    const before = { ...(patch.title !== undefined ? { title: cur.title } : {}), ...(patch.color !== undefined ? { color: cur.color } : {}), ...(patch.url !== undefined ? { url: cur.url } : {}) };
     this.store.dispatch({ type: 'lane.update', id, ...patch }, { undo: [{ type: 'lane.update', id, ...before }] });
   }
 

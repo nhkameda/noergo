@@ -276,7 +276,7 @@ export async function applyOp(tx: Tx, ctx: OpCtx, op: Op): Promise<Applied> {
       const position = await resolvePlace(tx, ctx, 'lanes', op.boardId, op.place);
       const row = await tx
         .insertInto('lanes')
-        .values({ id: op.id, workspace_id: ws, board_id: op.boardId, title: op.title, color: op.color ?? null, position, created_by: ctx.actorId, updated_by: ctx.actorId })
+        .values({ id: op.id, workspace_id: ws, board_id: op.boardId, title: op.title, color: op.color ?? null, url: op.url ?? null, position, created_by: ctx.actorId, updated_by: ctx.actorId })
         .onConflict((oc) => oc.column('id').doNothing())
         .returningAll()
         .executeTakeFirst();
@@ -285,7 +285,7 @@ export async function applyOp(tx: Tx, ctx: OpCtx, op: Op): Promise<Applied> {
     }
     case 'lane.update': {
       const cur = await loadLane(tx, ctx, op.id);
-      const patch = { ...(op.title !== undefined ? { title: op.title } : {}), ...(op.color !== undefined ? { color: op.color } : {}) };
+      const patch = { ...(op.title !== undefined ? { title: op.title } : {}), ...(op.color !== undefined ? { color: op.color } : {}), ...(op.url !== undefined ? { url: op.url } : {}) };
       const changed = Object.entries(patch).some(([k, v]) => cur[k as keyof Lane] !== v);
       let cover: { cover_id: string | null; cover: string | null } | null = null;
       if (op.cover !== undefined) {

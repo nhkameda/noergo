@@ -111,10 +111,16 @@
       "larger": "Maior"
     },
     "customize": {
-      "menu": "Personalizar capa e cor…",
+      "menu": "Nome, site, capa e cor…",
       "open": "Personalizar “{title}”",
       "openShort": "Personalizar",
       "kicker": "Personalizar pensamento",
+      "name": "Nome",
+      "site": "Site",
+      "sitePlaceholder": "seusite.com.br",
+      "siteHint": "Abre numa aba nova, direto do card e da coluna.",
+      "siteInvalid": "Isso não parece um endereço de site, como exemplo.com.br.",
+      "siteOpen": "Abrir",
       "close": "Fechar",
       "cover": "Capa",
       "dropShort": "Solte a imagem aqui",
@@ -140,6 +146,9 @@
       "imageColor": "Cor da imagem {color}",
       "anyColor": "Qualquer cor…",
       "done": "Pronto"
+    },
+    "site": {
+      "open": "Abrir o site de “{title}”, {host}, numa aba nova"
     },
     "note": {
       "untitled": "Sem título",

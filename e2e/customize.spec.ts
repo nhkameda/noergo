@@ -204,6 +204,58 @@ test('a heavy screenshot travels shrunk, and a proxy’s refusal reads as too la
   await expect(page.getByText('This image is too large.').first()).toBeVisible();
 });
 
+test('the brush renames a thought and gives it a website that opens in a new tab', async ({ page, context }) => {
+  await context.route('https://example.com/**', (r) => r.fulfill({ contentType: 'text/html', body: '<title>Example</title>' }));
+  await signIn(page, freshUser('site'), 'en', { layout: 'cards' });
+  await tile(page, 'Inbox').hover();
+  await tile(page, 'Inbox').getByRole('button', { name: 'Customise “Inbox”' }).click();
+
+  // The name is a field: typed over and kept on Enter.
+  const name = panel(page).getByRole('textbox', { name: 'Name' });
+  await expect(name).toHaveValue('Inbox');
+  await name.fill('Clients');
+  await name.press('Enter');
+  await expect(tiles(page).first()).toHaveText('Clients');
+  await expect(page.getByRole('dialog', { name: 'Customise thought Clients' })).toBeVisible();
+
+  // Typed the way people say it; something a click could run is refused and not saved.
+  const site = panel(page).getByRole('textbox', { name: 'Website' });
+  await site.fill('javascript:alert(1)');
+  await site.press('Enter');
+  await expect(site).toHaveAttribute('aria-invalid', 'true');
+  await expect(panel(page).getByText('That doesn’t look like a web address, such as example.com.')).toBeVisible();
+  await expect(tile(page, 'Clients').getByRole('link')).toHaveCount(0);
+  await site.fill('example.com');
+  await site.press('Enter');
+  await expect(site).toHaveValue('https://example.com/');
+  await page.keyboard.press('Escape');
+  await expect(panel(page)).toBeHidden();
+
+  // One click on the card opens it in a new tab.
+  const open = tile(page, 'Clients').getByRole('link', { name: 'Open the website of “Clients”, example.com, in a new tab' });
+  await expect(open).toHaveAttribute('href', 'https://example.com/');
+  await expect(open).toHaveAttribute('rel', /noopener/);
+  const [tab] = await Promise.all([page.waitForEvent('popup'), open.click()]);
+  await expect(tab).toHaveURL('https://example.com/');
+  await tab.close();
+
+  // One undo takes the website away, and redo brings it back.
+  await page.keyboard.press('ControlOrMeta+z');
+  await expect(open).toHaveCount(0);
+  await page.keyboard.press('ControlOrMeta+Shift+z');
+  await expect(open).toBeVisible();
+
+  // It is kept, and it is there in the column and on the map too.
+  await settled(page);
+  await page.reload();
+  await expect(open).toHaveAttribute('href', 'https://example.com/');
+  await page.getByRole('button', { name: 'Columns' }).click();
+  const column = lane(page, 'Clients');
+  await expect(column.getByRole('link', { name: 'Open the website of “Clients”, example.com, in a new tab' })).toHaveAttribute('target', '_blank');
+  await column.getByRole('button', { name: 'Map of “Clients”' }).click();
+  await expect(page.locator('.w-map__bar').getByRole('link', { name: 'Open the website of “Clients”, example.com, in a new tab' })).toBeVisible();
+});
+
 test('cards and the customise sheet on a phone @mobile', async ({ page }) => {
   test.skip(page.viewportSize()!.width > 600, 'phone layout');
   await page.emulateMedia({ reducedMotion: 'reduce' });
@@ -217,7 +269,7 @@ test('cards and the customise sheet on a phone @mobile', async ({ page }) => {
   // A small card keeps its map and its menu; customising is in the menu.
   await expect(tile(page, 'Inbox').getByRole('button', { name: 'Customise “Inbox”' })).toBeHidden();
   await tile(page, 'Inbox').getByRole('button', { name: 'Thought “Inbox”: more actions' }).click();
-  await page.locator('.w-menu:popover-open').getByRole('button', { name: /^Customise cover/ }).click();
+  await page.locator('.w-menu:popover-open').getByRole('button', { name: /^Name, website, cover/ }).click();
   const sheet = (await panel(page).boundingBox())!;
   expect(sheet.width).toBe(390);
   expect(Math.round(sheet.y + sheet.height)).toBe(844);

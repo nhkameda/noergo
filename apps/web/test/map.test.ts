@@ -6,7 +6,7 @@ import { fromSnapshot, withPending, type Data } from '@/components/workspace/mod
 
 const T = '2026-10-18T12:00:00.000Z';
 const L = '00000000-0000-7000-8000-00000000000a';
-const lane: LaneDto = { id: L, boardId: 'b1', title: 'Ideas', color: null, cover: null, position: 'a0', version: 1, updatedAt: T, deletedAt: null };
+const lane: LaneDto = { id: L, boardId: 'b1', title: 'Ideas', color: null, cover: null, url: null, position: 'a0', version: 1, updatedAt: T, deletedAt: null };
 const note = (id: string, over: Partial<NoteDto> = {}): NoteDto => ({
   id,
   laneId: L,
