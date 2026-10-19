@@ -276,12 +276,94 @@
         "move": "拖动或空格：移动画布",
         "zoom": "⌘/Ctrl + 滚轮：缩放"
       },
-      "selected": "已选择 {count} 个点子"
-    }
+      "selected": "已选择 {count} 个点子",
+      "followAgent": "跟随智能体"
+    },
+    "agentWriting": "{name} 正在写…"
   },
   "footer": {
     "openSource": "noergo 是开源软件（AGPL-3.0）。",
     "terms": "条款",
     "privacy": "隐私"
+  },
+  "consent": {
+    "pageTitle": "连接智能体 — noergo",
+    "title": "{client} 想使用你的 noergo",
+    "unnamed": "一个没有名字的应用",
+    "unverified": "noergo 没有验证过这个应用。只有当这个连接是你自己刚刚发起的，才继续。",
+    "identifiedBy": "由 {host} 标识。",
+    "returnsTo": "回答后，你会回到 {host}。",
+    "canTitle": "它将可以",
+    "canRead": "读取你的看板、想法和点子。",
+    "canWrite": "创建和修改看板、想法和点子，并连接点子。它永远不会彻底删除任何内容：删掉的会进回收站，你可以撤销每一处改动。",
+    "readOnly": "只读：它只能看，不能改",
+    "allow": "允许",
+    "cancel": "取消",
+    "working": "请稍候…",
+    "later": "你随时可以在“智能体”页面断开它。",
+    "earlyTitle": "智能体处于抢先体验阶段",
+    "early": "在这个 noergo 上，智能体按账号逐个开通。请让管理员为你的账号开通。",
+    "expiredTitle": "这个请求已过期",
+    "expired": "请回到你刚才使用的应用，重新发起连接。",
+    "failed": "出了点问题，请重试。",
+    "back": "返回 noergo"
+  },
+  "agents": {
+    "pageTitle": "智能体 — noergo",
+    "title": "和你的智能体一起出声思考",
+    "lead": "连接 ChatGPT、Grok、Claude 或任何 MCP 客户端。你说话时，它们读取并写入你的看板，你在 noergo 里看着思维导图长出来。",
+    "serverUrl": "服务器地址",
+    "copy": "复制",
+    "copied": "已复制",
+    "early": "智能体处于抢先体验阶段：在这个 noergo 上按账号逐个开通。请让管理员为你的账号开通。",
+    "howTitle": "如何连接",
+    "tryTitle": "然后试试",
+    "try": "在 noergo 里打开一个想法的思维导图，然后说：“在这里为一次不赶时间的海岸旅行做一张思维导图。”",
+    "clients": {
+      "grok": {
+        "name": "Grok",
+        "steps": "在 grok.com 打开 Connectors → New connector → Custom。粘贴服务器地址，按提示登录 noergo。Grok 在聊天和语音模式下都会使用连接器。"
+      },
+      "chatgpt": {
+        "name": "ChatGPT",
+        "steps": "在 chatgpt.com 打开开发者模式（设置 → 应用），用服务器地址和 OAuth 登录创建一个应用。写入需要 Business、Enterprise 或 Edu 工作区；在 Pro 上 ChatGPT 只能搜索和读取。文档没有说明语音模式会调用应用；在聊天里语音输入可以。"
+      },
+      "claude": {
+        "name": "Claude",
+        "steps": "在 claude.ai 打开 设置 → 连接器 → 添加自定义连接器。粘贴服务器地址，按提示登录 noergo。"
+      },
+      "claudeCode": {
+        "name": "Claude Code",
+        "steps": "运行：claude mcp add --transport http noergo {url}，然后用 /mcp 登录。"
+      },
+      "cursor": {
+        "name": "Cursor 和其他 MCP 客户端",
+        "steps": "添加一个远程 MCP 服务器（Streamable HTTP），填入服务器地址。不能通过 OAuth 登录的客户端可以使用下面的个人令牌，以 Authorization: Bearer 发送。"
+      }
+    },
+    "signInToManage": "登录后可查看已连接的智能体和个人令牌。",
+    "signIn": "登录",
+    "connectedTitle": "已连接的智能体",
+    "none": "还没有连接任何智能体。",
+    "connectedAt": "连接于 {date}",
+    "createdAt": "创建于 {date}",
+    "lastUsed": "最近使用于 {date}",
+    "neverUsed": "尚未使用",
+    "readOnlyBadge": "只读",
+    "disconnect": "断开",
+    "disconnectConfirm": "断开 {name}？它会在一分钟内失去访问权限。",
+    "tokensTitle": "个人令牌",
+    "tokensLead": "用于脚本和不支持 OAuth 登录的客户端。令牌以你给它起的名字在你的空间里操作。",
+    "tokenName": "名称",
+    "tokenNamePlaceholder": "我的脚本",
+    "tokenReadOnly": "只读",
+    "create": "创建令牌",
+    "tokenShown": "现在就复制：它只显示这一次。",
+    "noTokens": "没有个人令牌。",
+    "revoke": "吊销",
+    "revokeConfirm": "吊销 {name}？使用它的程序将无法继续工作。",
+    "failed": "没有成功，请重试。",
+    "limit": "个人令牌已达上限。请先吊销一个。",
+    "backToApp": "返回 noergo"
   }
 }

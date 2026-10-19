@@ -276,12 +276,94 @@
         "move": "Drag or Space: move around",
         "zoom": "⌘/Ctrl + scroll: zoom"
       },
-      "selected": "{count, plural, one {# idea selected} other {# ideas selected}}"
-    }
+      "selected": "{count, plural, one {# idea selected} other {# ideas selected}}",
+      "followAgent": "Follow the agent"
+    },
+    "agentWriting": "{name} is writing…"
   },
   "footer": {
     "openSource": "noergo is open source (AGPL-3.0).",
     "terms": "Terms",
     "privacy": "Privacy"
+  },
+  "consent": {
+    "pageTitle": "Connect an agent — noergo",
+    "title": "{client} wants to use your noergo",
+    "unnamed": "An app with no name",
+    "unverified": "noergo has not verified this app. Continue only if you started this connection yourself, just now.",
+    "identifiedBy": "Identified by {host}.",
+    "returnsTo": "When you answer, you go back to {host}.",
+    "canTitle": "It will be able to",
+    "canRead": "Read your boards, thoughts and ideas.",
+    "canWrite": "Create and change boards, thoughts and ideas, and connect ideas. It never deletes anything for good: what it removes goes to the trash, and you can undo every change.",
+    "readOnly": "Read only: it can look, not change anything",
+    "allow": "Allow",
+    "cancel": "Cancel",
+    "working": "One moment…",
+    "later": "You can disconnect it at any time on the Agents page.",
+    "earlyTitle": "Agents are in early access",
+    "early": "On this noergo, agents are switched on account by account. Ask its administrator to enable yours.",
+    "expiredTitle": "This request has expired",
+    "expired": "Start the connection again from the app you were using.",
+    "failed": "Something went wrong. Please try again.",
+    "back": "Back to noergo"
+  },
+  "agents": {
+    "pageTitle": "Agents — noergo",
+    "title": "Think out loud with your agents",
+    "lead": "Connect ChatGPT, Grok, Claude or any MCP client. They read your boards and write on them as you talk, and you watch the mind map grow in noergo.",
+    "serverUrl": "Server address",
+    "copy": "Copy",
+    "copied": "Copied",
+    "early": "Agents are in early access: on this noergo they are switched on account by account. Ask its administrator to enable yours.",
+    "howTitle": "How to connect",
+    "tryTitle": "Then try",
+    "try": "Open a thought’s mind map in noergo and say: “Build a mind map here about a slow trip along the coast.”",
+    "clients": {
+      "grok": {
+        "name": "Grok",
+        "steps": "On grok.com, open Connectors → New connector → Custom. Paste the server address and sign in to noergo when asked. Grok uses connectors in chat and in voice mode."
+      },
+      "chatgpt": {
+        "name": "ChatGPT",
+        "steps": "On chatgpt.com, turn on Developer mode (Settings → Apps), then create an app with the server address and OAuth sign-in. Writing needs a Business, Enterprise or Edu workspace; on Pro, ChatGPT can only search and read. Voice mode is not documented to call apps; dictating into the chat works."
+      },
+      "claude": {
+        "name": "Claude",
+        "steps": "On claude.ai, Settings → Connectors → Add custom connector. Paste the server address and sign in to noergo when asked."
+      },
+      "claudeCode": {
+        "name": "Claude Code",
+        "steps": "Run: claude mcp add --transport http noergo {url}, then /mcp to sign in."
+      },
+      "cursor": {
+        "name": "Cursor and other MCP clients",
+        "steps": "Add a remote MCP server (Streamable HTTP) with the server address. Clients that cannot sign in through OAuth can use a personal token below, sent as Authorization: Bearer."
+      }
+    },
+    "signInToManage": "Sign in to see your connected agents and personal tokens.",
+    "signIn": "Sign in",
+    "connectedTitle": "Connected agents",
+    "none": "No agent is connected yet.",
+    "connectedAt": "Connected {date}",
+    "createdAt": "Created {date}",
+    "lastUsed": "Last used {date}",
+    "neverUsed": "Not used yet",
+    "readOnlyBadge": "Read only",
+    "disconnect": "Disconnect",
+    "disconnectConfirm": "Disconnect {name}? It loses access within a minute.",
+    "tokensTitle": "Personal tokens",
+    "tokensLead": "For scripts and clients without OAuth sign-in. A token acts on your workspace as the name you give it.",
+    "tokenName": "Name",
+    "tokenNamePlaceholder": "My script",
+    "tokenReadOnly": "Read only",
+    "create": "Create token",
+    "tokenShown": "Copy it now: this is the only time it is shown.",
+    "noTokens": "No personal token.",
+    "revoke": "Revoke",
+    "revokeConfirm": "Revoke {name}? Whatever uses it stops working.",
+    "failed": "That did not work. Please try again.",
+    "limit": "You have reached the limit of personal tokens. Revoke one first.",
+    "backToApp": "Back to noergo"
   }
 }

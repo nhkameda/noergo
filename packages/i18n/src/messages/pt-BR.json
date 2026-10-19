@@ -276,12 +276,94 @@
         "move": "Arraste ou Espaço: mover a tela",
         "zoom": "⌘/Ctrl + rolagem: zoom"
       },
-      "selected": "{count, plural, one {# ideia selecionada} other {# ideias selecionadas}}"
-    }
+      "selected": "{count, plural, one {# ideia selecionada} other {# ideias selecionadas}}",
+      "followAgent": "Seguir o agente"
+    },
+    "agentWriting": "{name} está escrevendo…"
   },
   "footer": {
     "openSource": "O noergo é open source (AGPL-3.0).",
     "terms": "Termos",
     "privacy": "Privacidade"
+  },
+  "consent": {
+    "pageTitle": "Conectar um agente — noergo",
+    "title": "{client} quer usar o seu noergo",
+    "unnamed": "Um app sem nome",
+    "unverified": "O noergo não verificou este app. Continue só se foi você quem começou esta conexão, agora há pouco.",
+    "identifiedBy": "Identificado por {host}.",
+    "returnsTo": "Ao responder, você volta para {host}.",
+    "canTitle": "Ele vai poder",
+    "canRead": "Ler seus quadros, pensamentos e ideias.",
+    "canWrite": "Criar e alterar quadros, pensamentos e ideias, e ligar ideias. Ele nunca apaga nada de vez: o que remove vai para a lixeira, e você pode desfazer qualquer mudança.",
+    "readOnly": "Só leitura: ele pode ver, não alterar nada",
+    "allow": "Permitir",
+    "cancel": "Cancelar",
+    "working": "Um momento…",
+    "later": "Você pode desconectá-lo quando quiser na página Agentes.",
+    "earlyTitle": "Agentes em acesso antecipado",
+    "early": "Neste noergo, os agentes são liberados conta a conta. Peça ao administrador para liberar a sua.",
+    "expiredTitle": "Este pedido expirou",
+    "expired": "Comece a conexão de novo pelo app que você estava usando.",
+    "failed": "Algo deu errado. Tente de novo.",
+    "back": "Voltar ao noergo"
+  },
+  "agents": {
+    "pageTitle": "Agentes — noergo",
+    "title": "Pense em voz alta com seus agentes",
+    "lead": "Conecte o ChatGPT, o Grok, o Claude ou qualquer cliente MCP. Eles leem seus quadros e escrevem neles enquanto você fala, e você vê o mapa mental crescer no noergo.",
+    "serverUrl": "Endereço do servidor",
+    "copy": "Copiar",
+    "copied": "Copiado",
+    "early": "Agentes em acesso antecipado: neste noergo eles são liberados conta a conta. Peça ao administrador para liberar a sua.",
+    "howTitle": "Como conectar",
+    "tryTitle": "Depois, experimente",
+    "try": "Abra o mapa mental de um pensamento no noergo e diga: “Monte aqui um mapa mental sobre uma viagem sem pressa pelo litoral.”",
+    "clients": {
+      "grok": {
+        "name": "Grok",
+        "steps": "No grok.com, abra Conectores → Novo conector → Personalizado. Cole o endereço do servidor e entre no noergo quando ele pedir. O Grok usa os conectores no chat e no modo de voz."
+      },
+      "chatgpt": {
+        "name": "ChatGPT",
+        "steps": "No chatgpt.com, ligue o Modo desenvolvedor (Configurações → Apps) e crie um app com o endereço do servidor e entrada por OAuth. Escrever exige um espaço Business, Enterprise ou Edu; no Pro, o ChatGPT só busca e lê. A documentação não diz que o modo de voz chama apps; ditar no chat funciona."
+      },
+      "claude": {
+        "name": "Claude",
+        "steps": "No claude.ai, Configurações → Conectores → Adicionar conector personalizado. Cole o endereço do servidor e entre no noergo quando ele pedir."
+      },
+      "claudeCode": {
+        "name": "Claude Code",
+        "steps": "Rode: claude mcp add --transport http noergo {url}, e depois /mcp para entrar."
+      },
+      "cursor": {
+        "name": "Cursor e outros clientes MCP",
+        "steps": "Adicione um servidor MCP remoto (Streamable HTTP) com o endereço do servidor. Cliente que não entra por OAuth pode usar um token pessoal (abaixo), enviado como Authorization: Bearer."
+      }
+    },
+    "signInToManage": "Entre para ver seus agentes conectados e seus tokens pessoais.",
+    "signIn": "Entrar",
+    "connectedTitle": "Agentes conectados",
+    "none": "Nenhum agente conectado ainda.",
+    "connectedAt": "Conectado em {date}",
+    "createdAt": "Criado em {date}",
+    "lastUsed": "Último uso em {date}",
+    "neverUsed": "Ainda não usado",
+    "readOnlyBadge": "Só leitura",
+    "disconnect": "Desconectar",
+    "disconnectConfirm": "Desconectar {name}? Ele perde o acesso em até um minuto.",
+    "tokensTitle": "Tokens pessoais",
+    "tokensLead": "Para scripts e clientes sem entrada por OAuth. O token age no seu espaço com o nome que você der a ele.",
+    "tokenName": "Nome",
+    "tokenNamePlaceholder": "Meu script",
+    "tokenReadOnly": "Só leitura",
+    "create": "Criar token",
+    "tokenShown": "Copie agora: esta é a única vez que ele aparece.",
+    "noTokens": "Nenhum token pessoal.",
+    "revoke": "Revogar",
+    "revokeConfirm": "Revogar {name}? O que usa esse token para de funcionar.",
+    "failed": "Não deu certo. Tente de novo.",
+    "limit": "Você chegou ao limite de tokens pessoais. Revogue um antes.",
+    "backToApp": "Voltar ao noergo"
   }
 }
