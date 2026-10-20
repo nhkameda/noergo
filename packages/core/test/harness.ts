@@ -1,5 +1,7 @@
 import { randomBytes } from 'node:crypto';
-import { readFile } from 'node:fs/promises';
+import { copyFile, mkdtemp, readdir, readFile, rm } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import pg from 'pg';
 import { migrate } from '../src/db/migrate';
@@ -54,7 +56,12 @@ async function run(url: string, statements: string[]): Promise<void> {
   }
 }
 
-export async function createTestDatabase(): Promise<TestDatabase> {
+/**
+ * A fresh database. With `upTo` (a migration number such as '0005'), only the migrations up
+ * to it are applied, so a test can put rows in an older schema and then run the rest with
+ * migrateTestDatabase.
+ */
+export async function createTestDatabase(upTo?: string): Promise<TestDatabase> {
   const name = `noergo_test_${randomBytes(4).toString('hex')}`;
   await run(ADMIN_URL, [
     `DO $$ BEGIN
@@ -67,8 +74,23 @@ export async function createTestDatabase(): Promise<TestDatabase> {
   await run(ADMIN_URL, cluster);
   await run(urlAs(new URL(ADMIN_URL).username || 'postgres', name), database);
   const db = { name, migratorUrl: urlAs('noergo_migrator', name), appUrl: urlAs('noergo_app', name), jobsUrl: urlAs('noergo_jobs', name) };
-  await migrate(db.migratorUrl, migrationsDir, () => {});
+  if (upTo === undefined) {
+    await migrate(db.migratorUrl, migrationsDir, () => {});
+    return db;
+  }
+  const dir = await mkdtemp(join(tmpdir(), 'noergo-migrations-'));
+  try {
+    for (const f of await readdir(migrationsDir)) if (f.endsWith('.sql') && f.slice(0, 4) <= upTo) await copyFile(join(migrationsDir, f), join(dir, f));
+    await migrate(db.migratorUrl, dir, () => {});
+  } finally {
+    await rm(dir, { recursive: true, force: true });
+  }
   return db;
+}
+
+/** Applies every migration not applied yet. */
+export async function migrateTestDatabase(db: TestDatabase): Promise<string[]> {
+  return migrate(db.migratorUrl, migrationsDir, () => {});
 }
 
 export async function dropTestDatabase(db: TestDatabase): Promise<void> {

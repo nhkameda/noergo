@@ -25,6 +25,10 @@ you can derive; these you cannot. Break one only with a reason written in the co
 - Migrations are append-only SQL files. The runner verifies checksums and refuses an applied
   file that changed. Kysely types in `src/db/types.ts` are hand-written; change them in the
   same commit as the migration.
+- A data migration (UPDATE/DELETE) on a table with FORCE row-level security matches no row:
+  FORCE binds the migrator, who owns the tables, and no workspace is set. It fails silently
+  (0006 did; 0007 repaired it). Set FORCE aside around the statement in the same migration,
+  and test it on rows written in the older schema (`createTestDatabase(upTo)`).
 - Writes lock the workspace row **first** (`executeOps`): that is what makes `seq` gap-free
   and in commit order, which the live stream relies on (a client reading `seq > n` must
   never skip a change that commits later). Do not move the lock after `applyOp`.
