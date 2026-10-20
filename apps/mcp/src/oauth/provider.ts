@@ -27,7 +27,8 @@ export function createProvider(): Provider {
     adapter: KyselyAdapter,
     async findAccount(_ctx, sub) {
       if (!isUuid(sub)) return undefined;
-      const u = await getDb().selectFrom('users').select('id').where('id', '=', sub).where('deleted_at', 'is', null).executeTakeFirst();
+      // A blocked account is no account: its refresh tokens stop working too.
+      const u = await getDb().selectFrom('users').select('id').where('id', '=', sub).where('deleted_at', 'is', null).where('blocked_at', 'is', null).executeTakeFirst();
       return u ? { accountId: u.id, claims: () => ({ sub: u.id }) } : undefined;
     },
     claims: { openid: ['sub'] },

@@ -1,5 +1,5 @@
 import { hkdfSync } from 'node:crypto';
-import { mcpAccessMode } from '@noergo/core';
+import { envSettings } from '@noergo/core';
 
 /** The public URL of this instance (the OAuth issuer), without a trailing slash. */
 export const PUBLIC_URL = (process.env.NOERGO_PUBLIC_URL ?? 'http://localhost:3041').replace(/\/+$/, '');
@@ -8,7 +8,8 @@ export const PUBLIC_ORIGIN = new URL(PUBLIC_URL).origin;
 /** The protected resource: the one audience access tokens are issued for. */
 export const MCP_RESOURCE = `${PUBLIC_URL}/mcp`;
 
-export const MCP_ACCESS = mcpAccessMode(process.env.MCP_ACCESS);
+// A typo in SIGNUP or MCP_ACCESS stops the server instead of opening the instance.
+envSettings();
 
 export const PORT = Number(process.env.MCP_PORT ?? 3042);
 export const HOST = process.env.MCP_HOST ?? '127.0.0.1';

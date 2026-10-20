@@ -143,7 +143,7 @@ describe.skipIf(!testDb)('MCP tools', () => {
     await close();
   });
 
-  it('a read-only connection reads but never writes; an account not enabled gets plan_required', async () => {
+  it('a read-only connection reads but never writes; an account not enabled gets agents_not_enabled', async () => {
     const ro = await agentFor(true);
     const [lane] = await lanesOf(ro.workspaceId);
     const reader = await connect(ro.principal);
@@ -154,8 +154,8 @@ describe.skipIf(!testDb)('MCP tools', () => {
 
     const off = await agentFor();
     const locked = await connect(off.principal, false);
-    expect(errorCode(await locked.call('list_boards'))).toBe('plan_required');
-    expect(errorCode(await locked.call('search', { query: 'x' }))).toBe('plan_required');
+    expect(errorCode(await locked.call('list_boards'))).toBe('agents_not_enabled');
+    expect(errorCode(await locked.call('search', { query: 'x' }))).toBe('agents_not_enabled');
     await locked.close();
   });
 

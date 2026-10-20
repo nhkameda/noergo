@@ -1,6 +1,6 @@
 import { agentAccessAllowed, looksLikePersonalToken, principalFromGrant, principalFromToken, type AgentPrincipal } from '@noergo/core';
 import type Provider from 'oidc-provider';
-import { MCP_ACCESS, MCP_RESOURCE } from '../env';
+import { MCP_RESOURCE } from '../env';
 
 /**
  * Who is calling /mcp: an OAuth access token issued by this provider for the /mcp resource,
@@ -24,12 +24,15 @@ export async function principalFromBearer(provider: Provider, bearer: string): P
 const ACCESS_TTL_MS = 60_000;
 const accessCache = new Map<string, { allowed: boolean; until: number }>();
 
-/** Whether the account may use agents now (MCP_ACCESS), cached a minute per account. */
+/**
+ * Whether the account may use agents now (settings.agents and the account), cached a minute
+ * per account. A blocked account is out at once all the same: the bearer stops resolving.
+ */
 export async function accessAllowed(userId: string): Promise<boolean> {
   const now = Date.now();
   const hit = accessCache.get(userId);
   if (hit && hit.until > now) return hit.allowed;
-  const allowed = await agentAccessAllowed(userId, MCP_ACCESS);
+  const allowed = await agentAccessAllowed(userId);
   if (accessCache.size > 10_000) accessCache.clear();
   accessCache.set(userId, { allowed, until: now + ACCESS_TTL_MS });
   return allowed;

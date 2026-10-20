@@ -3,7 +3,7 @@ import { agentAccessAllowed, recordConnection, recordSecurityEvent, verifyIntern
 import { isUuid } from '@noergo/core/db';
 import type Provider from 'oidc-provider';
 import { errors } from 'oidc-provider';
-import { MCP_ACCESS, MCP_RESOURCE } from '../env';
+import { MCP_RESOURCE } from '../env';
 import { clientIp, json } from '../http';
 import { SCOPES } from './provider';
 
@@ -78,7 +78,7 @@ export async function interactionBridge(provider: Provider, req: IncomingMessage
     const userId = input.userId;
     if (!isUuid(userId)) return json(res, 400, { error: 'invalid' });
     // web checked it already; the provider checks again, it is the one that issues tokens.
-    if (!(await agentAccessAllowed(userId, MCP_ACCESS))) return json(res, 403, { error: 'access_not_granted' });
+    if (!(await agentAccessAllowed(userId))) return json(res, 403, { error: 'agents_not_enabled' });
     const readOnly = input.readOnly === true || !(requested.length === 0 || requested.includes('notes:write'));
     const scopes = readOnly ? ['notes:read'] : ['notes:read', 'notes:write'];
 

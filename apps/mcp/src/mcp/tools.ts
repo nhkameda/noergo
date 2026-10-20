@@ -28,7 +28,7 @@ import { PUBLIC_URL } from '../env';
 
 export interface ToolContext {
   principal: AgentPrincipal;
-  /** False while the account is not enabled for agents (MCP_ACCESS=granted). */
+  /** False while the account may not use agents (settings.agents is granted and it is not enabled). */
   allowed: boolean;
 }
 
@@ -101,7 +101,7 @@ function failure(code: string, message: string): CallToolResult {
 
 /** Runs a tool body: access first, domain errors as tool errors, anything else logged and hidden. */
 async function run(ctx: ToolContext, name: string, fn: () => Promise<CallToolResult>): Promise<CallToolResult> {
-  if (!ctx.allowed) return failure('plan_required', 'Agents are in early access on this noergo. Ask its administrator to enable your account.');
+  if (!ctx.allowed) return failure('agents_not_enabled', 'Agents are not enabled for this account on this noergo. Ask its administrator to enable them.');
   try {
     return await fn();
   } catch (e) {
