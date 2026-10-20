@@ -1,7 +1,7 @@
 import { Client } from '@modelcontextprotocol/sdk/client/index.js';
 import { InMemoryTransport } from '@modelcontextprotocol/sdk/inMemory.js';
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
-import { createApiToken, principalFromToken, setFocus, type AgentPrincipal } from '@noergo/core';
+import { COLORS, createApiToken, principalFromToken, setFocus, type AgentPrincipal } from '@noergo/core';
 import { afterAll, describe, expect, it } from 'vitest';
 import { closePools, newAccount, pools, testDb } from '../../../packages/core/test/fixtures';
 import type {} from '../../../packages/core/test/global-setup';
@@ -62,6 +62,7 @@ describe.skipIf(!testDb)('MCP tools', () => {
         "list_boards",
         "move_note",
         "search",
+        "update_board",
         "update_note",
         "update_thought",
       ]
@@ -121,6 +122,7 @@ describe.skipIf(!testDb)('MCP tools', () => {
       ['fetch', { id: theirLane!.id }],
       ['get_thought', { thought_id: theirLane!.id }],
       ['create_thought', { title: 'x', board_id: theirBoard }],
+      ['update_board', { board_id: theirBoard, title: 'mine now', icon: '🏴‍☠️' }],
       ['update_thought', { thought_id: theirLane!.id, title: 'mine now' }],
       ['update_thought', { thought_id: myLane!.id, board_id: theirBoard }],
       ['add_notes', { thought_id: theirLane!.id, ideas: [{ title: 'x' }] }],
@@ -198,6 +200,21 @@ describe.skipIf(!testDb)('MCP tools', () => {
     expect(row.title).toBe('Clients');
     const r = await call('update_thought', { thought_id: lane!.id, url: 'https://exa mple.com' });
     expect(errorCode(r)).toBe('invalid');
+    await close();
+  });
+
+  it('gives a board an icon and colours, read back in list_boards, and refuses an icon that is not one emoji', async () => {
+    const a = await agentFor();
+    const { call, close } = await connect(a.principal);
+    const made = (await call('create_board', { title: 'Garden', icon: '🌱', color: 'green', background: '#fff3bf' })).structuredContent as { board_id: string };
+    type Listed = { boards: Array<{ id: string; icon: string | null; color: string | null; background: string | null }> };
+    const garden = () => call('list_boards').then((r) => (r.structuredContent as Listed).boards.find((b) => b.id === made.board_id));
+    expect(await garden()).toMatchObject({ icon: '🌱', color: COLORS[6], background: '#fff3bf' });
+    expect((await call('update_board', { board_id: made.board_id, icon: 'leaf', background: null })).isError).toBeFalsy();
+    expect(await garden()).toMatchObject({ icon: 'leaf', color: COLORS[6], background: null });
+    for (const icon of ['🌱🌱', 'Garden', '<b>', '❤']) expect(errorCode(await call('update_board', { board_id: made.board_id, icon })), icon).toBe('invalid');
+    expect(errorCode(await call('update_board', { board_id: made.board_id }))).toBe('invalid');
+    expect((await garden())?.icon).toBe('leaf');
     await close();
   });
 

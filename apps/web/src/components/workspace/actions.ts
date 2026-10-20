@@ -38,11 +38,38 @@ export class Actions {
     return id;
   }
 
-  updateBoard(id: string, patch: { title?: string; color?: string | null }) {
+  updateBoard(id: string, patch: { title?: string; color?: string | null; icon?: string | null; background?: string | null }) {
     const cur = this.data?.boards.get(id);
     if (!cur) return;
-    const before = { ...(patch.title !== undefined ? { title: cur.title } : {}), ...(patch.color !== undefined ? { color: cur.color } : {}) };
-    this.store.dispatch({ type: 'board.update', id, ...patch }, { undo: [{ type: 'board.update', id, ...before }] });
+    const keys = (['title', 'color', 'icon', 'background'] as const).filter((k) => patch[k] !== undefined && patch[k] !== cur[k]);
+    if (!keys.length) return;
+    const after = Object.fromEntries(keys.map((k) => [k, patch[k]]));
+    const before = Object.fromEntries(keys.map((k) => [k, cur[k]]));
+    this.store.dispatch({ type: 'board.update', id, ...after }, { undo: [{ type: 'board.update', id, ...before }] });
+  }
+
+  /** Moves a board's tab to `index` among the tabs. */
+  moveBoard(id: string, index: number): { index: number; total: number } | null {
+    const data = this.data;
+    const cur = data?.boards.get(id);
+    if (!data || !cur) return null;
+    const boards = boardsOf(data.boards);
+    const to = Math.max(0, Math.min(index, boards.length - 1));
+    // Dropped back where it was: no new key, so no change for the server to record.
+    if (boards.findIndex((b) => b.id === id) === to) return null;
+    const position = positionAt(boards, to, id);
+    this.store.dispatch({ type: 'board.move', id, place: { position } }, { undo: [{ type: 'board.move', id, place: { position: cur.position } }] });
+    return { index: to, total: boards.length };
+  }
+
+  /** A tab dropped on the left or right half of another tab. */
+  moveBoardNear(id: string, targetId: string, edge: 'left' | 'right') {
+    const data = this.data;
+    if (!data || id === targetId) return null;
+    const others = boardsOf(data.boards).filter((b) => b.id !== id);
+    const i = others.findIndex((b) => b.id === targetId);
+    if (i < 0) return null;
+    return this.moveBoard(id, edge === 'left' ? i : i + 1);
   }
 
   deleteBoard(id: string) {

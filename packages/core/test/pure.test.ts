@@ -49,6 +49,21 @@ describe('op schema', () => {
     expect(opSchema.safeParse({ type: 'lane.update', id, url: null }).success).toBe(true);
   });
 
+  it('takes one emoji or a noergo icon name as a board’s icon, and nothing else', () => {
+    for (const icon of ['🚀', '❤️', '👨‍👩‍👧‍👦', '🇧🇷', '1️⃣', '🧑🏽‍💻', 'home', 'leaf']) {
+      expect(opSchema.safeParse({ type: 'board.update', id, icon }).success, icon).toBe(true);
+    }
+    // "❤" without its variation selector is text, "1" is a digit, two emoji are two.
+    for (const icon of ['❤', '1', '🚀🚀', 'Home', 'rocket', '', '<img src=x>', '🚀 Sales', 'a'.repeat(40)]) {
+      expect(opSchema.safeParse({ type: 'board.update', id, icon }).success, icon).toBe(false);
+      expect(opSchema.safeParse({ type: 'board.create', id, title: 'x', icon }).success, icon).toBe(false);
+    }
+    expect(opSchema.safeParse({ type: 'board.update', id, icon: null }).success).toBe(true);
+    expect(opSchema.safeParse({ type: 'board.update', id, background: '#AABBCC' }).success).toBe(false);
+    expect(opSchema.safeParse({ type: 'board.update', id, background: 'red' }).success).toBe(false);
+    expect(opSchema.safeParse({ type: 'board.update', id, background: '#7c3aed' }).success).toBe(true);
+  });
+
   it('rejects unknown link style keys and bad positions', () => {
     expect(opSchema.safeParse({ type: 'link.update', id, style: { onclick: 'x' } }).success).toBe(false);
     expect(opSchema.safeParse({ type: 'note.move', id, laneId: id, place: { position: "a0'; --" } }).success).toBe(false);

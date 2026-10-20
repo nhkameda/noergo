@@ -22,6 +22,7 @@ import {
   type Op,
   type ThoughtDetail,
 } from '@noergo/core';
+import { BOARD_ICON_MAX, BOARD_ICONS } from '@noergo/core/board-icons';
 import { z } from 'zod';
 import { PUBLIC_URL } from '../env';
 
@@ -38,6 +39,7 @@ const colorIn = z
   .union([z.enum(COLOR_NAMES), z.string().regex(/^#[0-9a-fA-F]{6}$/)])
   .describe(`A colour: one of ${COLOR_NAMES.join(', ')}, or a hex like #3366ff.`);
 const siteIn = z.string().max(2048).describe('A website, as an absolute https:// address.');
+const iconIn = z.string().max(BOARD_ICON_MAX).describe(`One emoji, like 🚀 or 🌱, or one of these line icons by name: ${BOARD_ICONS.join(', ')}.`);
 const toHex = (c: string): string => {
   const i = (COLOR_NAMES as readonly string[]).indexOf(c);
   return i >= 0 ? COLORS[i]! : c.toLowerCase();
@@ -207,7 +209,7 @@ export function registerTools(server: McpServer, ctx: ToolContext): void {
       inputSchema: {},
       outputSchema: {
         boards: z.array(
-          z.object({ id: z.string(), title: z.string(), color: z.string().nullable(), thoughts: z.array(z.object({ id: z.string(), title: z.string(), color: z.string().nullable(), url: z.string().nullable(), ideas: z.number() })) }),
+          z.object({ id: z.string(), title: z.string(), icon: z.string().nullable(), color: z.string().nullable(), background: z.string().nullable(), thoughts: z.array(z.object({ id: z.string(), title: z.string(), color: z.string().nullable(), url: z.string().nullable(), ideas: z.number() })) }),
         ),
       },
       annotations: { title: 'List boards and thoughts', ...READ },
@@ -215,7 +217,7 @@ export function registerTools(server: McpServer, ctx: ToolContext): void {
     () =>
       run(ctx, 'list_boards', async () => {
         const boards = await outline(p.workspaceId);
-        return ok({ boards: boards.map((b) => ({ id: b.id, title: b.title, color: b.color, thoughts: b.thoughts.map((t) => ({ id: t.id, title: t.title, color: t.color, url: t.url, ideas: t.ideas })) })) });
+        return ok({ boards: boards.map((b) => ({ id: b.id, title: b.title, icon: b.icon, color: b.color, background: b.background, thoughts: b.thoughts.map((t) => ({ id: t.id, title: t.title, color: t.color, url: t.url, ideas: t.ideas })) })) });
       }),
   );
 
@@ -278,16 +280,43 @@ export function registerTools(server: McpServer, ctx: ToolContext): void {
     'create_board',
     {
       title: 'Create a board',
-      description: 'A new board, at the end of the board tabs.',
-      inputSchema: { title: z.string().min(1).max(200), color: colorIn.optional() },
+      description: 'A new board, at the end of the board tabs. It can wear an icon before its name, a colour on its tab (color) and a colour behind its thoughts (background).',
+      inputSchema: { title: z.string().min(1).max(200), icon: iconIn.optional(), color: colorIn.optional(), background: colorIn.optional() },
       outputSchema: { board_id: z.string() },
       annotations: { title: 'Create a board', ...ADD },
     },
-    ({ title, color }) =>
+    ({ title, icon, color, background }) =>
       run(ctx, 'create_board', async () => {
         const id = newId();
-        await apply(p, [{ type: 'board.create', id, title, ...(color ? { color: toHex(color) } : {}), place: { at: 'bottom' } }]);
+        await apply(p, [{ type: 'board.create', id, title, ...(icon ? { icon } : {}), ...(color ? { color: toHex(color) } : {}), ...(background ? { background: toHex(background) } : {}), place: { at: 'bottom' } }]);
         return ok({ board_id: id });
+      }),
+  );
+
+  server.registerTool(
+    'update_board',
+    {
+      title: 'Rename or restyle a board',
+      description: 'Changes a board’s title, its icon (before its name in the tab), the colour of its tab (color) or the colour behind its thoughts (background). null removes the icon or a colour.',
+      inputSchema: { board_id: uuid, title: z.string().min(1).max(200).optional(), icon: iconIn.nullable().optional(), color: colorIn.nullable().optional(), background: colorIn.nullable().optional() },
+      outputSchema: { board_id: z.string() },
+      annotations: { title: 'Rename or restyle a board', ...CHANGE },
+    },
+    ({ board_id, title, icon, color, background }) =>
+      run(ctx, 'update_board', async () => {
+        if (title === undefined && icon === undefined && color === undefined && background === undefined) throw new DomainError('invalid', 'nothing to change: pass title, icon, color or background');
+        const hex = (c: string | null) => (c === null ? null : toHex(c));
+        await apply(p, [
+          {
+            type: 'board.update',
+            id: board_id,
+            ...(title !== undefined ? { title } : {}),
+            ...(icon !== undefined ? { icon } : {}),
+            ...(color !== undefined ? { color: hex(color) } : {}),
+            ...(background !== undefined ? { background: hex(background) } : {}),
+          },
+        ]);
+        return ok({ board_id });
       }),
   );
 

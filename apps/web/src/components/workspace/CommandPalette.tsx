@@ -3,6 +3,7 @@
 import type { SearchHit } from '@noergo/core/read';
 import { useTranslations } from 'next-intl';
 import { useEffect, useMemo, useRef, useState } from 'react';
+import { BoardGlyph } from './BoardLook';
 import { isComposing, useWorkspace } from './context';
 import { IconBoard, IconNote, IconSearch } from './icons';
 import { boardsOf, fold, localSearch, locate, type Data } from './model';
@@ -120,7 +121,7 @@ export function CommandPalette({ data, onClose }: { data: Data; onClose: () => v
               onMouseMove={() => i !== at && setActive(i)}
               onClick={() => choose(item)}
             >
-              <span className="w-palette__icon">{item.kind === 'board' ? <IconBoard /> : <IconNote />}</span>
+              <span className="w-palette__icon">{item.kind === 'note' ? <IconNote /> : data.boards.get(item.id)?.icon ? <BoardGlyph icon={data.boards.get(item.id)!.icon} /> : <IconBoard />}</span>
               <span className="w-palette__text">
                 <span className="w-palette__title">{item.title}</span>
                 {item.kind === 'note' && item.excerpt && <span className="w-palette__excerpt">{item.excerpt}</span>}

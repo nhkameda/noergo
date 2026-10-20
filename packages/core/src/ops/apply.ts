@@ -242,7 +242,7 @@ export async function applyOp(tx: Tx, ctx: OpCtx, op: Op): Promise<Applied> {
       const position = await resolvePlace(tx, ctx, 'boards', null, op.place);
       const row = await tx
         .insertInto('boards')
-        .values({ id: op.id, workspace_id: ws, title: op.title, color: op.color ?? null, position, created_by: ctx.actorId, updated_by: ctx.actorId })
+        .values({ id: op.id, workspace_id: ws, title: op.title, color: op.color ?? null, icon: op.icon ?? null, background: op.background ?? null, position, created_by: ctx.actorId, updated_by: ctx.actorId })
         .onConflict((oc) => oc.column('id').doNothing())
         .returningAll()
         .executeTakeFirst();
@@ -251,7 +251,12 @@ export async function applyOp(tx: Tx, ctx: OpCtx, op: Op): Promise<Applied> {
     }
     case 'board.update': {
       const cur = await loadBoard(tx, ctx, op.id);
-      const patch = { ...(op.title !== undefined ? { title: op.title } : {}), ...(op.color !== undefined ? { color: op.color } : {}) };
+      const patch = {
+        ...(op.title !== undefined ? { title: op.title } : {}),
+        ...(op.color !== undefined ? { color: op.color } : {}),
+        ...(op.icon !== undefined ? { icon: op.icon } : {}),
+        ...(op.background !== undefined ? { background: op.background } : {}),
+      };
       if (!Object.keys(patch).length || Object.entries(patch).every(([k, v]) => cur[k as keyof typeof cur] === v)) return noop('board', cur.id, cur.version);
       const row = await tx.updateTable('boards').set({ ...patch, ...stamp(ctx), version: cur.version + 1 }).where('id', '=', cur.id).where('workspace_id', '=', ws).returningAll().executeTakeFirstOrThrow();
       return single('board', boardDto(cur), boardDto(row), row.version);

@@ -50,26 +50,7 @@ export function CustomizePanel({ data, target, onClose }: { data: Data; target: 
   // Opens beside what was clicked (or dropped on), so the column stays in sight while it
   // changes; below it when there is no room at the sides. On a phone it is a bottom sheet.
   useLayoutEffect(() => {
-    const p = panel.current;
-    if (!p) return;
-    if (!p.matches(':popover-open')) p.showPopover();
-    const a = target.anchor;
-    const w = p.offsetWidth;
-    const h = p.offsetHeight;
-    const vw = window.innerWidth;
-    const vh = window.innerHeight;
-    const gap = 12;
-    const clampY = (y: number) => Math.max(8, Math.min(y, vh - h - 8));
-    let left: number;
-    let top: number;
-    if (a.right + gap + w <= vw - 8) [left, top] = [a.right + gap, clampY(a.top)];
-    else if (a.left - gap - w >= 8) [left, top] = [a.left - gap - w, clampY(a.top)];
-    else {
-      left = Math.max(8, Math.min(a.right - w, vw - w - 8));
-      top = a.bottom + 8 + h <= vh - 8 ? a.bottom + 8 : clampY(a.top - h - 8);
-    }
-    p.style.setProperty('--x', `${left}px`);
-    p.style.setProperty('--y', `${top}px`);
+    if (panel.current) openPanel(panel.current, target.anchor, 'beside');
   }, [target.anchor]);
 
   const closed = useEffectEvent(() => onClose());
@@ -174,7 +155,7 @@ export function CustomizePanel({ data, target, onClose }: { data: Data; target: 
           <h2 id="w-customize-kicker" className="w-customize__kicker">
             {t('customize.kicker')}
           </h2>
-          <NameField lane={lane} />
+          <NameField id="w-customize-title" value={lane.title} label={t('customize.name')} maxLength={LIMITS.laneTitle} onSave={(title) => actions.updateLane(lane.id, { title })} />
         </div>
         <button type="button" className="w-icon-btn" onClick={close} aria-label={t('customize.close')} title={t('customize.close')}>
           <IconClose />
@@ -274,37 +255,60 @@ export function CustomizePanel({ data, target, onClose }: { data: Data; target: 
   );
 }
 
-/** What shows through a cover without a background: the column's colour. */
-/** The name, saved when it is left (Enter, Tab, a click elsewhere); Escape puts it back. */
-function NameField({ lane }: { lane: LaneDto }) {
-  const t = useTranslations('app');
-  const { actions } = useWorkspace();
+/**
+ * Shows a customise panel next to `a`: at its side when there is room (`beside`), else
+ * under it, else over it. A tab at the top of the screen asks for `below`.
+ */
+export function openPanel(p: HTMLElement, a: DOMRect, prefer: 'beside' | 'below') {
+  if (!p.matches(':popover-open')) p.showPopover();
+  const w = p.offsetWidth;
+  const h = p.offsetHeight;
+  const vw = window.innerWidth;
+  const vh = window.innerHeight;
+  const gap = 12;
+  const clampX = (x: number) => Math.max(8, Math.min(x, vw - w - 8));
+  const clampY = (y: number) => Math.max(8, Math.min(y, vh - h - 8));
+  let left: number;
+  let top: number;
+  if (prefer === 'below') [left, top] = [clampX(a.left), clampY(a.bottom + 8)];
+  else if (a.right + gap + w <= vw - 8) [left, top] = [a.right + gap, clampY(a.top)];
+  else if (a.left - gap - w >= 8) [left, top] = [a.left - gap - w, clampY(a.top)];
+  else {
+    left = clampX(a.right - w);
+    top = a.bottom + 8 + h <= vh - 8 ? a.bottom + 8 : clampY(a.top - h - 8);
+  }
+  p.style.setProperty('--x', `${left}px`);
+  p.style.setProperty('--y', `${top}px`);
+}
+
+/** A name, saved when it is left (Enter, Tab, a click elsewhere); Escape puts it back. */
+export function NameField({ id, value, label, maxLength, onSave }: { id: string; value: string; label: string; maxLength: number; onSave: (title: string) => void }) {
   const [draft, setDraft] = useState<string | null>(null);
   const save = () => {
     const title = draft?.trim();
-    if (title && title !== lane.title) actions.updateLane(lane.id, { title });
+    if (title && title !== value) onSave(title);
     setDraft(null);
   };
   return (
     <input
-      id="w-customize-title"
+      id={id}
       className="w-input w-customize__name"
-      aria-label={t('customize.name')}
-      maxLength={LIMITS.laneTitle}
+      aria-label={label}
+      maxLength={maxLength}
       autoComplete="off"
-      value={draft ?? lane.title}
-      onFocus={() => setDraft(lane.title)}
+      value={draft ?? value}
+      onFocus={() => setDraft(value)}
       onChange={(e) => setDraft(e.target.value)}
       onBlur={save}
       onKeyDown={(e) => {
         if (e.key === 'Enter') {
           e.preventDefault();
           e.currentTarget.blur();
-        } else if (e.key === 'Escape' && draft !== lane.title) {
+        } else if (e.key === 'Escape' && draft !== value) {
           // The first Escape undoes the typing; the next one closes the panel.
           e.preventDefault();
           e.stopPropagation();
-          setDraft(lane.title);
+          setDraft(value);
         }
       }}
     />
@@ -370,6 +374,7 @@ function SiteField({ lane }: { lane: LaneDto }) {
   );
 }
 
+/** What shows through a cover without a background: the column's colour. */
 const laneBehind = (color: string | null) => (color ? { background: color } : undefined);
 
 /** Debounced save, flushed when the panel goes away. */

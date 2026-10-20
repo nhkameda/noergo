@@ -3,12 +3,13 @@ import { COLORS } from '@noergo/core/limits';
 import { opSchema } from '@noergo/core/ops/schema';
 import { describe, expect, it } from 'vitest';
 import { isIdeario, planIdeario, splitText } from '@/components/workspace/import-ideario';
-import { applyEffects, captureLane, colorName, dueNotes, fromSnapshot, localSearch, nearestColor, notesByLane, toSnapshot, withPending, type Data } from '@/components/workspace/model';
+import { applyEffects, boardsOf, captureLane, colorName, dueNotes, fromSnapshot, localSearch, nearestColor, notesByLane, toSnapshot, withPending, type Data } from '@/components/workspace/model';
 import { makePatch, mapCaret, rebase } from '@/components/workspace/text-sync';
-import { positionAt } from '@/components/workspace/actions';
+import { Actions, positionAt } from '@/components/workspace/actions';
+import type { WorkspaceStore } from '@/components/workspace/store';
 
 const T = '2026-10-18T12:00:00.000Z';
-const board = (id: string, over: Partial<BoardDto> = {}): BoardDto => ({ id, title: id, color: null, position: 'a0', version: 1, updatedAt: T, deletedAt: null, ...over });
+const board = (id: string, over: Partial<BoardDto> = {}): BoardDto => ({ id, title: id, color: null, icon: null, background: null, position: 'a0', version: 1, updatedAt: T, deletedAt: null, ...over });
 const lane = (id: string, boardId: string, over: Partial<LaneDto> = {}): LaneDto => ({ id, boardId, title: id, color: null, cover: null, url: null, position: 'a0', version: 1, updatedAt: T, deletedAt: null, ...over });
 const note = (id: string, laneId: string, over: Partial<NoteDto> = {}): NoteDto => ({
   id,
@@ -120,6 +121,54 @@ describe('withPending: the optimistic layer', () => {
     expect(moved.notes.get('n1')).toMatchObject({ laneId: 'l2', position: 'a5' });
     const gone = withPending(d, [{ opId: 'o1', op: { type: 'lane.delete', id: 'l1' } }]);
     expect(gone.lanes.get('l1')!.deletedAt).not.toBeNull();
+  });
+});
+
+describe('boards: look and order', () => {
+  const three = () => data({ boards: [board('b1', { position: 'a0' }), board('b2', { position: 'a1' }), board('b3', { position: 'a2' })] });
+  /** Actions over a store that only records what is dispatched. */
+  const recorder = (d: Data) => {
+    const sent: Array<{ ops: unknown; undo: unknown }> = [];
+    const store = { getState: () => ({ data: d }), dispatch: (ops: unknown, opts: { undo?: unknown } = {}) => (sent.push({ ops, undo: opts.undo }), []), notify: () => {} };
+    return { actions: new Actions(store as unknown as WorkspaceStore), sent };
+  };
+
+  it('shows a new icon, tab colour and background at once', () => {
+    const shown = withPending(three(), [{ opId: 'o1', op: { type: 'board.update', id: 'b2', icon: '🌱', color: '#d9480f', background: '#2f9e6b' } }]);
+    expect(shown.boards.get('b2')).toMatchObject({ icon: '🌱', color: '#d9480f', background: '#2f9e6b' });
+    const cleared = withPending(shown, [{ opId: 'o2', op: { type: 'board.update', id: 'b2', icon: null } }]);
+    expect(cleared.boards.get('b2')).toMatchObject({ icon: null, background: '#2f9e6b' });
+  });
+
+  it('reads a cache written before boards had icons', () => {
+    const old = { ...toSnapshot(three()), boards: [{ id: 'b1', title: 'b1', color: null, position: 'a0', version: 1, updatedAt: T, deletedAt: null }] };
+    expect(fromSnapshot(old as never).boards.get('b1')).toMatchObject({ icon: null, background: null });
+  });
+
+  it('moves a tab between its neighbours, and its undo puts the old key back', () => {
+    const d = three();
+    const { actions, sent } = recorder(d);
+    expect(actions.moveBoardNear('b3', 'b1', 'left')).toEqual({ index: 0, total: 3 });
+    const [{ ops, undo }] = sent as [{ ops: { type: string; id: string; place: { position: string } }; undo: unknown }];
+    expect(ops.type).toBe('board.move');
+    expect(boardsOf(withPending(d, [{ opId: 'o', op: ops as never }]).boards).map((b) => b.id)).toEqual(['b3', 'b1', 'b2']);
+    expect(undo).toEqual([{ type: 'board.move', id: 'b3', place: { position: 'a2' } }]);
+  });
+
+  it('records nothing when a tab is dropped back where it was', () => {
+    const { actions, sent } = recorder(three());
+    expect(actions.moveBoardNear('b2', 'b1', 'right')).toBeNull();
+    expect(actions.moveBoardNear('b2', 'b3', 'left')).toBeNull();
+    expect(actions.moveBoard('b1', -1)).toBeNull();
+    actions.updateBoard('b1', { icon: null, color: null });
+    expect(sent).toEqual([]);
+  });
+
+  it('undoes only what a change touched', () => {
+    const d = data({ boards: [board('b1', { icon: '🚀', color: '#d9480f' })] });
+    const { actions, sent } = recorder(d);
+    actions.updateBoard('b1', { icon: 'home', color: '#d9480f', background: '#2f9e6b' });
+    expect(sent).toEqual([{ ops: { type: 'board.update', id: 'b1', icon: 'home', background: '#2f9e6b' }, undo: [{ type: 'board.update', id: 'b1', icon: '🚀', background: null }] }]);
   });
 });
 

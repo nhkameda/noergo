@@ -140,6 +140,10 @@ export interface BoardsTable extends Versioned {
   workspace_id: string;
   title: string;
   color: string | null;
+  /** One emoji or a line icon's name (`BOARD_ICONS`), before the title in the tab. */
+  icon: Defaulted<string | null>;
+  /** The colour behind the board's thoughts. */
+  background: Defaulted<string | null>;
   position: string;
 }
 

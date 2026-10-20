@@ -8,6 +8,9 @@
   overflow: hidden;
   background: var(--nr-canvas);
 }
+/* A board's background: a wash of its colour over the canvas, so what sits on the canvas
+   keeps its contrast in light and in dark. */
+.w-app[data-backdrop] { background: color-mix(in oklab, var(--backdrop) 22%, var(--nr-canvas)); }
 
 .w-sr {
   position: absolute;
@@ -48,6 +51,7 @@
 }
 .w-boards .w-inline-input { width: 12rem; flex: none; }
 .w-board-tab {
+  position: relative;
   display: inline-flex;
   align-items: center;
   gap: var(--nr-space-2);
@@ -61,13 +65,24 @@
   color: var(--nr-text-muted);
   font: var(--nr-weight-semibold) var(--nr-text-sm) / 1.2 var(--nr-font-ui);
   white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
   cursor: pointer;
 }
-.w-board-tab[data-cor]::before { content: ""; flex: none; width: 8px; height: 8px; border-radius: 50%; background: var(--c); }
+.w-board-tab__title { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
 .w-board-tab:hover { background: var(--nr-fill-hover); color: var(--nr-text); }
 .w-board-tab[aria-current="page"] { background: var(--nr-fill-active); color: var(--nr-text); }
+/* A coloured tab is its colour, with the ink that reads on it; the open one carries a bar
+   of that ink along its bottom edge. */
+.w-board-tab[data-colored] { background: var(--tab); color: var(--tab-on); }
+.w-board-tab[data-colored]:hover { background: color-mix(in oklab, var(--tab) 86%, var(--tab-on)); color: var(--tab-on); }
+.w-board-tab[data-colored][aria-current="page"] { box-shadow: inset 0 -3px 0 var(--tab-on); }
+.w-board-tab--dragging { opacity: 0.45; }
+/* Where a dragged tab will land: a bar on the side it goes. */
+.w-board-tab[data-edge]::after { content: ""; position: absolute; top: 6px; bottom: 6px; width: 3px; border-radius: 2px; background: var(--nr-focus); }
+.w-board-tab[data-edge="left"]::after { left: 0; }
+.w-board-tab[data-edge="right"]::after { right: 0; }
+/* A board's icon: an emoji in the system's colour font, or a line icon in the ink around it. */
+.w-board-glyph { display: inline-grid; place-items: center; flex: none; width: 20px; height: 20px; font: 17px / 1 "Apple Color Emoji", "Segoe UI Emoji", "Noto Color Emoji", sans-serif; }
+.w-board-glyph svg { width: 18px; height: 18px; }
 /* While a thought is dragged, the other boards' tabs are where it can go. */
 .w-board-tab[data-drop] { outline: 1.5px dashed var(--nr-border-strong); outline-offset: -3px; color: var(--nr-text); }
 .w-board-tab[data-drop="over"] { outline: 2px solid var(--nr-focus); background: var(--nr-fill-active); }
@@ -693,6 +708,27 @@
 .w-customize__swatches { padding: 0; gap: var(--nr-space-1); }
 .w-customize .w-swatch { width: 32px; height: 32px; }
 .w-customize__foot { display: flex; justify-content: flex-end; }
+/* The board's panel: emoji and line icons to choose from, then any emoji typed in. */
+.w-board-look__icons { display: grid; gap: var(--nr-space-2); }
+.w-board-look__row { display: grid; grid-template-columns: repeat(10, minmax(0, 1fr)); gap: var(--nr-space-1); }
+.w-board-look__row > .w-swatch, .w-board-look__row > .w-glyph-choice { width: 100%; height: auto; aspect-ratio: 1; }
+.w-glyph-choice {
+  display: inline-grid;
+  place-items: center;
+  width: 32px;
+  height: 32px;
+  padding: 0;
+  border: 0;
+  border-radius: var(--nr-radius-md);
+  background: transparent;
+  color: var(--nr-text);
+  cursor: pointer;
+}
+.w-glyph-choice:hover { background: var(--nr-fill-hover); }
+.w-glyph-choice[aria-checked="true"] { background: var(--nr-fill-active); box-shadow: 0 0 0 2px var(--nr-surface), 0 0 0 4px var(--nr-text); }
+.w-glyph-choice:focus-visible { outline: 2px solid var(--nr-focus); outline-offset: 2px; }
+.w-board-look__other { display: flex; align-items: center; gap: var(--nr-space-2); }
+.w-board-look__other .w-input { flex: 1; min-width: 0; }
 .w-swatch:focus-visible { outline: 2px solid var(--nr-focus); outline-offset: 2px; }
 .w-swatch--clear { background: repeating-conic-gradient(var(--nr-surface-sunken) 0 25%, var(--nr-surface) 0 50%) 0 0 / 10px 10px; border-color: var(--nr-border-strong); }
 .w-swatch--flat { border-color: var(--nr-border-strong); }

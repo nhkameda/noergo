@@ -150,6 +150,43 @@
     "site": {
       "open": "Open the website of “{title}”, {host}, in a new tab"
     },
+    "boardLook": {
+      "menu": "Icon and colours…",
+      "kicker": "Customise board",
+      "tabHint": "Drag to reorder · double-click to rename · Alt + arrows move it",
+      "icon": "Icon",
+      "noIcon": "No icon",
+      "lineIcons": "Line icons",
+      "otherEmoji": "Another emoji",
+      "otherEmojiPlaceholder": "Type or paste one",
+      "emojiHint": "On a Mac, Control + Command + Space opens every emoji; on Windows, Windows + full stop.",
+      "emojiInvalid": "That isn’t an emoji. Type or paste just one.",
+      "tab": "Tab colour",
+      "background": "Board background",
+      "backgroundHint": "Shown as a soft wash, so the notes stay easy to read.",
+      "icons": {
+        "home": "Home",
+        "work": "Work",
+        "star": "Star",
+        "heart": "Heart",
+        "idea": "Idea",
+        "book": "Book",
+        "school": "School",
+        "code": "Code",
+        "people": "People",
+        "money": "Money",
+        "chart": "Chart",
+        "cart": "Shopping",
+        "target": "Target",
+        "flag": "Flag",
+        "calendar": "Calendar",
+        "pin": "Place",
+        "globe": "World",
+        "music": "Music",
+        "camera": "Camera",
+        "leaf": "Nature"
+      }
+    },
     "note": {
       "untitled": "Untitled",
       "markDone": "Mark as done",
@@ -181,7 +218,8 @@
       "keyboardHelp": "Enter opens the note. Arrow keys move between notes; Alt with an arrow moves the note itself.",
       "movedNote": "Moved to “{column}”, position {position} of {total}.",
       "movedColumn": "Thought moved to position {position} of {total}.",
-      "dragHandle": "Drag to move the thought, also onto another board’s tab; double-click to rename"
+      "dragHandle": "Drag to move the thought, also onto another board’s tab; double-click to rename",
+      "movedBoard": "Board moved to position {position} of {total}."
     },
     "notices": {
       "deletedNote": "Note moved to the trash.",

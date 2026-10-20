@@ -1,12 +1,14 @@
 'use client';
 
+import { autoScrollForElements } from '@atlaskit/pragmatic-drag-and-drop-auto-scroll/element';
 import { LIMITS } from '@noergo/core/limits';
 import { languageNames, locales } from '@noergo/i18n';
 import { useLocale, useTranslations } from 'next-intl';
-import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore, type RefObject } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore, type CSSProperties, type RefObject } from 'react';
 import { PREFIX } from '@/i18n/routing';
 import { Actions } from './actions';
 import { Board } from './Board';
+import { BoardLookPanel, useBoardLook, type BoardLookTarget } from './BoardLook';
 import { CommandPalette } from './CommandPalette';
 import { takePicture } from './cover-client';
 import { CustomizePanel, type CustomizeTarget } from './Customize';
@@ -22,7 +24,7 @@ import { BoardTab } from './MoveToBoard';
 import { NoteDrawer } from './NoteDrawer';
 import { focusNote } from './NoteCard';
 import { WorkspaceStore, type WorkspaceState } from './store';
-import { InlineEdit, Menu, Swatches } from './ui';
+import { InlineEdit, Menu } from './ui';
 import { LAYOUT } from './view-prefs';
 import './workspace.css';
 
@@ -66,6 +68,8 @@ export function Workspace({ userId, signInHref, homeHref, agentsHref, sourceUrl,
   const [announcement, setAnnouncement] = useState('');
   const [mapLane, setMapLane] = useState<string | null>(mapInUrl);
   const [customizing, setCustomizing] = useState<CustomizeTarget | null>(null);
+  const [lookingAt, setLookingAt] = useState<BoardLookTarget | null>(null);
+  const tabs = useRef<HTMLElement>(null);
   const layout = LAYOUT.use();
   const capture = useRef<HTMLInputElement>(null);
   const returnFocus = useRef<string | null>(null);
@@ -76,12 +80,24 @@ export function Workspace({ userId, signInHref, homeHref, agentsHref, sourceUrl,
     return () => store.stop();
   }, [store]);
 
+  // A tab (or a thought) dragged to the end of a long bar of boards scrolls it.
+  useEffect(() => {
+    const el = tabs.current;
+    if (!el) return;
+    return autoScrollForElements({ element: el });
+  }, []);
+
   const boards = useMemo(() => (data ? boardsOf(data.boards) : []), [data]);
   const mapOf = mapLane ? data?.lanes.get(mapLane) : undefined;
   const map = mapOf && mapOf.deletedAt === null && data?.boards.get(mapOf.boardId)?.deletedAt === null && view === 'board' ? mapOf : null;
   const wanted = data ? (map?.boardId ?? chosenBoard ?? readStoredBoard(userId)) : null;
   const boardId = boards.find((b) => b.id === wanted)?.id ?? boards[0]?.id ?? null;
   const board = boardId ? data?.boards.get(boardId) : undefined;
+  const boardIndex = boards.findIndex((b) => b.id === boardId);
+  const look = useBoardLook(board);
+  // The board's colour behind its thoughts, as cards or columns; a map and the due dates
+  // (every board at once) keep the plain canvas.
+  const backdrop = view === 'board' && !map ? (look?.background ?? null) : null;
   // "Here", for an agent: the thought whose map or note is open, else the board on screen.
   const openLane = map?.id ?? (openId ? (data?.notes.get(openId)?.laneId ?? null) : null);
   useFocusHeartbeat(!!data, view === 'due' ? 'dates' : map ? 'map' : layout === 'cards' ? 'cards' : 'board', boardId, openLane);
@@ -195,6 +211,22 @@ export function Workspace({ userId, signInHref, homeHref, agentsHref, sourceUrl,
     requestAnimationFrame(() => setAnnouncement(text));
   }, []);
 
+  const tabOf = (id: string) => document.querySelector<HTMLElement>(`[data-board-tab="${CSS.escape(id)}"]`);
+  const lookAt = (id: string) => {
+    const anchor = tabOf(id)?.getBoundingClientRect() ?? tabs.current?.getBoundingClientRect();
+    if (anchor) setLookingAt({ boardId: id, anchor });
+  };
+  const closeLook = () => {
+    // Back to the tab it was opened from, unless the person clicked somewhere else.
+    if (lookingAt && (document.activeElement === document.body || document.activeElement === null)) tabOf(lookingAt.boardId)?.focus();
+    setLookingAt(null);
+  };
+  const moveTab = (id: string, to: number) => {
+    const moved = actions.moveBoard(id, to);
+    if (moved) announce(t('a11y.movedBoard', { position: moved.index + 1, total: moved.total }));
+    requestAnimationFrame(() => tabOf(id)?.focus());
+  };
+
   const api = useMemo<WorkspaceApi>(
     () => ({ store, actions, openNote, showBoard, openMap, announce, customize, revealLane }),
     [store, actions, openNote, showBoard, openMap, announce, customize, revealLane],
@@ -239,13 +271,13 @@ export function Workspace({ userId, signInHref, homeHref, agentsHref, sourceUrl,
 
   return (
     <WorkspaceContext.Provider value={api}>
-      <div className={`w-app${openNoteVisible ? ' w-app--drawer' : ''}`}>
+      <div className={`w-app${openNoteVisible ? ' w-app--drawer' : ''}`} data-backdrop={backdrop ? '' : undefined} style={backdrop ? ({ '--backdrop': backdrop } as CSSProperties) : undefined}>
         <header className="w-top">
           <a className="w-logo" href={homeHref} aria-label="noergo">
             <img src="/favicon.svg" alt="" width={28} height={28} />
           </a>
-          <nav className="w-boards" aria-label={t('boards')}>
-            {boards.map((b) =>
+          <nav ref={tabs} className="w-boards" aria-label={t('boards')}>
+            {boards.map((b, i) =>
               b.id === boardId && renamingBoard ? (
                 <InlineEdit
                   key={b.id}
@@ -259,7 +291,7 @@ export function Workspace({ userId, signInHref, homeHref, agentsHref, sourceUrl,
                   onCancel={() => setRenamingBoard(false)}
                 />
               ) : (
-                <BoardTab key={b.id} board={b} current={b.id === boardId && view === 'board'} onSelect={() => showBoard(b.id)} onRename={() => b.id === boardId && setRenamingBoard(true)} />
+                <BoardTab key={b.id} board={b} index={i} current={b.id === boardId && view === 'board'} onSelect={() => showBoard(b.id)} onRename={() => b.id === boardId && setRenamingBoard(true)} />
               ),
             )}
             {creatingBoard ? (
@@ -289,8 +321,15 @@ export function Workspace({ userId, signInHref, homeHref, agentsHref, sourceUrl,
                     <button type="button" className="w-menu__item" onClick={() => { close(); setRenamingBoard(true); }}>
                       {t('rename')}
                     </button>
-                    <div className="w-menu__label">{t('color')}</div>
-                    <Swatches value={board.color} label={t('color')} onChange={(color) => actions.updateBoard(board.id, { color })} />
+                    <button type="button" className="w-menu__item" onClick={() => { close(); lookAt(board.id); }}>
+                      {t('boardLook.menu')}
+                    </button>
+                    <button type="button" className="w-menu__item" disabled={boardIndex <= 0} onClick={() => { close(); moveTab(board.id, boardIndex - 1); }}>
+                      {t('moveLeft')}
+                    </button>
+                    <button type="button" className="w-menu__item" disabled={boardIndex >= boards.length - 1} onClick={() => { close(); moveTab(board.id, boardIndex + 1); }}>
+                      {t('moveRight')}
+                    </button>
                     <button type="button" className="w-menu__item w-menu__item--danger" onClick={() => { close(); actions.deleteBoard(board.id); }}>
                       {t('deleteBoard')}
                     </button>
@@ -347,7 +386,7 @@ export function Workspace({ userId, signInHref, homeHref, agentsHref, sourceUrl,
           ) : view === 'due' ? (
             <DueList data={data} />
           ) : map ? (
-            <LaneMap key={map.id} data={data} laneId={map.id} blocked={palette || !!openNoteVisible || !!customizing} onClose={closeMap} />
+            <LaneMap key={map.id} data={data} laneId={map.id} blocked={palette || !!openNoteVisible || !!customizing || !!lookingAt} onClose={closeMap} />
           ) : boardId && layout === 'cards' ? (
             <Gallery data={data} boardId={boardId} hideDone={hideDone} onOpen={revealLane} />
           ) : boardId ? (
@@ -367,6 +406,7 @@ export function Workspace({ userId, signInHref, homeHref, agentsHref, sourceUrl,
         {openNoteVisible && data && <NoteDrawer data={data} noteId={openNoteVisible} onClose={closeNote} />}
         {palette && data && <CommandPalette data={data} onClose={() => setPalette(false)} />}
         {customizing && data?.lanes.get(customizing.laneId) && <CustomizePanel key={customizing.laneId} data={data} target={customizing} onClose={() => setCustomizing(null)} />}
+        {lookingAt && data?.boards.get(lookingAt.boardId) && <BoardLookPanel key={lookingAt.boardId} board={data.boards.get(lookingAt.boardId)!} anchor={lookingAt.anchor} onClose={closeLook} />}
         <Notices state={state} store={store} />
 
         <p id="w-card-help" className="w-sr">

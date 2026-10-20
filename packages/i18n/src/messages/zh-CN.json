@@ -150,6 +150,43 @@
     "site": {
       "open": "在新标签页打开“{title}”的网站 {host}"
     },
+    "boardLook": {
+      "menu": "图标和颜色…",
+      "kicker": "自定义看板",
+      "tabHint": "拖动以排序 · 双击重命名 · Alt + 方向键移动",
+      "icon": "图标",
+      "noIcon": "无图标",
+      "lineIcons": "线条图标",
+      "otherEmoji": "其他表情",
+      "otherEmojiPlaceholder": "输入或粘贴一个",
+      "emojiHint": "在 Mac 上按 Control + Command + 空格可打开全部表情；在 Windows 上按 Windows + 句号。",
+      "emojiInvalid": "这不是表情符号。请只输入或粘贴一个。",
+      "tab": "标签颜色",
+      "background": "看板背景",
+      "backgroundHint": "以柔和的色调显示，笔记依然清晰易读。",
+      "icons": {
+        "home": "家",
+        "work": "工作",
+        "star": "星标",
+        "heart": "爱心",
+        "idea": "点子",
+        "book": "书",
+        "school": "学习",
+        "code": "代码",
+        "people": "人",
+        "money": "钱",
+        "chart": "图表",
+        "cart": "购物",
+        "target": "目标",
+        "flag": "旗帜",
+        "calendar": "日历",
+        "pin": "地点",
+        "globe": "世界",
+        "music": "音乐",
+        "camera": "相机",
+        "leaf": "自然"
+      }
+    },
     "note": {
       "untitled": "无标题",
       "markDone": "标记为已完成",
@@ -181,7 +218,8 @@
       "keyboardHelp": "按 Enter 打开笔记。方向键在笔记之间移动；按住 Alt 再按方向键可移动笔记本身。",
       "movedNote": "已移到“{column}”，第 {position} 个，共 {total} 个。",
       "movedColumn": "想法已移到第 {position} 个，共 {total} 个。",
-      "dragHandle": "拖动以移动此想法，也可以拖到其他看板的标签上；双击可重命名"
+      "dragHandle": "拖动以移动此想法，也可以拖到其他看板的标签上；双击可重命名",
+      "movedBoard": "看板已移到第 {position} 个，共 {total} 个。"
     },
     "notices": {
       "deletedNote": "笔记已移到回收站。",

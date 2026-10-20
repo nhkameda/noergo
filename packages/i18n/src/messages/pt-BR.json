@@ -150,6 +150,43 @@
     "site": {
       "open": "Abrir o site de “{title}”, {host}, numa aba nova"
     },
+    "boardLook": {
+      "menu": "Ícone e cores…",
+      "kicker": "Personalizar quadro",
+      "tabHint": "Arraste para reordenar · dois cliques para renomear · Alt + setas movem",
+      "icon": "Ícone",
+      "noIcon": "Sem ícone",
+      "lineIcons": "Ícones de traço",
+      "otherEmoji": "Outro emoji",
+      "otherEmojiPlaceholder": "Digite ou cole um",
+      "emojiHint": "No Mac, Control + Command + Espaço abre todos os emoji; no Windows, Windows + ponto.",
+      "emojiInvalid": "Isso não é um emoji. Digite ou cole só um.",
+      "tab": "Cor do botão",
+      "background": "Fundo do quadro",
+      "backgroundHint": "Aparece em tom suave, para as notas continuarem fáceis de ler.",
+      "icons": {
+        "home": "Casa",
+        "work": "Trabalho",
+        "star": "Estrela",
+        "heart": "Coração",
+        "idea": "Ideia",
+        "book": "Livro",
+        "school": "Estudo",
+        "code": "Código",
+        "people": "Pessoas",
+        "money": "Dinheiro",
+        "chart": "Gráfico",
+        "cart": "Compras",
+        "target": "Alvo",
+        "flag": "Bandeira",
+        "calendar": "Agenda",
+        "pin": "Lugar",
+        "globe": "Mundo",
+        "music": "Música",
+        "camera": "Câmera",
+        "leaf": "Natureza"
+      }
+    },
     "note": {
       "untitled": "Sem título",
       "markDone": "Marcar como feita",
@@ -181,7 +218,8 @@
       "keyboardHelp": "Enter abre a nota. As setas andam entre as notas; Alt com uma seta move a própria nota.",
       "movedNote": "Movida para “{column}”, posição {position} de {total}.",
       "movedColumn": "Pensamento movido para a posição {position} de {total}.",
-      "dragHandle": "Arraste para mover o pensamento, inclusive para a aba de outro quadro; clique duas vezes para renomear"
+      "dragHandle": "Arraste para mover o pensamento, inclusive para a aba de outro quadro; clique duas vezes para renomear",
+      "movedBoard": "Quadro movido para a posição {position} de {total}."
     },
     "notices": {
       "deletedNote": "Nota enviada para a lixeira.",

@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { isBoardIcon } from '../board-icons';
 import { LIMITS } from '../limits';
 import { isPosition } from '../position';
 
@@ -38,6 +39,9 @@ const webUrl = z
       return false;
     }
   }, 'only http and https addresses are allowed');
+
+/** One emoji or a line icon's name, before a board's title in its tab. */
+const boardIcon = z.string().refine(isBoardIcon, 'an icon is one emoji or the name of a noergo icon');
 
 /** Where to put an item: an explicit key (client-computed) or a relative placement. */
 export const placement = z.union([
@@ -91,8 +95,8 @@ const layoutNode = z.object({
 });
 
 export const opSchema = z.discriminatedUnion('type', [
-  z.object({ type: z.literal('board.create'), id, title: trimmed(LIMITS.boardTitle).pipe(z.string().min(1)), color: color.optional(), place: placement.optional() }),
-  z.object({ type: z.literal('board.update'), id, title: trimmed(LIMITS.boardTitle).pipe(z.string().min(1)).optional(), color: color.optional() }),
+  z.object({ type: z.literal('board.create'), id, title: trimmed(LIMITS.boardTitle).pipe(z.string().min(1)), color: color.optional(), icon: boardIcon.nullable().optional(), background: color.optional(), place: placement.optional() }),
+  z.object({ type: z.literal('board.update'), id, title: trimmed(LIMITS.boardTitle).pipe(z.string().min(1)).optional(), color: color.optional(), icon: boardIcon.nullable().optional(), background: color.optional() }),
   z.object({ type: z.literal('board.move'), id, place: placement }),
   z.object({ type: z.literal('board.delete'), id }),
   z.object({ type: z.literal('board.restore'), id }),

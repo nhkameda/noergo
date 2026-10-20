@@ -302,6 +302,35 @@ describe.skipIf(!testDb)('database', () => {
     expect(cleared.kind === 'lane' && cleared.data.url).toBeNull();
   });
 
+  it('keeps a board’s icon and background, and the database refuses what the op schema would', async () => {
+    const a = await newAccount();
+    const board = (await snapshot(a.workspaceId, pools().app)).boards[0]!;
+    const [set] = await run(a.ctx, { type: 'board.update', id: board.id, icon: '🌱', background: '#2f9e6b', color: '#d9480f' });
+    const after = applied(set).effects[0]!;
+    expect(after.kind === 'board' && [after.data.icon, after.data.background, after.data.color]).toEqual(['🌱', '#2f9e6b', '#d9480f']);
+    const seq = (await snapshot(a.workspaceId, pools().app)).seq;
+    const [same] = await run(a.ctx, { type: 'board.update', id: board.id, icon: '🌱', background: '#2f9e6b' });
+    expect(applied(same).result).toMatchObject({ unchanged: true });
+    expect((await snapshot(a.workspaceId, pools().app)).seq).toBe(seq);
+    await expect(pools().jobs.updateTable('boards').set({ background: 'red;x' }).where('id', '=', board.id).execute()).rejects.toThrow(/check constraint|too long/);
+    await expect(pools().jobs.updateTable('boards').set({ icon: '' }).where('id', '=', board.id).execute()).rejects.toThrow(/check constraint/);
+    const [off] = await run(a.ctx, { type: 'board.update', id: board.id, icon: null, background: null });
+    const cleared = applied(off).effects[0]!;
+    expect(cleared.kind === 'board' && [cleared.data.icon, cleared.data.background]).toEqual([null, null]);
+  });
+
+  it('keeps the order boards are moved into', async () => {
+    const a = await newAccount();
+    const first = (await snapshot(a.workspaceId, pools().app)).boards[0]!;
+    const ids = [newId(), newId()];
+    await run(a.ctx, { type: 'board.create', id: ids[0]!, title: 'Two', place: { at: 'bottom' } });
+    await run(a.ctx, { type: 'board.create', id: ids[1]!, title: 'Three', icon: 'home', place: { at: 'bottom' } });
+    await run(a.ctx, { type: 'board.move', id: ids[1]!, place: { before: first.id } });
+    const boards = (await snapshot(a.workspaceId, pools().app)).boards;
+    expect(boards.map((b) => b.title)).toEqual(['Three', first.title, 'Two']);
+    expect(boards[0]!.icon).toBe('home');
+  });
+
   it('keeps fractional positions in bytewise order in the database', async () => {
     const { app } = pools();
     const rows = await sql<{ p: string }>`SELECT p FROM unnest(ARRAY['a0', 'Zz', 'a0V', 'b00', 'A0']) AS p ORDER BY p`.execute(app);

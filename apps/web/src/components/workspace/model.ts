@@ -38,8 +38,8 @@ export function fromSnapshot(s: Snapshot): Data {
   return {
     seq: s.seq,
     inboxLaneId: s.inboxLaneId,
-    boards: new Map(s.boards.map((b) => [b.id, b])),
-    // A cache written before covers or websites existed has lanes without the fields.
+    // A cache written before icons, covers or websites existed lacks the fields.
+    boards: new Map(s.boards.map((b) => [b.id, { ...b, icon: b.icon ?? null, background: b.background ?? null }])),
     lanes: new Map(s.lanes.map((l) => [l.id, { ...l, cover: l.cover ?? null, url: l.url ?? null }])),
     notes: new Map(s.notes.map((n) => [n.id, n])),
     links: new Map(s.links.map((l) => [l.id, l])),
@@ -181,7 +181,7 @@ function applyOptimistic(d: Draft, p: Pending): void {
     case 'board.create': {
       if (d.get('boards').has(op.id)) return;
       const position = op.place && 'position' in op.place ? op.place.position : 'a0';
-      d.write('boards').set(op.id, { id: op.id, title: op.title, color: op.color ?? null, position, version: 0, updatedAt: t, deletedAt: null });
+      d.write('boards').set(op.id, { id: op.id, title: op.title, color: op.color ?? null, icon: op.icon ?? null, background: op.background ?? null, position, version: 0, updatedAt: t, deletedAt: null });
       return;
     }
     case 'lane.create': {
@@ -220,7 +220,7 @@ function applyOptimistic(d: Draft, p: Pending): void {
     }
     case 'board.update': {
       const cur = d.get('boards').get(op.id);
-      if (cur) d.write('boards').set(op.id, { ...cur, ...(op.title !== undefined ? { title: op.title } : {}), ...(op.color !== undefined ? { color: op.color } : {}) });
+      if (cur) d.write('boards').set(op.id, { ...cur, ...(op.title !== undefined ? { title: op.title } : {}), ...(op.color !== undefined ? { color: op.color } : {}), ...(op.icon !== undefined ? { icon: op.icon } : {}), ...(op.background !== undefined ? { background: op.background } : {}) });
       return;
     }
     case 'lane.update': {

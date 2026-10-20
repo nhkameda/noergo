@@ -10,6 +10,10 @@ export interface BoardDto {
   id: string;
   title: string;
   color: string | null;
+  /** One emoji or a line icon's name (`BOARD_ICONS`). */
+  icon: string | null;
+  /** The colour behind the board's thoughts. */
+  background: string | null;
   position: string;
   version: number;
   updatedAt: string;
@@ -97,6 +101,8 @@ export const boardDto = (b: Board): BoardDto => ({
   id: b.id,
   title: b.title,
   color: b.color,
+  icon: b.icon,
+  background: b.background,
   position: b.position,
   version: b.version,
   updatedAt: isoReq(b.updated_at),
