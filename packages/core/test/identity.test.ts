@@ -110,6 +110,9 @@ describe.skipIf(!testDb)('federated sign-in', () => {
     expect(await signInFederated(id, closed, 'en', pools().app)).toMatchObject({ ok: true });
     expect(await signInFederated(google(gmail()), closed, 'en', pools().app)).toEqual({ ok: false, reason: 'signup_closed' });
     expect(await signInFederated(google(`${newId()}@acme.com`, { hd: 'acme.com' }), closed, 'en', pools().app)).toMatchObject({ ok: true, created: true });
+    // An administrator gets in on a closed instance: the list is theirs to fill.
+    const admin = gmail();
+    expect(await signInFederated(google(admin), { ...closed, adminEmails: [admin] }, 'en', pools().app)).toMatchObject({ ok: true, created: true });
   });
 
   it('takes the admin role from configuration on every sign-in', async () => {

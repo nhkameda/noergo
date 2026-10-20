@@ -14,7 +14,6 @@ export type NoteKind = 'text' | 'image' | 'link' | 'file';
 export type NodeKind = 'note' | 'lane' | 'board';
 export type ViewKind = 'lane_map' | 'board_map' | 'graph';
 export type ActorKind = 'user' | 'agent' | 'token' | 'system';
-export type SubscriptionStatus = 'ACTIVE' | 'TRIALING' | 'PAST_DUE' | 'INCOMPLETE' | 'CANCELED' | 'SUSPENDED';
 
 export interface UsersTable {
   id: Generated<string>;
@@ -25,8 +24,10 @@ export interface UsersTable {
   locale: Defaulted<Locale>;
   role: Defaulted<'user' | 'admin'>;
   session_epoch: Defaulted<number>;
-  admin_unlimited: Defaulted<boolean>;
-  trial_used_at: Timestamp | null;
+  /** Agents allowed for this account while settings.agents is 'granted'. */
+  agents_allowed: Defaulted<boolean>;
+  /** Kept out of every session, token and sign-in until an administrator unblocks. */
+  blocked_at: Timestamp | null;
   terms_version: string | null;
   terms_accepted_at: Timestamp | null;
   signup_country: string | null;
@@ -61,7 +62,8 @@ export interface WorkspacesTable {
   seq: Defaulted<number>;
   note_count: Defaulted<number>;
   storage_bytes: Defaulted<number>;
-  storage_quota_bytes: number;
+  /** This workspace's own quota; null takes settings.storage_quota_bytes. */
+  storage_quota_bytes: number | null;
   inbox_lane_id: string | null;
   created_at: CreatedAt;
   updated_at: Defaulted<Date>;
@@ -283,72 +285,15 @@ export interface OpReceiptsTable {
   created_at: CreatedAt;
 }
 
-export interface PlansTable {
-  id: string;
-  name: string;
-  price_usd_cents: number;
-  billing_interval: 'month' | 'year';
-  trial_days: number;
-  stripe_price_id: string | null;
-  storage_quota_bytes: number;
-  mcp_enabled: boolean;
-  is_active: boolean;
-  display_order: number;
-  created_at: CreatedAt;
+/** The instance's settings, one row. A null column inherits the environment, then the default. */
+export interface SettingsTable {
+  id: Defaulted<boolean>;
+  signup: 'open' | 'allowlist' | null;
+  signup_allowlist: string[] | null;
+  agents: 'all' | 'granted' | null;
+  storage_quota_bytes: Defaulted<number>;
   updated_at: Defaulted<Date>;
-}
-
-export interface SubscriptionsTable {
-  id: Generated<string>;
-  user_id: string;
-  plan_id: string;
-  status: SubscriptionStatus;
-  currency: Defaulted<string>;
-  price_cents: Defaulted<number>;
-  billing_interval: Defaulted<string>;
-  trial_ends_at: Timestamp | null;
-  current_period_start: Timestamp | null;
-  current_period_end: Timestamp | null;
-  cancel_at_period_end: Defaulted<boolean>;
-  canceled_at: Timestamp | null;
-  past_due_since: Timestamp | null;
-  stripe_customer_id: string | null;
-  stripe_subscription_id: string | null;
-  stripe_price_id: string | null;
-  created_at: CreatedAt;
-  updated_at: Defaulted<Date>;
-}
-
-export interface PaymentsTable {
-  id: Generated<string>;
-  user_id: string;
-  subscription_id: string | null;
-  amount_cents: number;
-  currency: string;
-  status: string;
-  provider_invoice_id: string | null;
-  provider_charge_id: string | null;
-  failure_reason: string | null;
-  period_start: Timestamp | null;
-  period_end: Timestamp | null;
-  paid_at: Timestamp | null;
-  refunded_cents: Defaulted<number>;
-  refunded_at: Timestamp | null;
-  dispute_status: string | null;
-  hosted_invoice_url: string | null;
-  created_at: CreatedAt;
-}
-
-export interface StripeEventsTable {
-  id: Generated<string>;
-  stripe_event_id: string;
-  type: string;
-  livemode: boolean;
-  payload: ColumnType<unknown, string, string>;
-  processed: Defaulted<boolean>;
-  processed_at: Timestamp | null;
-  error: string | null;
-  created_at: CreatedAt;
+  updated_by: string | null;
 }
 
 export interface AuditLogTable {
@@ -409,10 +354,7 @@ export interface Database {
   note_revisions: NoteRevisionsTable;
   changes: ChangesTable;
   op_receipts: OpReceiptsTable;
-  plans: PlansTable;
-  subscriptions: SubscriptionsTable;
-  payments: PaymentsTable;
-  stripe_events: StripeEventsTable;
+  settings: SettingsTable;
   audit_log: AuditLogTable;
   security_events: SecurityEventsTable;
   user_focus: UserFocusTable;
@@ -427,7 +369,5 @@ export type Link = Selectable<LinksTable>;
 export type NodeLayout = Selectable<NodeLayoutsTable>;
 export type Attachment = Selectable<AttachmentsTable>;
 export type Change = Selectable<ChangesTable>;
-export type Subscription = Selectable<SubscriptionsTable>;
-export type Plan = Selectable<PlansTable>;
 export type NewNote = Insertable<NotesTable>;
 export type NoteUpdate = Updateable<NotesTable>;

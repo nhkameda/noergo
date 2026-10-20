@@ -4,26 +4,22 @@ import { ensureActor } from './actors';
 import { getDb, isUuid, withWorkspace, type Db } from './db';
 import type { FocusView, SecuritySeverity } from './db/types';
 import { DomainError, notFound } from './errors';
+import { instanceSettings, type AgentsMode } from './settings';
 import { personalWorkspaceId } from './workspace';
 
 /**
- * Who may connect agents. `all`: every account (the default of a self-hosted instance).
- * `granted`: administrators and the accounts an administrator enabled (`admin_unlimited`);
- * noergo.com runs this until billing exists.
+ * Whether the account may use agents: every account under `all`; under `granted`, the
+ * administrators and the accounts an administrator enabled. A blocked or deleted account
+ * never. The mode is the instance's (settings) unless a caller passes one.
  */
-export type McpAccess = 'all' | 'granted';
-
-export function mcpAccessMode(value: string | undefined): McpAccess {
-  const mode = value || 'all';
-  if (mode !== 'all' && mode !== 'granted') throw new Error(`MCP_ACCESS must be "all" or "granted", not "${mode}"`);
-  return mode;
-}
-
-export async function agentAccessAllowed(userId: string, mode: McpAccess, db: Db = getDb()): Promise<boolean> {
+export async function agentAccessAllowed(userId: string, db: Db = getDb(), mode?: AgentsMode): Promise<boolean> {
   if (!isUuid(userId)) return false;
-  const u = await db.selectFrom('users').select(['role', 'admin_unlimited', 'deleted_at']).where('id', '=', userId).executeTakeFirst();
-  if (!u || u.deleted_at) return false;
-  return mode === 'all' || u.role === 'admin' || u.admin_unlimited;
+  const [u, agents] = await Promise.all([
+    db.selectFrom('users').select(['role', 'agents_allowed', 'deleted_at', 'blocked_at']).where('id', '=', userId).executeTakeFirst(),
+    mode ?? instanceSettings(db).then((s) => s.agents),
+  ]);
+  if (!u || u.deleted_at || u.blocked_at) return false;
+  return agents === 'all' || u.role === 'admin' || u.agents_allowed;
 }
 
 /** An agent at work: an OAuth connection or a personal token, with the actor its changes carry. */
@@ -91,7 +87,7 @@ export async function createApiToken(userId: string, input: { name: string; read
   return { token, info: { id: row.id, name: row.name, prefix: row.prefix, readOnly: row.read_only, createdAt: iso(row.created_at)!, lastUsedAt: null, expiresAt: iso(row.expires_at) } };
 }
 
-/** The principal behind a personal token, or null when it is unknown, revoked, expired or its owner is gone. */
+/** The principal behind a personal token, or null when it is unknown, revoked, expired or its owner is gone or blocked. */
 export async function principalFromToken(token: string, db: Db = getDb()): Promise<AgentPrincipal | null> {
   if (!looksLikePersonalToken(token)) return null;
   const t = await db
@@ -102,6 +98,7 @@ export async function principalFromToken(token: string, db: Db = getDb()): Promi
     .where('t.revoked_at', 'is', null)
     .where((eb) => eb.or([eb('t.expires_at', 'is', null), eb('t.expires_at', '>', new Date())]))
     .where('u.deleted_at', 'is', null)
+    .where('u.blocked_at', 'is', null)
     .executeTakeFirst();
   if (!t) return null;
   const actorId = await withWorkspace(t.workspace_id, (tx) => ensureActor(tx, t.workspace_id, { kind: 'token', tokenId: t.id, label: t.name }), { db });
@@ -150,7 +147,7 @@ export async function recordConnection(
   return { connectionId: row.id, workspaceId };
 }
 
-/** The principal behind an OAuth grant, or null when the connection was revoked or the account is gone. */
+/** The principal behind an OAuth grant, or null when the connection was revoked or the account is gone or blocked. */
 export async function principalFromGrant(grantId: string, accountId: string, db: Db = getDb()): Promise<AgentPrincipal | null> {
   const c = await db
     .selectFrom('agent_connections as c')
@@ -160,6 +157,7 @@ export async function principalFromGrant(grantId: string, accountId: string, db:
     .where('c.user_id', '=', accountId)
     .where('c.revoked_at', 'is', null)
     .where('u.deleted_at', 'is', null)
+    .where('u.blocked_at', 'is', null)
     .executeTakeFirst();
   if (!c) return null;
   const label = c.client_name || 'Agent';

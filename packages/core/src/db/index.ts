@@ -46,7 +46,7 @@ function from(envName: string, poolMax: number): Db {
 
 /**
  * The runtime connection (role noergo_app, subject to row-level security). Use it
- * directly only for identity and billing tables; content goes through withWorkspace().
+ * directly only for identity, agent and settings tables; content goes through withWorkspace().
  */
 export function getDb(): Db {
   return from('DATABASE_URL', Number(process.env.DATABASE_POOL_MAX ?? 10));

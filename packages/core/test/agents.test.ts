@@ -57,22 +57,25 @@ describe('internal signature (web ↔ mcp)', () => {
 describe.skipIf(!testDb)('agents', () => {
   afterAll(closePools);
 
-  describe('access (MCP_ACCESS)', () => {
-    it('lets everyone in with "all", and only admins and enabled accounts with "granted"', async () => {
+  describe('access (settings.agents)', () => {
+    it('lets everyone in with "all", and only admins and enabled accounts with "granted"; never a blocked or deleted one', async () => {
       const { app, jobs } = pools();
       const plain = await newAccount();
       const admin = await newAccount();
       const enabled = await newAccount();
       const gone = await newAccount();
+      const blocked = await newAccount();
       await jobs.updateTable('users').set({ role: 'admin' }).where('id', '=', admin.userId).execute();
-      await jobs.updateTable('users').set({ admin_unlimited: true }).where('id', '=', enabled.userId).execute();
+      await jobs.updateTable('users').set({ agents_allowed: true }).where('id', '=', enabled.userId).execute();
       await jobs.updateTable('users').set({ deleted_at: new Date() }).where('id', '=', gone.userId).execute();
-      expect(await agentAccessAllowed(plain.userId, 'all', app)).toBe(true);
-      expect(await agentAccessAllowed(plain.userId, 'granted', app)).toBe(false);
-      expect(await agentAccessAllowed(admin.userId, 'granted', app)).toBe(true);
-      expect(await agentAccessAllowed(enabled.userId, 'granted', app)).toBe(true);
-      expect(await agentAccessAllowed(gone.userId, 'all', app)).toBe(false);
-      expect(await agentAccessAllowed('not-a-uuid', 'all', app)).toBe(false);
+      await jobs.updateTable('users').set({ blocked_at: new Date(), agents_allowed: true }).where('id', '=', blocked.userId).execute();
+      expect(await agentAccessAllowed(plain.userId, app, 'all')).toBe(true);
+      expect(await agentAccessAllowed(plain.userId, app, 'granted')).toBe(false);
+      expect(await agentAccessAllowed(admin.userId, app, 'granted')).toBe(true);
+      expect(await agentAccessAllowed(enabled.userId, app, 'granted')).toBe(true);
+      expect(await agentAccessAllowed(gone.userId, app, 'all')).toBe(false);
+      expect(await agentAccessAllowed(blocked.userId, app, 'all')).toBe(false);
+      expect(await agentAccessAllowed('not-a-uuid', app, 'all')).toBe(false);
     });
   });
 

@@ -1,7 +1,7 @@
 /**
  * Domain errors with stable codes. The web API maps them to HTTP statuses and the MCP
- * server returns them as tool errors, so agents can react (re-read on conflict, ask the
- * person to upgrade on plan_required) instead of guessing from prose.
+ * server returns them as tool errors, so agents can react (re-read on conflict, send the
+ * person to their administrator on agents_not_enabled) instead of guessing from prose.
  */
 export type DomainErrorCode =
   | 'not_found'
@@ -9,7 +9,7 @@ export type DomainErrorCode =
   | 'invalid'
   | 'limit_reached'
   | 'read_only_connection'
-  | 'plan_required'
+  | 'agents_not_enabled'
   | 'rate_limited'
   | 'forbidden';
 

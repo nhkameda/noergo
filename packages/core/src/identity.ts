@@ -90,20 +90,24 @@ export interface SignInPolicy {
   signup: 'open' | 'allowlist';
   /** E-mails, or "@domain" entries, allowed to create an account under "allowlist". */
   allowlist: readonly string[];
-  /** Accounts with one of these e-mails are administrators; everyone else is not. */
+  /** Accounts with one of these e-mails are administrators, and may always sign up; everyone else is not. */
   adminEmails: readonly string[];
 }
 
 export function signupAllowed(policy: SignInPolicy, email: string): boolean {
   if (policy.signup === 'open') return true;
   const domain = `@${email.split('@')[1]}`;
-  return policy.allowlist.some((entry) => {
+  return [...policy.allowlist, ...policy.adminEmails].some((entry) => {
     const e = entry.trim().toLowerCase();
     return e === email || e === domain;
   });
 }
 
-export type SignInRefusal = 'email_missing' | 'email_unverified' | 'account_not_linked' | 'signup_closed' | 'account_deleted';
+export type SignInRefusal = 'email_missing' | 'email_unverified' | 'account_not_linked' | 'signup_closed' | 'account_deleted' | 'account_blocked';
+
+/** A deleted account stays out; a blocked one until an administrator unblocks it. Checked before anything is written. */
+const closed = (u: { deleted_at: Date | null; blocked_at: Date | null }): SignInResult | null =>
+  u.deleted_at ? { ok: false, reason: 'account_deleted' } : u.blocked_at ? { ok: false, reason: 'account_blocked' } : null;
 
 export type SignInResult =
   | { ok: true; userId: string; sessionEpoch: number; locale: Locale; created: boolean }
@@ -125,21 +129,24 @@ export async function signInFederated(identity: FederatedIdentity, policy: SignI
     const linked = await tx
       .selectFrom('accounts as a')
       .innerJoin('users as u', 'u.id', 'a.user_id')
-      .select(['a.id as accountId', 'u.id', 'u.email', 'u.name', 'u.locale', 'u.role', 'u.session_epoch', 'u.deleted_at'])
+      .select(['a.id as accountId', 'u.id', 'u.email', 'u.name', 'u.locale', 'u.role', 'u.session_epoch', 'u.deleted_at', 'u.blocked_at'])
       .where('a.provider', '=', identity.provider)
       .where('a.provider_account_id', '=', identity.subject)
       .executeTakeFirst();
 
-    let user: { id: string; email: string; name: string; locale: Locale; role: 'user' | 'admin'; session_epoch: number; deleted_at: Date | null };
+    let user: { id: string; email: string; name: string; locale: Locale; role: 'user' | 'admin'; session_epoch: number };
     let created = false;
 
     if (linked) {
+      const refused = closed(linked);
+      if (refused) return refused;
       user = linked;
       await tx.updateTable('accounts').set({ last_login_at: new Date() }).where('id', '=', linked.accountId).execute();
     } else {
-      const existing = await tx.selectFrom('users').select(['id', 'email', 'name', 'locale', 'role', 'session_epoch', 'deleted_at', 'email_verified_at']).where('email', '=', email).executeTakeFirst();
+      const existing = await tx.selectFrom('users').select(['id', 'email', 'name', 'locale', 'role', 'session_epoch', 'deleted_at', 'blocked_at', 'email_verified_at']).where('email', '=', email).executeTakeFirst();
       if (existing) {
-        if (existing.deleted_at) return { ok: false, reason: 'account_deleted' };
+        const refused = closed(existing);
+        if (refused) return refused;
         // An unverified holder could be a squatter; joining them would hand the squatter
         // a key to the real owner's account.
         if (!identity.authoritative || !existing.email_verified_at) return { ok: false, reason: 'account_not_linked' };
@@ -150,14 +157,12 @@ export async function signInFederated(identity: FederatedIdentity, policy: SignI
         user = await tx
           .insertInto('users')
           .values({ email, email_verified_at: new Date(), name: identity.name, locale })
-          .returning(['id', 'email', 'name', 'locale', 'role', 'session_epoch', 'deleted_at'])
+          .returning(['id', 'email', 'name', 'locale', 'role', 'session_epoch'])
           .executeTakeFirstOrThrow();
         created = true;
       }
       await tx.insertInto('accounts').values({ user_id: user.id, provider: identity.provider, provider_account_id: identity.subject, last_login_at: new Date() }).execute();
     }
-
-    if (user.deleted_at) return { ok: false, reason: 'account_deleted' };
 
     const role = policy.adminEmails.some((a) => a.trim().toLowerCase() === user.email.toLowerCase()) ? 'admin' : 'user';
     if (role !== user.role) await tx.updateTable('users').set({ role, updated_at: new Date() }).where('id', '=', user.id).execute();
@@ -178,11 +183,11 @@ export interface SessionState {
 
 /**
  * The live state of a signed-in user, read on every session check. Null ends the
- * session: the account was deleted, or its epoch moved (sign out everywhere).
+ * session: the account was deleted or blocked, or its epoch moved (sign out everywhere).
  */
 export async function sessionState(userId: string, epoch: number, db: Db = getDb()): Promise<SessionState | null> {
-  const row = await db.selectFrom('users').select(['session_epoch', 'role', 'locale', 'deleted_at']).where('id', '=', userId).executeTakeFirst();
-  if (!row || row.deleted_at || row.session_epoch !== epoch) return null;
+  const row = await db.selectFrom('users').select(['session_epoch', 'role', 'locale', 'deleted_at', 'blocked_at']).where('id', '=', userId).executeTakeFirst();
+  if (!row || row.deleted_at || row.blocked_at || row.session_epoch !== epoch) return null;
   return { sessionEpoch: row.session_epoch, role: row.role, locale: row.locale };
 }
 

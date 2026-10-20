@@ -29,8 +29,8 @@ export interface WorkspaceOwner {
 export async function createPersonalWorkspaceIn(tx: Tx, user: WorkspaceOwner): Promise<string> {
   const workspaceId = newId();
   await sql`SELECT set_config('app.workspace_id', ${workspaceId}, true)`.execute(tx);
-  const plan = await tx.selectFrom('plans').select('storage_quota_bytes').where('id', '=', 'free').executeTakeFirstOrThrow();
-  await tx.insertInto('workspaces').values({ id: workspaceId, owner_id: user.id, name: user.name.slice(0, 200), storage_quota_bytes: plan.storage_quota_bytes }).execute();
+  // No quota of its own: the instance's (settings) applies until an administrator sets one.
+  await tx.insertInto('workspaces').values({ id: workspaceId, owner_id: user.id, name: user.name.slice(0, 200), storage_quota_bytes: null }).execute();
   await tx.insertInto('workspace_members').values({ workspace_id: workspaceId, user_id: user.id, role: 'owner' }).execute();
   await ensureActor(tx, workspaceId, { kind: 'user', userId: user.id, label: user.name });
   const system = await ensureActor(tx, workspaceId, { kind: 'system', label: 'noergo' });

@@ -54,7 +54,7 @@ export async function storeImage(
         .updateTable('workspaces')
         .set((eb) => ({ storage_bytes: eb('storage_bytes', '+', size) }))
         .where('id', '=', ws)
-        .where((eb) => eb(eb('storage_bytes', '+', size), '<=', eb.ref('storage_quota_bytes')))
+        .where((eb) => eb(eb('storage_bytes', '+', size), '<=', eb.fn.coalesce('storage_quota_bytes', eb.selectFrom('settings').select('settings.storage_quota_bytes'))))
         .returning('id')
         .executeTakeFirst();
       if (!charged) throw new DomainError('limit_reached', 'the storage quota of this workspace is full');
