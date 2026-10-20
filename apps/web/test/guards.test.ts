@@ -23,8 +23,9 @@ describe('mutationOriginAllowed', () => {
   });
 
   it('exempts only callers that authenticate otherwise', () => {
-    expect(mutationOriginAllowed(req('POST', '/api/webhooks/stripe'), ORIGIN)).toBe(true);
     expect(mutationOriginAllowed(req('POST', '/api/auth/callback/oidc'), ORIGIN)).toBe(true);
+    // No webhook is exempt any more: noergo receives none.
+    expect(mutationOriginAllowed(req('POST', '/api/webhooks/anything'), ORIGIN)).toBe(false);
     expect(mutationOriginAllowed(req('POST', '/api/auth/signout'), ORIGIN)).toBe(false);
   });
 });

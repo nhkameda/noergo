@@ -9,7 +9,7 @@ const STATUS: Record<DomainErrorCode, number> = {
   invalid: 422,
   limit_reached: 422,
   read_only_connection: 403,
-  plan_required: 402,
+  agents_not_enabled: 403,
   rate_limited: 429,
   forbidden: 403,
 };

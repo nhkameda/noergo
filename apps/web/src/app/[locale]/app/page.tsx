@@ -1,3 +1,4 @@
+import { isAdmin } from '@noergo/core';
 import type { Locale } from '@noergo/i18n';
 import type { Metadata } from 'next';
 import { getTranslations, setRequestLocale } from 'next-intl/server';
@@ -20,7 +21,8 @@ export default async function AppPage({ params }: { params: Promise<{ locale: st
   const appPath = getPathname({ href: '/app', locale });
   const home = getPathname({ href: '/', locale });
   const agents = getPathname({ href: '/agents', locale });
-  const { userId } = await requireUser(appPath);
+  const { userId, role } = await requireUser(appPath);
+  const adminHref = role === 'admin' && (await isAdmin(userId)) ? getPathname({ href: '/admin', locale }) : undefined;
   const signInHref = getPathname({ href: { pathname: '/signin', query: { callbackUrl: appPath } }, locale });
 
   async function signOutAction() {
@@ -28,5 +30,5 @@ export default async function AppPage({ params }: { params: Promise<{ locale: st
     await signOut({ redirectTo: home });
   }
 
-  return <Workspace key={userId} userId={userId} signInHref={signInHref} homeHref={home} agentsHref={agents} sourceUrl={SOURCE_URL} signOut={signOutAction} />;
+  return <Workspace key={userId} userId={userId} signInHref={signInHref} homeHref={home} agentsHref={agents} adminHref={adminHref} sourceUrl={SOURCE_URL} signOut={signOutAction} />;
 }

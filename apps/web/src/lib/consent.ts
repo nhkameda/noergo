@@ -6,7 +6,7 @@ import { LOCALE_COOKIE } from '@/i18n/routing';
 import { apiError, apiUser } from './api';
 import { readBoundedText } from './bounded-body';
 import { PUBLIC_ORIGIN, PUBLIC_URL } from './env';
-import { INTERACTION_UID, interactionBridge, interactionCookies, MCP_ACCESS } from './mcp-bridge';
+import { INTERACTION_UID, interactionBridge, interactionCookies } from './mcp-bridge';
 
 /** The consent page has no language in its URL (it sits at oidc-provider's cookie path). */
 export async function consentLocale(): Promise<Locale> {
@@ -33,7 +33,7 @@ export async function answerInteraction(req: Request, uid: string, action: 'conf
     } catch {
       return apiError('invalid', 'the body must be JSON');
     }
-    if (!(await agentAccessAllowed(user.id, MCP_ACCESS))) return apiError('plan_required', 'agents are not enabled for this account');
+    if (!(await agentAccessAllowed(user.id))) return apiError('agents_not_enabled', 'agents are not enabled for this account');
     body = JSON.stringify({ userId: user.id, readOnly });
   }
 

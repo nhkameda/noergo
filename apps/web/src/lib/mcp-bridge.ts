@@ -1,10 +1,7 @@
-import { INTERNAL_SIGNATURE_HEADER, mcpAccessMode, signInternal } from '@noergo/core';
+import { INTERNAL_SIGNATURE_HEADER, signInternal } from '@noergo/core';
 
 /** Where web reaches mcp on the internal network (never through the public proxy). */
 const MCP_INTERNAL_URL = (process.env.NOERGO_MCP_INTERNAL_URL ?? 'http://127.0.0.1:3042').replace(/\/+$/, '');
-
-/** Who may connect agents (MCP_ACCESS): everyone, or admins and the accounts they enable. */
-export const MCP_ACCESS = mcpAccessMode(process.env.MCP_ACCESS);
 
 export const INTERACTION_UID = /^[A-Za-z0-9_-]{10,64}$/;
 

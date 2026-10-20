@@ -51,7 +51,7 @@ function readStoredBoard(userId: string): string | null {
 }
 
 /** The signed-in workspace: boards, the capture bar, the open note and search. */
-export function Workspace({ userId, signInHref, homeHref, agentsHref, sourceUrl, signOut }: { userId: string; signInHref: string; homeHref: string; agentsHref: string; sourceUrl: string; signOut: () => Promise<void> }) {
+export function Workspace({ userId, signInHref, homeHref, agentsHref, adminHref, sourceUrl, signOut }: { userId: string; signInHref: string; homeHref: string; agentsHref: string; adminHref?: string; sourceUrl: string; signOut: () => Promise<void> }) {
   const t = useTranslations('app');
   const [store] = useState(() => new WorkspaceStore(userId, () => window.location.assign(signInHref)));
   const [actions] = useState(() => new Actions(store));
@@ -372,7 +372,7 @@ export function Workspace({ userId, signInHref, homeHref, agentsHref, sourceUrl,
             </button>
             {state.agentWriting && <AgentPill name={state.agentWriting} />}
             <Status state={state} />
-            <AccountMenu store={store} data={data} agentsHref={agentsHref} sourceUrl={sourceUrl} signOut={signOut} onImported={showBoard} />
+            <AccountMenu store={store} data={data} agentsHref={agentsHref} adminHref={adminHref} sourceUrl={sourceUrl} signOut={signOut} onImported={showBoard} />
           </div>
         </header>
 
@@ -520,7 +520,7 @@ function Notices({ state, store }: { state: WorkspaceState; store: WorkspaceStor
   );
 }
 
-function AccountMenu({ store, data, agentsHref, sourceUrl, signOut, onImported }: { store: WorkspaceStore; data: Data | null; agentsHref: string; sourceUrl: string; signOut: () => Promise<void>; onImported: (boardId: string) => void }) {
+function AccountMenu({ store, data, agentsHref, adminHref, sourceUrl, signOut, onImported }: { store: WorkspaceStore; data: Data | null; agentsHref: string; adminHref?: string; sourceUrl: string; signOut: () => Promise<void>; onImported: (boardId: string) => void }) {
   const t = useTranslations('app');
   const tNav = useTranslations('nav');
   const locale = useLocale();
@@ -568,6 +568,11 @@ function AccountMenu({ store, data, agentsHref, sourceUrl, signOut, onImported }
             <a className="w-menu__item" href={agentsHref}>
               {tNav('agents')}
             </a>
+            {adminHref && (
+              <a className="w-menu__item" href={adminHref}>
+                {tNav('admin')}
+              </a>
+            )}
             <a className="w-menu__item" href={sourceUrl} target="_blank" rel="noopener noreferrer">
               {tNav('sourceCode')}
             </a>

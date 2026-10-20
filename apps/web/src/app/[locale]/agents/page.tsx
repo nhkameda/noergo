@@ -7,7 +7,6 @@ import { AgentAccess, CopyField } from '@/components/agents/AgentAccess';
 import { Callout } from '@/components/agents/Callout';
 import { getPathname } from '@/i18n/navigation';
 import { PUBLIC_URL } from '@/lib/env';
-import { MCP_ACCESS } from '@/lib/mcp-bridge';
 
 export async function generateMetadata({ params }: { params: Promise<{ locale: string }> }): Promise<Metadata> {
   const { locale } = await params;
@@ -28,7 +27,7 @@ export default async function AgentsPage({ params }: { params: Promise<{ locale:
   const signIn = getPathname({ href: { pathname: '/signin', query: { callbackUrl: here } }, locale });
 
   const userId = (await auth())?.user?.id ?? null;
-  const [allowed, access] = userId ? await Promise.all([agentAccessAllowed(userId, MCP_ACCESS), listAgentAccess(userId)]) : [false, null];
+  const [allowed, access] = userId ? await Promise.all([agentAccessAllowed(userId), listAgentAccess(userId)]) : [false, null];
 
   return (
     <main className="nr-tela" style={{ minHeight: '100vh', padding: 'clamp(1.5rem, 4vw, 3rem) 1rem' }}>
@@ -44,7 +43,7 @@ export default async function AgentsPage({ params }: { params: Promise<{ locale:
 
         <section className="nr-card" style={{ display: 'grid', gap: '0.75rem', padding: '1.5rem' }}>
           <CopyField label={t('serverUrl')} value={url} />
-          {userId && !allowed && MCP_ACCESS === 'granted' && <Callout tone="warning">{t('early')}</Callout>}
+          {userId && !allowed && <Callout tone="warning">{t('notEnabled')}</Callout>}
         </section>
 
         <section style={{ display: 'grid', gap: '1rem' }}>

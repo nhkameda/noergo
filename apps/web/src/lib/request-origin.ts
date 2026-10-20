@@ -5,9 +5,9 @@
  *
  * A request without Origin passes only with Sec-Fetch-Site: same-origin; "null" (sandboxed
  * frames, some redirects) never passes. Exempt paths authenticate otherwise: provider
- * callbacks carry their own state, Stripe signs its webhooks, internal calls carry an HMAC.
+ * callbacks carry their own state, internal calls carry an HMAC.
  */
-const EXEMPT = /^\/api\/(?:auth\/callback\/|webhooks\/|internal\/)/;
+const EXEMPT = /^\/api\/(?:auth\/callback\/|internal\/)/;
 
 export function mutationOriginAllowed(req: Request, publicOrigin: string): boolean {
   if (!['POST', 'PUT', 'PATCH', 'DELETE'].includes(req.method)) return true;

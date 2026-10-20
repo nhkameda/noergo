@@ -3,9 +3,10 @@ import { redirect as redirectTo } from 'next/navigation';
 import { getTranslations, setRequestLocale } from 'next-intl/server';
 import { auth, signIn, signInOptions } from '@/auth';
 import { getPathname, redirect } from '@/i18n/navigation';
+import { SOURCE_URL } from '@/lib/env';
 import { safeReturnPath } from '@/lib/return-path';
 
-const REASONS = ['account_not_linked', 'email_unverified', 'email_missing', 'signup_closed', 'account_deleted', 'cancelled', 'unknown'] as const;
+const REASONS = ['account_not_linked', 'email_unverified', 'email_missing', 'signup_closed', 'account_deleted', 'account_blocked', 'cancelled', 'unknown'] as const;
 type Reason = (typeof REASONS)[number];
 
 /** Our refusals arrive by name; Auth.js's own errors by class name. */
@@ -31,6 +32,7 @@ export default async function SignInPage({ params, searchParams }: { params: Pro
 
   const t = await getTranslations('auth');
   const tNav = await getTranslations('nav');
+  const tFooter = await getTranslations('footer');
   // Another language keeps where the person was going; the app itself follows the language.
   const signInIn = (l: Locale) => getPathname({ href: { pathname: '/signin', query: { callbackUrl: target === appPath ? getPathname({ href: '/app', locale: l }) : target } }, locale: l });
   const reason = reasonOf(query.error);
@@ -60,7 +62,9 @@ export default async function SignInPage({ params, searchParams }: { params: Pro
             </button>
           </form>
         ))}
-        <p className="nr-lead">{t('free')}</p>
+        <p className="nr-lead">
+          {tFooter('openSource')} <a href={SOURCE_URL}>{tNav('sourceCode')}</a>
+        </p>
       </section>
       {/* Plain <a>: the proxy writes the language cookie only on a real navigation. */}
       <nav className="nr-visoes" aria-label={tNav('language')}>

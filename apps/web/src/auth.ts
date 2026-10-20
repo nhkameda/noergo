@@ -1,11 +1,15 @@
 import {
+  adminEmails,
+  envSettings,
   googleIdentity,
+  instanceSettings,
   microsoftIdentity,
   oidcIdentity,
   redactText,
   sessionState,
   signInFederated,
   type FederatedIdentity,
+  type SignInPolicy,
   type SignInRefusal,
 } from '@noergo/core';
 import { isLocale, negotiate, type Locale } from '@noergo/i18n';
@@ -15,7 +19,7 @@ import Google from 'next-auth/providers/google';
 import MicrosoftEntraID from 'next-auth/providers/microsoft-entra-id';
 import type { NextRequest } from 'next/server';
 import { LOCALE_COOKIE } from '@/i18n/routing';
-import { PUBLIC_URL, signInPolicy } from '@/lib/env';
+import { PUBLIC_URL } from '@/lib/env';
 
 /**
  * Auth.js v5, used for the OAuth dance only. Accounts, links and the signup policy live
@@ -29,6 +33,18 @@ import { PUBLIC_URL, signInPolicy } from '@/lib/env';
 
 // Callback URLs are built from the public URL, never from the Host header of the request.
 process.env.AUTH_URL ??= `${PUBLIC_URL}/api/auth`;
+
+// A typo in SIGNUP or MCP_ACCESS stops the server instead of opening the instance.
+envSettings();
+
+/**
+ * Who may create an account: what an administrator saved, else SIGNUP and SIGNUP_ALLOWLIST,
+ * else closed except for the administrators (packages/core settings.ts).
+ */
+async function signInPolicy(): Promise<SignInPolicy> {
+  const s = await instanceSettings();
+  return { signup: s.signup, allowlist: s.allowlist, adminEmails: adminEmails() };
+}
 
 declare module 'next-auth' {
   interface User {
@@ -143,7 +159,7 @@ function config(req: NextRequest | undefined): NextAuthConfig {
         if (!account || !profile) return false;
         const identity = identityOf(account.provider, profile as Record<string, unknown>);
         if (!identity) return refused('unknown');
-        const result = await signInFederated(identity, signInPolicy(), localeOf(req));
+        const result = await signInFederated(identity, await signInPolicy(), localeOf(req));
         if (!result.ok) {
           console.info(`[auth] sign-in refused: ${result.reason} (${identity.provider})`);
           return refused(result.reason);

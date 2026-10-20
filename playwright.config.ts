@@ -64,6 +64,7 @@ export default defineConfig({
         AUTH_OIDC_NAME: 'Test IdP',
         SIGNUP: 'allowlist',
         SIGNUP_ALLOWLIST: '@noergo.test',
+        NOERGO_ADMIN_EMAILS: 'admin@noergo.test',
       },
     },
   ],

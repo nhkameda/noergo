@@ -48,7 +48,7 @@ export function AgentAccess({ initial, canCreate }: { initial: { connections: Co
   // Day only: dates render in UTC on server and browser alike, so a clock time would be off.
   const when = (iso: string) => format.dateTime(new Date(iso), { dateStyle: 'medium' });
   const used = (iso: string | null) => (iso ? t('lastUsed', { date: when(iso) }) : t('neverUsed'));
-  const fail = (code: string) => setError(code === 'limit_reached' ? t('limit') : code === 'plan_required' ? t('early') : t('failed'));
+  const fail = (code: string) => setError(code === 'limit_reached' ? t('limit') : code === 'agents_not_enabled' ? t('notEnabled') : t('failed'));
 
   return (
     <>

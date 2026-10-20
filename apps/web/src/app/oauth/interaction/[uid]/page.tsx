@@ -8,7 +8,7 @@ import { Callout } from '@/components/agents/Callout';
 import { ConsentForm } from '@/components/agents/ConsentForm';
 import { PREFIX } from '@/i18n/routing';
 import { consentLocale } from '@/lib/consent';
-import { INTERACTION_UID, interactionBridge, interactionCookies, MCP_ACCESS, type InteractionView } from '@/lib/mcp-bridge';
+import { INTERACTION_UID, interactionBridge, interactionCookies, type InteractionView } from '@/lib/mcp-bridge';
 
 export async function generateMetadata(): Promise<Metadata> {
   const t = await getTranslations({ locale: await consentLocale(), namespace: 'consent' });
@@ -46,7 +46,7 @@ export default async function ConsentPage({ params }: { params: Promise<{ uid: s
     );
   }
 
-  const allowed = await agentAccessAllowed(session.user.id, MCP_ACCESS);
+  const allowed = await agentAccessAllowed(session.user.id);
   const name = view.client.name.trim() || t('unnamed');
   const identifiedBy = view.client.metadataDocument ? URL.parse(view.client.id)?.host : null;
 
@@ -75,7 +75,7 @@ export default async function ConsentPage({ params }: { params: Promise<{ uid: s
         <>
           <Callout tone="warning" role="alert">
             <span>
-              <strong>{t('earlyTitle')}.</strong> {t('early')}
+              <strong>{t('notEnabledTitle')}.</strong> {t('notEnabled')}
             </span>
           </Callout>
           <ConsentForm uid={uid} wantsWrite={false} allowed={false} />

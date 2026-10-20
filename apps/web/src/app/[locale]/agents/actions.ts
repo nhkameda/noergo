@@ -2,7 +2,6 @@
 
 import { agentAccessAllowed, createApiToken, isDomainError, revokeApiToken, revokeConnection, type TokenDto } from '@noergo/core';
 import { auth } from '@/auth';
-import { MCP_ACCESS } from '@/lib/mcp-bridge';
 
 export type ActionResult<T = object> = ({ ok: true } & T) | { ok: false; code: string };
 
@@ -22,7 +21,7 @@ export async function createTokenAction(name: string, readOnly: boolean): Promis
   if (!userId) return { ok: false, code: 'unauthenticated' };
   if (typeof name !== 'string' || typeof readOnly !== 'boolean') return { ok: false, code: 'invalid' };
   try {
-    if (!(await agentAccessAllowed(userId, MCP_ACCESS))) return { ok: false, code: 'plan_required' };
+    if (!(await agentAccessAllowed(userId))) return { ok: false, code: 'agents_not_enabled' };
     const { token, info } = await createApiToken(userId, { name, readOnly });
     return { ok: true, token, info };
   } catch (e) {
