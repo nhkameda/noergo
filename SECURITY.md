@@ -48,8 +48,8 @@ In scope:
 
 Out of scope:
 
-- third-party services we integrate with (Google, Microsoft, Stripe, Cloudflare,
-  GitHub, the AI vendors behind MCP clients). Report those to the vendor;
+- third-party services we integrate with (Google, Microsoft, Cloudflare, GitHub,
+  the AI vendors behind MCP clients). Report those to the vendor;
 - testing the infrastructure of noergo.com without our written permission;
 - self-hosted instances you do not operate;
 - findings that need a compromised device, physical access or a malicious browser
@@ -57,8 +57,8 @@ Out of scope:
 
 ## Rules for testing
 
-Test against **your own self-hosted instance** with synthetic data. The image runs
-with `BILLING=off`, so every feature is available locally.
+Test against **your own self-hosted instance** with synthetic data: it has every
+feature, and its administration page lets you switch sign-up and agents as you need.
 
 Against noergo.com, do **not** run:
 

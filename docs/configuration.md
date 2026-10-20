@@ -2,6 +2,15 @@
 
 All configuration is environment variables. `docker/.env.example` lists them with comments.
 
+Three of them are only the **starting value** of a setting the administrators can change on
+the administration page (account menu → Administration, at `/<language>/admin/settings`):
+`SIGNUP`, `SIGNUP_ALLOWLIST` and `MCP_ACCESS`. Once a setting is saved there, the saved value
+wins; choosing "inherit" hands it back to the environment. The page shows where each value
+comes from. The storage quota per account is set only there (250 MB until changed).
+
+Who the administrators are is never set on that page: it comes from `NOERGO_ADMIN_EMAILS`
+alone, so nobody can promote themselves or lock everyone out from the screen.
+
 | Variable | Default | |
 |---|---|---|
 | `NOERGO_PUBLIC_URL` | — | Public URL of the instance, `https://…`, no trailing slash. |
@@ -11,20 +20,19 @@ All configuration is environment variables. `docker/.env.example` lists them wit
 | `DATABASE_MIGRATOR_URL` | — | `migrate` only (`noergo_migrator`, owner of the schema). |
 | `DATABASE_POOL_MAX` | `10` | Connections per process. |
 | `AUTH_SECRET` | — | Session encryption key. |
-| `SIGNUP` | `allowlist` | `open`: anyone can create an account. `allowlist`: only the addresses below and the administrators. |
-| `SIGNUP_ALLOWLIST` | — | Comma-separated e-mails or `@domain` entries allowed to sign up when `SIGNUP=allowlist`. |
-| `NOERGO_ADMIN_EMAILS` | — | Comma-separated e-mails of the administrators. Checked at every sign-in. |
+| `SIGNUP` | `allowlist` | Starting value. `open`: anyone can create an account. `allowlist`: only the addresses below and the administrators. |
+| `SIGNUP_ALLOWLIST` | — | Starting value. Comma-separated e-mails or `@domain` entries allowed to sign up when sign-up is by list. |
+| `NOERGO_ADMIN_EMAILS` | — | Comma-separated e-mails of the administrators. Checked at every sign-in and on every administration page and action: an address removed from the list loses the administration at once. |
 | `AUTH_GOOGLE_ID`, `AUTH_GOOGLE_SECRET` | — | Google sign-in. |
 | `AUTH_MICROSOFT_ENTRA_ID_ID`, `AUTH_MICROSOFT_ENTRA_ID_SECRET` | — | Microsoft sign-in. |
 | `AUTH_MICROSOFT_ENTRA_ID_TENANT` | `common` | `common` takes personal and work accounts; a tenant id restricts sign-in to that organisation. |
 | `AUTH_OIDC_ISSUER`, `AUTH_OIDC_ID`, `AUTH_OIDC_SECRET` | — | Any OpenID Connect provider (Authentik, Keycloak…). |
 | `AUTH_OIDC_NAME` | `SSO` | Label of its button. |
-| `BILLING` | `off` | `off`: no plans, every feature for everyone. `stripe`: free and Pro plans. |
 | `STORAGE` | `local` | `local` (the `files` volume) or `s3`. |
 | `S3_ENDPOINT`, `S3_REGION`, `S3_BUCKET`, `S3_ACCESS_KEY_ID`, `S3_SECRET_ACCESS_KEY` | — | Any S3-compatible storage. |
 | `NOERGO_ATTACHMENTS_ORIGIN` | — | Origin files are served from; allowed in the Content-Security-Policy. |
 | `MCP_HOST`, `MCP_PORT` | `0.0.0.0`, `3042` | Where mcp listens (in the image). |
-| `MCP_ACCESS` | `all` | Who may connect agents. `all`: every account. `granted`: administrators and the accounts an administrator enabled. |
+| `MCP_ACCESS` | `all` | Starting value. Who may connect agents. `all`: every account. `granted`: administrators and the accounts an administrator enabled on the administration page. |
 | `MCP_CIMD_HOSTS` | `chatgpt.com,claude.ai,claude.com` | Hosts whose client metadata documents mcp fetches, so those clients need no registration. Any other client registers dynamically. `none` turns fetching off. |
 | `NOERGO_MCP_INTERNAL_URL` | `http://127.0.0.1:3042` | How web reaches mcp to answer the consent page. Never routed by the reverse proxy. `docker/compose.yml` sets `http://mcp:3042`. |
 | `NOERGO_VERSION` | `0.1.0` | Version mcp reports to agents. |

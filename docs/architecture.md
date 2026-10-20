@@ -4,7 +4,7 @@ noergo is three Node.js processes over one PostgreSQL database, shipped as one D
 
 ```
 browser ──HTTPS──► reverse proxy ──┬─► web     Next.js: pages, /api/ops, /api/stream (SSE),
-                                   │           sign-in, billing, OAuth consent page
+                                   │           sign-in, administration, OAuth consent page
 AI agent ─HTTPS──►                 └─► mcp     MCP (Streamable HTTP) + OAuth 2.1 server
                                        worker  maintenance and attachment processing
                     all three ──► PostgreSQL 18 (row-level security)   ──► S3 / local files
@@ -97,3 +97,18 @@ colour reserved for agents: a halo on the card or node, its edges drawing themse
 "… is writing" pill, and the map follows the newest idea unless the person moved it in the
 last five seconds. An idea with no position yet is placed next to the idea it hangs from,
 the same way on every device.
+
+## Accounts and administration
+
+Accounts, their sign-in identities, agent connections and tokens are instance-level tables,
+outside row-level security; only `packages/core` reaches them. The instance's settings are
+one row of `settings` (who may sign up, who may connect agents, the storage quota per
+account). A saved value wins over the environment, the environment over the default, and
+`instanceSettings()` is the only place that decides it.
+
+The administration (`/<language>/admin`) is part of web. An administrator is an account
+with the `admin` role whose e-mail is still in `NOERGO_ADMIN_EMAILS`; every page and every
+action checks it, and core checks it again inside the transaction that writes. Each action
+is written to `audit_log` in that same transaction. A blocked account is refused at
+sign-in, on every session read, and on every agent call (token or OAuth grant, refresh
+included); nothing is deleted, and unblocking does not bring old sessions back.

@@ -101,17 +101,30 @@ you can derive; these you cannot. Break one only with a reason written in the co
   without a reason in the commit.
 - OAuth endpoint URLs are pinned to the issuer (`Host` rewritten before oidc-provider),
   never taken from the request. DPoP is off: `/mcp` reads Bearer only.
-- `MCP_ACCESS=granted` (noergo.com until billing): only `role='admin'` or
-  `admin_unlimited` accounts get tools; the rest get `plan_required`. Checked on consent,
-  in the provider, and per call (cached 60 s).
+- Agents mode `granted` (admin setting, `MCP_ACCESS` only its starting value): only
+  `role='admin'` or `agents_allowed` accounts get tools; the rest get `agents_not_enabled`.
+  Checked on consent, in the provider, and per call (cached 60 s).
 - `add_notes` creates the ideas and their links to the parent in one transaction
   (`executeAtomic`): a bad parent or ref writes nothing. It is the primitive of the
   mind map spoken aloud; keep it all-or-nothing.
 - An idea with no layout is placed next to its parent (`map.ts`), deterministically on
   every device: same input, same spot. Do not use randomness or arrival order there.
 
-## Billing (from the sibling project this was ported from)
-- The Stripe webhook dedups on `stripe_events.stripe_event_id` (unique) and catches only the
-  unique-violation; any other error must surface. Always 2xx after a verified event is stored.
-- An `INCOMPLETE` subscription never overwrites the current plan.
-- The plan is activated only by the webhook; the browser polls.
+## Administration (apps/web/src/app/[locale]/admin, packages/core/src/admin.ts)
+- noergo has no plans and no payments. What an account may do is decided by the
+  instance's administrators (settings and per-account switches), never by a plan.
+- Every admin page calls `requireAdmin()` and every admin action `currentAdmin()`; the layout
+  is not a boundary. Core re-checks `isAdmin` inside the transaction that writes (`asAdmin`)
+  and writes `audit_log` in that same transaction.
+- An administrator is `role='admin'` **and** an e-mail in the current `NOERGO_ADMIN_EMAILS`,
+  checked on every request: removing an address revokes the administration at once. The
+  list is env-only, never a setting: nobody promotes themselves or locks everyone out from
+  the screen. Admins cannot block themselves or another listed admin.
+- Settings precedence is saved column > env > default, decided only in
+  `instanceSettings()`. `null` in a column means "inherit". The `settings` row is updated
+  only by `noergo_app` (INSERT/DELETE revoked, and UPDATE from `noergo_jobs`): tests reset
+  it with the app pool.
+- A blocked account is refused in `signInFederated` (before any write), `sessionState`,
+  `principalFromToken`, `principalFromGrant`, `agentAccessAllowed` and the provider's
+  `findAccount` (so refresh fails too). Blocking bumps `session_epoch`; tokens and
+  connections are kept, inert, not revoked. There is no account deletion from the admin.

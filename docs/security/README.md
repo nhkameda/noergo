@@ -22,8 +22,8 @@ profiles: B for anything on the internet, E for systems with identity, personal
 data, multi-tenancy, files or webhooks, privileged integrations or payments, and C
 for material impact or sensitive data at scale. noergo has all of the E triggers:
 federated sign-in, personal data from Brazil, the EU and China, one workspace per
-tenant, attachments, payment webhooks, and an OAuth server that lets third-party AI
-agents read and write notes. So every B and E control is selected. Whether to add
+tenant, attachments, an administration with privileged actions, and an OAuth server
+that lets third-party AI agents read and write notes. So every B and E control is selected. Whether to add
 profile C's DAT-007 (sensitive data, minors) is an open decision in the threat
 model. The baseline's catalogs are mirrored privately; this folder cites their ids.
 

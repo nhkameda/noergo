@@ -29,18 +29,35 @@ noergo 存放你正在思考的事：一个项目、一次旅行、一本书、�
 和 Grok 语音交谈，或者给 ChatGPT 打字、口述。智能体做的每一处修改都署有它的名字，
 并且可以撤销。
 
-## 三种使用方式
+## 使用方式
+
+noergo 是开源项目，本仓库就是它的全部：没有套餐，也无需付费。
 
 | | |
 |---|---|
-| **免费** — [noergo.com](https://noergo.com) | 看板和笔记不限数量。使用 Google 或 Microsoft 登录。 |
-| **Pro** — 每月 10 美元 | 包含免费版全部功能，另有通过 MCP 连接的 AI 智能体和个人 API 令牌。7 天试用。 |
-| **开源** — 本仓库 | 部署在你自己的服务器上，所有功能全部可用。[自托管指南](docs/self-hosting.md)（英文）。 |
+| [noergo.com](https://noergo.com) | 由项目维护者运行的实例。使用 Google 或 Microsoft 登录。 |
+| 你自己的服务器 | 同样的代码，所有功能。[自托管指南](docs/self-hosting.md)（英文）。 |
+
+每个实例在应用内都有一个管理页面，供管理员使用：谁可以注册、谁可以连接智能体、每个账号能存多少，
+以及账号本身（停用与重新启用、在所有设备上退出、撤销智能体）。
 
 ## 当前状态
 
-noergo.com 已经上线：看板、按列、卡片和思维导图查看的想法，以及多设备间的实时同步。
-面向智能体的 MCP 服务器、知识图谱和计费正在构建中；在计费上线之前，智能体按账户逐个开通。
+noergo.com 已经上线：看板、按列、卡片和思维导图查看的想法、多设备间的实时同步，以及通过 MCP
+连接的智能体。知识图谱正在构建中。
+
+## 参与贡献
+
+noergo 随着使用者的想法一起成长。
+
+- **想法和问题**：在 [Discussions](https://github.com/nhkameda/noergo/discussions) 里提出。
+  得到关注的想法会变成 issue。
+- **缺陷**：在 [Issues](https://github.com/nhkameda/noergo/issues) 里报告。
+- **代码和翻译**：请阅读 [CONTRIBUTING.md](CONTRIBUTING.md)；小的 pull request，带测试，
+  三种语言，并签署 DCO。
+- **漏洞**：请私下报告，不要发 issue；见 [SECURITY.md](SECURITY.md)。
+
+所有参与者都遵守[行为准则](CODE_OF_CONDUCT.md)。
 
 ## 开发
 

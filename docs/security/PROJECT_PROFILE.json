@@ -1,7 +1,7 @@
 {
   "project": {
     "name": "noergo",
-    "version_or_commit": "0.1.0-dev (pre-initial-commit, 2026-10-18)",
+    "version_or_commit": "0.1.0-dev (pre-initial-commit, 2026-10-18; revised 2026-10-20: billing design removed, administration inside the app)",
     "owners": {
       "product": "maintainer",
       "engineering": "maintainer",
@@ -16,7 +16,7 @@
     "administrative_interface": true,
     "multi_tenant": true,
     "api": true,
-    "webhooks": true,
+    "webhooks": false,
     "file_uploads": true,
     "real_time_protocols": true,
     "oauth_authorization_server": true,
@@ -36,16 +36,14 @@
     "data_subjects_in_eu": true,
     "data_subjects_in_china": true,
     "free_form_user_content_may_contain_sensitive_data": true,
-    "identity_provider_tokens_stored": false,
-    "card_data_handled_by_payment_provider_only": true
+    "identity_provider_tokens_stored": false
   },
   "business_risk": {
     "money_or_stored_value": false,
     "abuse_or_fraud_incentive": true,
     "material_availability_impact": false,
     "automated_high_impact_decisions": false,
-    "recurring_subscription_payments": true,
-    "free_trial_with_card": true
+    "paid_plans_or_payments": false
   },
   "technology": {
     "languages": ["TypeScript", "SQL"],
@@ -55,22 +53,22 @@
       "Auth.js v5 with JWT sessions revoked by per-user session_epoch",
       "oidc-provider (OAuth 2.1 authorization server in apps/mcp)",
       "Model Context Protocol server over Streamable HTTP (apps/mcp)",
-      "pg-boss job queue (apps/worker)",
+      "maintenance worker (apps/worker)",
       "Kysely + pg (packages/core, the only database path)",
       "zod (validation at every edge)",
       "DOMPurify (markdown sanitization)"
     ],
     "clouds": [
-      "single VPS behind a CDN/WAF reverse proxy that terminates TLS",
-      "Cloudflare R2 object storage (S3 API)",
-      "Cloudflare DNS and proxy",
+      "a single host behind a reverse proxy that terminates TLS, optionally behind a CDN/WAF",
+      "S3-compatible object storage",
+      "a DNS provider",
       "GitHub Actions",
       "GitHub Container Registry"
     ],
     "datastores": [
       "PostgreSQL 18 with row-level security (ENABLE + FORCE) on content tables",
-      "Cloudflare R2 buckets for attachments (quarantine and served prefixes)",
-      "pgBackRest WAL archive / PITR and daily pg_dump backups"
+      "S3-compatible buckets for attachments (quarantine and served prefixes)",
+      "WAL archive with point-in-time recovery and daily pg_dump backups"
     ],
     "identity_providers": [
       "Google",
@@ -79,8 +77,7 @@
       "email one-time code via AUTH_EMAIL_CODE (self-host, optional; off on noergo.com)"
     ],
     "external_integrations": [
-      "Stripe Checkout, customer portal and webhooks",
-      "Cloudflare R2, DNS and proxy",
+      "S3-compatible object storage, DNS and CDN providers chosen by each deployment",
       "GitHub repository, Actions and GHCR",
       "MCP clients registered through Dynamic Client Registration (e.g. ChatGPT, Claude, Grok, Cursor)",
       "personal API tokens (nrg_) for scripts and API clients"
@@ -92,13 +89,14 @@
     "deployment": [
       "one Docker image for web, mcp and worker, published to GHCR with SBOM and provenance attestation",
       "non-root user, read-only root filesystem, cap_drop ALL",
-      "self-hosters run the same image with BILLING=off, STORAGE=s3|local, SIGNUP=open|allowlist"
+      "self-hosters run the same image, with every feature; STORAGE=s3|local; sign-up and agent access start from SIGNUP and MCP_ACCESS and are then set in the administration",
+      "administration inside apps/web (/<language>/admin) for accounts whose e-mail is on NOERGO_ADMIN_EMAILS: block and unblock accounts, end sessions, enable agents, revoke connections and tokens, instance settings; every action in audit_log"
     ]
   },
   "environments_authorized_for_dynamic_tests": [],
   "explicit_exclusions": [
     "noergo.com production: passive checks only; no dynamic, load, credential, brute-force or social-engineering tests",
-    "Third-party services (Google, Microsoft, Stripe, Cloudflare, GitHub, MCP client vendors) are not test targets; only noergo's integration with them, using sandbox or test modes",
+    "Third-party services (Google, Microsoft, CDN, DNS and storage providers, GitHub, MCP client vendors) are not test targets; only noergo's integration with them, using sandbox or test modes",
     "Self-hosted instances not operated by the maintainer",
     "Profile C controls (DAT-007, LOG-006, SUP-008) are not selected; selecting DAT-007 is an open decision recorded in THREAT_MODEL.md"
   ],

@@ -33,20 +33,36 @@ crescer enquanto você fala.
 Fale com o Grok por voz, ou escreva ou dite para o ChatGPT. Cada mudança feita por um agente
 leva o nome dele, e você pode desfazê-la.
 
-## Três formas de usar
+## Como usar
+
+O noergo é open source, e este repositório é ele inteiro: não há planos nem nada a pagar.
 
 | | |
 |---|---|
-| **Grátis** — [noergo.com](https://noergo.com) | Quadros e notas ilimitados. Entre com Google ou Microsoft. |
-| **Pro** — USD 10/mês | Tudo do Grátis, mais agentes de IA via MCP e tokens pessoais de API. 7 dias de teste. |
-| **Open source** — este repositório | Rode no seu próprio servidor, com todos os recursos. [Guia de auto-hospedagem](docs/self-hosting.md) (em inglês). |
+| [noergo.com](https://noergo.com) | A instância mantida pelo autor do projeto. Entre com Google ou Microsoft. |
+| O seu servidor | O mesmo código, com todos os recursos. [Guia de auto-hospedagem](docs/self-hosting.md) (em inglês). |
+
+Cada instância tem uma página de administração, dentro do app, para quem a administra: quem
+pode criar conta, quem pode conectar agentes, quanto cada conta pode guardar, e as próprias
+contas (bloquear e desbloquear, encerrar sessões, revogar agentes).
 
 ## Situação
 
-O noergo.com está no ar: quadros, pensamentos em colunas, cards e mapas mentais, e
-sincronização ao vivo entre seus aparelhos. O servidor MCP para agentes, o grafo de
-conhecimento e a cobrança estão sendo construídos; até a cobrança existir, os agentes são
-liberados conta por conta.
+No ar no noergo.com: quadros, pensamentos em colunas, cards e mapas mentais, sincronização
+ao vivo entre seus aparelhos e agentes via MCP. O grafo de conhecimento está sendo construído.
+
+## Contribua
+
+O noergo cresce com as ideias de quem o usa.
+
+- **Ideias e dúvidas**: nas [Discussions](https://github.com/nhkameda/noergo/discussions).
+  Uma ideia que junta interesse vira issue.
+- **Falhas**: nas [Issues](https://github.com/nhkameda/noergo/issues).
+- **Código e traduções**: leia o [CONTRIBUTING.md](CONTRIBUTING.md); pull requests pequenos,
+  com testes, nos três idiomas e assinados (DCO).
+- **Vulnerabilidades**: em privado, nunca numa issue; veja o [SECURITY.md](SECURITY.md).
+
+Quem participa segue o [Código de Conduta](CODE_OF_CONDUCT.md).
 
 ## Desenvolvimento
 

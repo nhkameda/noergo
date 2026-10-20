@@ -1,9 +1,23 @@
 # Contributing to noergo
 
-Thanks for your interest. This file covers how to set up, what the project expects
-from a change, and the rules that keep a public, multi-tenant codebase safe.
+Thanks for your interest. noergo is open source and grows with the ideas of the
+people who use it. This file covers how an idea becomes a change, how to set up, what
+the project expects from a change, and the rules that keep a public, multi-tenant
+codebase safe.
 
-Security issues are **not** reported here: see [SECURITY.md](SECURITY.md).
+Security issues are **not** reported here: see [SECURITY.md](SECURITY.md). Everyone
+taking part follows the [Code of Conduct](CODE_OF_CONDUCT.md).
+
+## From an idea to a change
+
+1. **Ideas start in [Discussions](https://github.com/nhkameda/noergo/discussions)**,
+   in the Ideas category: what you want to do, and why the current noergo gets in the
+   way. Others add to it; nothing needs to be finished to be posted.
+2. **An idea that is agreed on becomes an issue**, with the scope it was agreed with.
+   Bugs go straight to an issue, with the steps that reproduce them.
+3. **Code comes in a pull request** that links the issue. For anything larger than a
+   small fix, say in the issue that you are working on it before you start, so two
+   people do not build the same thing.
 
 ## Set up
 
@@ -65,8 +79,8 @@ assistant: you are responsible for it as if you had typed it.
   `docs:`, `ci:`. The body explains why, not what.
 - Keep pull requests small and focused. Describe what changed, how you tested it and
   whether it touches a trust boundary.
-- A change to authentication, authorization, tenancy, OAuth/MCP, billing, file
-  handling, the database schema, the CSP or CI must also update
+- A change to authentication, authorization, tenancy, OAuth/MCP, administration,
+  file handling, the database schema, the CSP or CI must also update
   [`docs/security/`](docs/security/README.md) (threat model and control matrix) in
   the same pull request.
 - Fixes for undisclosed vulnerabilities are developed in the private fork of the
@@ -88,7 +102,7 @@ assistant: you are responsible for it as if you had typed it.
 noergo ships in **pt-BR, en and zh-CN**. No user-facing string is hard-coded in a
 component, an API response or an MCP tool result shown to people: add a key to
 `packages/i18n` with all three translations. The domain layer returns stable error
-codes (`not_found`, `version_conflict`, `plan_required`, …), never prose meant for
+codes (`not_found`, `version_conflict`, `agents_not_enabled`, …), never prose meant for
 display; the UI translates the code. Seed content exists per locale
 (`packages/core/src/seed.ts`).
 

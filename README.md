@@ -32,19 +32,37 @@ speak.
 Talk to Grok by voice, or type or dictate to ChatGPT. Every change an agent makes carries
 its name, and you can undo it.
 
-## Three ways to use it
+## Use it
+
+noergo is open source, and this repository is the whole of it: there are no plans and
+nothing to pay.
 
 | | |
 |---|---|
-| **Free** — [noergo.com](https://noergo.com) | Unlimited boards and notes. Sign in with Google or Microsoft. |
-| **Pro** — USD 10/month | Everything in Free, plus AI agents over MCP and personal API tokens. 7-day trial. |
-| **Open source** — this repository | Run it on your own server, with every feature. [Self-hosting guide](docs/self-hosting.md). |
+| [noergo.com](https://noergo.com) | The instance the maintainer runs. Sign in with Google or Microsoft. |
+| Your own server | The same code, every feature. [Self-hosting guide](docs/self-hosting.md). |
+
+Each instance has an administration page, inside the app, for its administrators: who may
+sign up, who may connect agents, how much each account may store, and the accounts
+themselves (block and unblock, sign out everywhere, revoke agents).
 
 ## Status
 
-noergo.com is live: boards, thoughts as columns, cards and mind maps, and live sync across
-your devices. The MCP server for agents, the knowledge graph and billing are being built;
-until billing exists, agents are switched on account by account.
+Live on noergo.com: boards, thoughts as columns, cards and mind maps, live sync across your
+devices, and agents over MCP. The knowledge graph is being built.
+
+## Contribute
+
+noergo grows with the ideas of the people who use it.
+
+- **Ideas and questions**: [Discussions](https://github.com/nhkameda/noergo/discussions).
+  An idea that gathers interest becomes an issue.
+- **Bugs**: [Issues](https://github.com/nhkameda/noergo/issues).
+- **Code and translations**: read [CONTRIBUTING.md](CONTRIBUTING.md); small pull requests,
+  with tests, in the three languages, signed off (DCO).
+- **Vulnerabilities**: privately, never in an issue; see [SECURITY.md](SECURITY.md).
+
+Everyone taking part follows the [Code of Conduct](CODE_OF_CONDUCT.md).
 
 ## Development
 
