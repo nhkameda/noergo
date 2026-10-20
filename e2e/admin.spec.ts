@@ -24,7 +24,8 @@ async function refusal(page: Page, user: string) {
   await page.goto('/en/signin');
   await page.getByRole('button', { name: /Test IdP/ }).click();
   await page.waitForURL(/\/en\/signin\?error=/);
-  return page.getByRole('alert');
+  // Within main: Next's route announcer is an alert too, outside it.
+  return page.getByRole('main').getByRole('alert');
 }
 
 test('an administrator blocks an account out of its session and sign-in, and lets it back', async ({ page, browser }) => {
