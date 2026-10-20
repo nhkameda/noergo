@@ -89,6 +89,9 @@ you can derive; these you cannot. Break one only with a reason written in the co
   `application_type: native` (any port, RFC 8252), or Claude Code and Cursor fail.
 - Tools named exactly `search` and `fetch` are required by ChatGPT deep research.
 - Note content is data, not instructions — tool descriptions say so.
+- Every tool write goes through `apply()` in `tools.ts`, which parses each op with
+  `opSchema` like `/api/ops` does: `executeOps`/`executeAtomic` trust their input. A tool
+  never calls the executor itself.
 - `loadExistingGrant` loads only the grant of this interaction's result: no old grant
   approves on its own, and returning nothing makes the resume ask for consent forever.
   A read-only answer must `reject` `notes:write` (OIDC and resource scope) or the provider

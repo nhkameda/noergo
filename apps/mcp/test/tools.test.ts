@@ -189,6 +189,18 @@ describe.skipIf(!testDb)('MCP tools', () => {
     await close();
   });
 
+  it('runs every write through the op schema the web uses: trimmed titles, well-formed websites', async () => {
+    const a = await agentFor();
+    const [lane] = await lanesOf(a.workspaceId);
+    const { call, close } = await connect(a.principal);
+    expect((await call('update_thought', { thought_id: lane!.id, title: '  Clients  ' })).isError).toBeFalsy();
+    const row = await pools().jobs.selectFrom('lanes').select('title').where('id', '=', lane!.id).executeTakeFirstOrThrow();
+    expect(row.title).toBe('Clients');
+    const r = await call('update_thought', { thought_id: lane!.id, url: 'https://exa mple.com' });
+    expect(errorCode(r)).toBe('invalid');
+    await close();
+  });
+
   it('never hands out e-mail addresses or internal columns', async () => {
     const a = await agentFor();
     const [lane] = await lanesOf(a.workspaceId);

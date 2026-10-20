@@ -11,6 +11,7 @@ import {
   linkBetween,
   newId,
   nodeKindOf,
+  opSchema,
   outline,
   search,
   thoughtDetail,
@@ -110,9 +111,19 @@ async function run(ctx: ToolContext, name: string, fn: () => Promise<CallToolRes
 
 const execCtx = (p: AgentPrincipal) => ({ workspaceId: p.workspaceId, actorId: p.actorId, actorKind: p.kind, readOnly: p.readOnly });
 
-/** Applies ops all or nothing; a refusal becomes a DomainError the tool reports. */
+/**
+ * Applies ops all or nothing; a refusal becomes a DomainError the tool reports. Every op
+ * first passes the op schema the web's /api/ops passes (its limits, trimming, tag spelling
+ * and the rules for addresses): the executor trusts its input.
+ */
 async function apply(p: AgentPrincipal, ops: Op[]) {
-  const envelopes: Envelope[] = ops.map((op) => ({ opId: newId(), op }));
+  const envelopes: Envelope[] = ops.map((op, i) => {
+    const parsed = opSchema.safeParse(op);
+    if (parsed.success) return { opId: newId(), op: parsed.data };
+    const issue = parsed.error.issues[0];
+    const field = issue?.path.length ? `${issue.path.join('.')}: ` : '';
+    throw new DomainError('invalid', `${ops.length > 1 ? `change ${i + 1} of ${ops.length}: ` : ''}${field}${issue?.message ?? 'invalid value'}`);
+  });
   const r = await executeAtomic(execCtx(p), envelopes);
   if (!r.ok) throw new DomainError(r.outcome.error.code, ops.length > 1 ? `change ${r.index + 1} of ${ops.length}: ${r.outcome.error.message}` : r.outcome.error.message, r.outcome.error.details);
   return r.outcomes;
