@@ -1,0 +1,29 @@
+name: Agreed idea
+description: An idea already discussed in Discussions, ready to be built.
+labels: [enhancement]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        New ideas start in [Discussions](https://github.com/nhkameda/noergo/discussions/categories/ideas). Open this issue once the idea has been talked through, with the scope it was agreed with.
+  - type: input
+    id: discussion
+    attributes:
+      label: Discussion
+      description: Link to the discussion where the idea was agreed.
+      placeholder: https://github.com/nhkameda/noergo/discussions/…
+    validations:
+      required: true
+  - type: textarea
+    id: scope
+    attributes:
+      label: Scope
+      description: What is in, what is left out, and how we will know it works.
+    validations:
+      required: true
+  - type: checkboxes
+    id: taking
+    attributes:
+      label: Building it
+      options:
+        - label: I would like to build this myself.

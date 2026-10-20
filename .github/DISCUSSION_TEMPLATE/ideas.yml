@@ -1,0 +1,23 @@
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Nothing needs to be finished to be posted here. Others will add to it; an idea that gathers interest becomes an issue.
+  - type: textarea
+    id: problem
+    attributes:
+      label: What gets in the way
+      description: What you are trying to do, and where noergo stops you today.
+    validations:
+      required: true
+  - type: textarea
+    id: idea
+    attributes:
+      label: The idea
+      description: How it could work. Sketches and screenshots are welcome.
+    validations:
+      required: true
+  - type: textarea
+    id: others
+    attributes:
+      label: Who else would use it

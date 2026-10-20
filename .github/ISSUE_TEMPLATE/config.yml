@@ -1,0 +1,8 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Ideas and questions
+    url: https://github.com/nhkameda/noergo/discussions
+    about: Propose an idea or ask something. An idea that gathers interest becomes an issue.
+  - name: Report a vulnerability
+    url: https://github.com/nhkameda/noergo/security/advisories/new
+    about: Privately, never in a public issue. See SECURITY.md.
