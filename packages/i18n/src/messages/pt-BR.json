@@ -111,11 +111,13 @@
       "larger": "Maior"
     },
     "customize": {
-      "menu": "Nome, site, capa e cor…",
+      "menu": "Nome, descrição, site, capa e cor…",
       "open": "Personalizar “{title}”",
       "openShort": "Personalizar",
       "kicker": "Personalizar pensamento",
       "name": "Nome",
+      "description": "Descrição",
+      "descriptionPlaceholder": "Do que trata este pensamento, em uma ou duas linhas.",
       "site": "Site",
       "sitePlaceholder": "seusite.com.br",
       "siteHint": "Abre numa aba nova, direto do card e da coluna.",
@@ -215,7 +217,7 @@
       "image": "Imagem: {alt}"
     },
     "a11y": {
-      "keyboardHelp": "Enter abre a nota. As setas andam entre as notas; Alt com uma seta move a própria nota.",
+      "keyboardHelp": "Enter abre a nota. As setas andam entre as notas; Alt com uma seta move a própria nota. ⌘/Ctrl + . recolhe ou mostra os subitens.",
       "movedNote": "Movida para “{column}”, posição {position} de {total}.",
       "movedColumn": "Pensamento movido para a posição {position} de {total}.",
       "dragHandle": "Arraste para mover o pensamento, inclusive para a aba de outro quadro; clique duas vezes para renomear",
@@ -247,7 +249,9 @@
       "coverQuota": "Seu espaço de armazenamento acabou.",
       "coverOffline": "Sem conexão: a imagem não foi enviada.",
       "coverBusy": "Muitas imagens de uma vez. Tente de novo em um minuto.",
-      "coverFailed": "Não foi possível salvar a imagem. Tente de novo."
+      "coverFailed": "Não foi possível salvar a imagem. Tente de novo.",
+      "foldBlocked": "“{title}” está ligada a mais de uma ideia acima dela, por isso este ramo não recolhe.",
+      "moveBlocked": "“{title}” está ligado a mais de uma ideia acima dele, então só muda de lugar entre os itens ao lado."
     },
     "map": {
       "open": "Mapa",
@@ -264,6 +268,11 @@
       "emptyHint": "Clique duas vezes em qualquer lugar para criar a primeira.",
       "placeholder": "ideia",
       "toolbar": "Estilo da seleção",
+      "look": "Aparência",
+      "details": "Detalhes",
+      "centre": "Pensamento",
+      "closePanel": "Fechar o painel",
+      "panel": "A seleção",
       "color": "Cor",
       "auto": "Automática",
       "fill": "Preenchimento",
@@ -321,11 +330,17 @@
         "create": "Clique duplo: nova ideia",
         "connect": "Arraste um ponto: conectar",
         "child": "Tab: ideia ligada",
+        "fold": "Selecione e ⌘/Ctrl + .: recolher",
         "move": "Arraste ou Espaço: mover a tela",
         "zoom": "⌘/Ctrl + rolagem: zoom"
       },
       "selected": "{count, plural, one {# ideia selecionada} other {# ideias selecionadas}}",
-      "followAgent": "Seguir o agente"
+      "followAgent": "Seguir o agente",
+      "fold": "Recolher subitens",
+      "unfold": "Mostrar subitens",
+      "foldBadge": "{count, plural, one {# item recolhido} other {# itens recolhidos}}. Mostrar",
+      "foldAll": "Recolher tudo",
+      "unfoldAll": "Expandir tudo"
     },
     "agentWriting": "{name} está escrevendo…"
   },

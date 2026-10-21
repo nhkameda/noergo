@@ -111,11 +111,13 @@
       "larger": "Larger"
     },
     "customize": {
-      "menu": "Name, website, cover and colour…",
+      "menu": "Name, description, website, cover and colour…",
       "open": "Customise “{title}”",
       "openShort": "Customise",
       "kicker": "Customise thought",
       "name": "Name",
+      "description": "Description",
+      "descriptionPlaceholder": "What this thought is about, in a line or two.",
       "site": "Website",
       "sitePlaceholder": "yoursite.com",
       "siteHint": "Opens in a new tab, straight from the card and the column.",
@@ -215,7 +217,7 @@
       "image": "Image: {alt}"
     },
     "a11y": {
-      "keyboardHelp": "Enter opens the note. Arrow keys move between notes; Alt with an arrow moves the note itself.",
+      "keyboardHelp": "Enter opens the note. Arrow keys move between notes; Alt with an arrow moves the note itself. ⌘/Ctrl + . folds or shows the ideas below it.",
       "movedNote": "Moved to “{column}”, position {position} of {total}.",
       "movedColumn": "Thought moved to position {position} of {total}.",
       "dragHandle": "Drag to move the thought, also onto another board’s tab; double-click to rename",
@@ -247,7 +249,9 @@
       "coverQuota": "Your storage is full.",
       "coverOffline": "Offline: the image was not sent.",
       "coverBusy": "Too many images at once. Try again in a minute.",
-      "coverFailed": "The image could not be saved. Try again."
+      "coverFailed": "The image could not be saved. Try again.",
+      "foldBlocked": "“{title}” is linked to more than one idea above it, so this branch can’t fold.",
+      "moveBlocked": "“{title}” hangs from more than one idea above it, so it only changes place among the ideas beside it."
     },
     "map": {
       "open": "Map",
@@ -264,6 +268,11 @@
       "emptyHint": "Double-click anywhere to add the first one.",
       "placeholder": "idea",
       "toolbar": "Style of the selection",
+      "look": "Look",
+      "details": "Details",
+      "centre": "Thought",
+      "closePanel": "Close the panel",
+      "panel": "The selection",
       "color": "Colour",
       "auto": "Automatic",
       "fill": "Fill",
@@ -321,11 +330,17 @@
         "create": "Double-click: new idea",
         "connect": "Drag a dot: connect",
         "child": "Tab: linked idea",
+        "fold": "Select, then ⌘/Ctrl + .: fold",
         "move": "Drag or Space: move around",
         "zoom": "⌘/Ctrl + scroll: zoom"
       },
       "selected": "{count, plural, one {# idea selected} other {# ideas selected}}",
-      "followAgent": "Follow the agent"
+      "followAgent": "Follow the agent",
+      "fold": "Fold the ideas below",
+      "unfold": "Show the ideas below",
+      "foldBadge": "{count, plural, one {# idea folded inside} other {# ideas folded inside}}. Show",
+      "foldAll": "Fold all",
+      "unfoldAll": "Show all"
     },
     "agentWriting": "{name} is writing…"
   },

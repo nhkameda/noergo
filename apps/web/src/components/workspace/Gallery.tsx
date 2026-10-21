@@ -23,8 +23,8 @@ import { InlineEdit, Menu, ViewFoot, ZoomSlider } from './ui';
 import { CARDS, CARDS_PER_ROW, cardsThatFit, perRow } from './view-prefs';
 
 /**
- * Every thought of a board as a card: its cover and its title, side by side, so fifty
- * thoughts fit on one screen. Drag to reorder, or onto another board's tab to move it
+ * Every thought of a board as a card: its cover, its title, its description and its tools,
+ * each on a row, side by side, so fifty thoughts fit on one screen. Drag to reorder, or onto another board's tab to move it
  * there; a click opens the thought among the columns, the map button its mind map. The
  * slider at the bottom (or a pinch) sets how many go in a row, like a photo library: six
  * unless the person chose otherwise, never more than fit at a readable size.
@@ -201,24 +201,27 @@ const Tile = memo(function Tile({ lane, count, index, total, onOpen }: { lane: L
               {initials(lane.title)}
             </span>
           )}
-          <span className="w-tile__name">
-            <span className="w-tile__title" title={lane.title}>
-              {lane.title}
-            </span>
-            <span className="w-tile__count" aria-hidden="true">
-              {count}
-            </span>
+          <span className="w-tile__title" title={lane.title}>
+            {lane.title}
           </span>
-        </button>
-        {lane.url && (
-          <a className="w-icon-btn w-tile__site" href={lane.url} target="_blank" rel="noopener noreferrer nofollow ugc" aria-label={t('site.open', { title: lane.title, host: siteHost(lane.url) })} title={siteHost(lane.url)}>
-            <IconGlobe />
-          </a>
-        )}
-        <button type="button" className="w-icon-btn w-tile__map" onClick={() => openMap(lane.id)} aria-label={t('map.openColumn', { title: lane.title })} title={t('map.open')}>
-          <IconMap />
+          {lane.description && (
+            <span className="w-tile__desc" title={lane.description}>
+              {lane.description}
+            </span>
+          )}
         </button>
         <div className="w-tile__tools">
+          <span className="w-tile__count" aria-hidden="true">
+            {count}
+          </span>
+          {lane.url && (
+            <a className="w-icon-btn w-tile__tool w-tile__site" href={lane.url} target="_blank" rel="noopener noreferrer nofollow ugc" aria-label={t('site.open', { title: lane.title, host: siteHost(lane.url) })} title={siteHost(lane.url)}>
+              <IconGlobe />
+            </a>
+          )}
+          <button type="button" className="w-icon-btn w-tile__tool w-tile__map" onClick={() => openMap(lane.id)} aria-label={t('map.openColumn', { title: lane.title })} title={t('map.open')}>
+            <IconMap />
+          </button>
           <button
             type="button"
             className="w-icon-btn w-tile__tool w-tile__brush"

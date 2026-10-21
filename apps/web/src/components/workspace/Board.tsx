@@ -11,6 +11,7 @@ import { useWorkspace } from './context';
 import { IconPlus } from './icons';
 import { Lane } from './Lane';
 import { lanesOf, notesByLane, type Data } from './model';
+import { columnTrees } from './tree';
 import { InlineEdit, ViewFoot, ZoomSlider } from './ui';
 import { anchoredScroll, COLUMNS, COLUMNS_ZOOM, columnsZoom } from './view-prefs';
 
@@ -23,12 +24,13 @@ export function Board({ data, boardId, hideDone }: { data: Data; boardId: string
   const { actions } = useWorkspace();
   const scroller = useRef<HTMLDivElement>(null);
   const [adding, setAdding] = useState(false);
-  const { lanes: laneMap, notes: noteMap } = data;
+  const { lanes: laneMap, notes: noteMap, links } = data;
   const lanes = useMemo(() => lanesOf(laneMap, boardId), [laneMap, boardId]);
   const byLane = useMemo(
     () => notesByLane(noteMap, lanes.map((l) => l.id)),
     [noteMap, lanes],
   );
+  const trees = useMemo(() => columnTrees({ notes: noteMap, links }, byLane), [noteMap, links, byLane]);
   const noteCount = useMemo(() => {
     let n = 0;
     for (const list of byLane.values()) n += hideDone ? list.filter((x) => x.doneAt === null).length : list.length;
@@ -83,11 +85,11 @@ export function Board({ data, boardId, hideDone }: { data: Data; boardId: string
             if (!target) return;
             if (target.data.type === 'note') {
               const edge = extractClosestEdge(target.data);
-              actions.moveNoteNear(id, target.data.id as string, edge === 'top' ? 'top' : 'bottom');
+              actions.moveNoteNear(id, target.data.id as string, edge === 'top' ? 'top' : 'bottom', target.data.open === true);
             } else {
-              // On the column but not on a note: the end of that column.
+              // On the column but not on a note: the end of that column, at the top level.
               const laneId = target.data.laneId as string;
-              actions.moveNote(id, laneId, Number.MAX_SAFE_INTEGER);
+              actions.moveNote(id, { laneId, index: Number.MAX_SAFE_INTEGER });
             }
           } else {
             const target = targets.find((x) => x.data.type === 'lane');
@@ -104,7 +106,7 @@ export function Board({ data, boardId, hideDone }: { data: Data; boardId: string
     <div className="w-view">
       <div ref={scroller} className="w-board" role="region" aria-label={t('boardRegion')} style={{ '--board-z': zoom } as CSSProperties}>
         {lanes.map((lane, i) => (
-          <Lane key={lane.id} lane={lane} notes={byLane.get(lane.id) ?? []} hideDone={hideDone} index={i} total={lanes.length} />
+          <Lane key={lane.id} lane={lane} notes={byLane.get(lane.id) ?? []} tree={trees.get(lane.id)!} hideDone={hideDone} index={i} total={lanes.length} />
         ))}
         <div className="w-lane w-lane--new">
           {adding ? (

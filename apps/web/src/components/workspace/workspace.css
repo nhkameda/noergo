@@ -262,7 +262,7 @@
 .w-lane--dragging { opacity: 0.45; }
 .w-lane[data-edge="left"] { box-shadow: -4px 0 0 var(--nr-focus); }
 .w-lane[data-edge="right"] { box-shadow: 4px 0 0 var(--nr-focus); }
-.w-lane__head { flex: none; }
+.w-lane__head { flex: none; display: grid; gap: var(--nr-space-1); padding: var(--nr-space-1) var(--nr-space-1) var(--nr-space-2); }
 .w-lane__title {
   flex: 1;
   min-width: 0;
@@ -271,7 +271,22 @@
   overflow-wrap: anywhere;
   cursor: grab;
 }
-.w-lane__head .w-inline-input { flex: 1; }
+.w-lane__head .w-inline-input { width: 100%; }
+/* What the thought is about, under its title: four lines at most, the rest in the brush. */
+.w-lane__desc {
+  display: -webkit-box;
+  margin: 0;
+  overflow: hidden;
+  color: var(--nr-text-muted);
+  font: var(--nr-weight-regular) var(--nr-text-sm) / 1.45 var(--nr-font-ui);
+  white-space: pre-line;
+  overflow-wrap: anywhere;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 4;
+  line-clamp: 4;
+}
+.w-lane__tools { display: flex; align-items: center; gap: var(--nr-space-2); min-width: 0; }
+.w-lane__tools .nr-coluna__conta { margin-left: 0; margin-inline-end: auto; }
 .w-lane--new { width: var(--nr-layout-column); padding: 0; }
 .w-lane__add { width: 100%; justify-content: flex-start; }
 .w-lane__empty {
@@ -311,11 +326,52 @@
 }
 .w-card-slot[data-edge="top"]::after { top: -6px; }
 .w-card-slot[data-edge="bottom"]::after { bottom: -6px; }
+/* A thought's ideas as a tree: each one indented under the idea it hangs from, with a rail
+   for every level it sits in, so a group reads as one. Below an open idea is its first. */
+.w-card-slot { --indent: 16px; }
+.w-card-slot[data-depth] { margin-left: calc(var(--depth) * var(--indent)); }
+.w-card-slot[data-depth]::before {
+  content: "";
+  position: absolute;
+  top: calc(-1 * var(--nr-space-2));
+  bottom: 0;
+  right: 100%;
+  width: calc(var(--depth) * var(--indent));
+  background:
+    linear-gradient(var(--nr-border-strong), var(--nr-border-strong)) right 0 top calc(var(--nr-space-2) + 20px) / calc(var(--indent) - 7px) 2px no-repeat,
+    repeating-linear-gradient(to right, transparent 0 7px, var(--nr-border-strong) 7px 9px, transparent 9px var(--indent));
+  pointer-events: none;
+}
+.w-card-slot[data-open][data-edge="bottom"]::after { left: calc(var(--indent) + 4px); }
 
 .w-card { cursor: pointer; }
 .w-card--dragging { opacity: 0.4; }
 .w-card__row { display: flex; align-items: flex-start; gap: var(--nr-space-2); }
 .w-card__title { flex: 1; min-width: 0; overflow-wrap: anywhere; }
+/* Fold: a quiet minus while open; folded, a red count of what is inside. */
+.w-card__fold {
+  position: relative;
+  display: inline-grid;
+  place-items: center;
+  flex: none;
+  min-width: 20px;
+  height: 20px;
+  margin: 2px -2px 0 0;
+  padding: 0 5px;
+  border: 0;
+  border-radius: 999px;
+  background: transparent;
+  color: var(--nr-text-subtle);
+  cursor: pointer;
+}
+.w-card__fold::after { content: ""; position: absolute; inset: -6px; }
+.w-card__fold svg { width: 14px; height: 14px; }
+.w-card__fold:hover { color: var(--nr-text); background: var(--nr-fill-hover); }
+.w-card__fold[data-blocked] { opacity: 0.45; cursor: help; }
+.w-card__fold[data-folded] { color: #fff; background: var(--nr-danger-fill); font: 700 11px/1 var(--nr-font-ui); font-variant-numeric: tabular-nums; }
+.w-card__fold[data-folded]:hover { filter: brightness(1.08); }
+/* An agent just added something inside: the count wears the agents' colour for a moment. */
+.w-card__fold[data-agent-inside] { box-shadow: 0 0 0 2px var(--nr-surface), 0 0 0 4px var(--nr-agent); }
 .w-card__excerpt {
   display: -webkit-box;
   margin: 0;
@@ -439,7 +495,7 @@
 
 /* With a mouse, the column's buttons are smaller, so its title keeps room to read. */
 @media (pointer: fine) {
-  .w-lane__head { gap: var(--nr-space-1); }
+  .w-lane__tools { gap: var(--nr-space-1); }
   .w-lane__head .w-icon-btn { width: 32px; height: 32px; }
   .w-lane__head .w-icon-btn svg { width: 18px; height: 18px; }
   .w-lane__paint { margin-inline-end: var(--nr-space-1); }
@@ -455,6 +511,7 @@
 .w-lane[data-tinted] { background: var(--lane); color: var(--lane-on); }
 .w-lane[data-tinted] .w-lane__head { color: var(--lane-on); }
 .w-lane[data-tinted] .nr-coluna__conta { color: var(--lane-on); opacity: 0.8; }
+.w-lane[data-tinted] .w-lane__desc { color: var(--lane-on); opacity: 0.85; }
 .w-lane[data-tinted] .w-lane__paint { border-color: var(--lane-on); background: transparent; color: var(--lane-on); }
 .w-lane[data-tinted] .w-lane__paint svg { opacity: 0.85; }
 .w-lane[data-tinted] .w-lane__head .w-icon-btn { color: var(--lane-on); }
@@ -525,6 +582,8 @@
 .w-tile-slot[data-edge="right"]::after { right: -8px; }
 .w-tile {
   position: relative;
+  display: flex;
+  flex-direction: column;
   height: 100%;
   /* The type grows with the card: a row of two is not a row of twelve. */
   container-type: inline-size;
@@ -542,8 +601,9 @@
 .w-tile[data-tinted] { border-color: transparent; background: var(--lane); color: var(--lane-on); }
 .w-tile__open {
   display: grid;
+  flex: 1;
+  align-content: start;
   width: 100%;
-  height: 100%;
   padding: 0;
   border: 0;
   border-radius: inherit;
@@ -563,39 +623,30 @@
   letter-spacing: -0.02em;
 }
 .w-tile[data-tinted] .w-tile__blank { background: color-mix(in oklab, var(--lane) 84%, var(--lane-on)); color: var(--lane-on); }
-.w-tile__name { display: flex; align-items: center; gap: var(--nr-space-2); min-width: 0; padding: var(--nr-space-2) var(--nr-space-3); }
-.w-tile__title { flex: 1; min-width: 0; overflow: hidden; font: var(--nr-weight-semibold) clamp(0.75rem, 0.7rem + 1.25cqi, 1.25rem) / 1.3 var(--nr-font-ui); white-space: nowrap; text-overflow: ellipsis; }
-.w-tile__count { flex: none; color: var(--nr-text-subtle); font-size: clamp(0.6875rem, 0.625rem + 1cqi, 1rem); font-weight: var(--nr-weight-semibold); }
+/* Three rows under the cover: the title, the description, the tools. */
+.w-tile__title { min-width: 0; padding: var(--nr-space-2) var(--nr-space-3) 0; overflow: hidden; font: var(--nr-weight-semibold) clamp(0.75rem, 0.7rem + 1.25cqi, 1.25rem) / 1.3 var(--nr-font-ui); white-space: nowrap; text-overflow: ellipsis; }
+.w-tile__desc {
+  display: -webkit-box;
+  min-width: 0;
+  margin-top: 2px;
+  padding: 0 var(--nr-space-3);
+  overflow: hidden;
+  color: var(--nr-text-muted);
+  font: var(--nr-weight-regular) clamp(0.6875rem, 0.65rem + 0.9cqi, 1rem) / 1.4 var(--nr-font-ui);
+  white-space: pre-line;
+  overflow-wrap: anywhere;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
+}
+.w-tile[data-tinted] .w-tile__desc { color: var(--lane-on); opacity: 0.85; }
+.w-tile__tools { display: flex; align-items: center; gap: 2px; min-width: 0; padding: var(--nr-space-1) var(--nr-space-1) var(--nr-space-1) var(--nr-space-3); }
+.w-tile__count { margin-inline-end: auto; color: var(--nr-text-subtle); font-size: clamp(0.6875rem, 0.625rem + 1cqi, 1rem); font-weight: var(--nr-weight-semibold); }
 .w-tile[data-tinted] .w-tile__count { color: var(--lane-on); opacity: 0.8; }
-.w-tile__tools {
-  position: absolute;
-  top: 4px;
-  right: 4px;
-  display: flex;
-  gap: 4px;
-}
-.w-tile__tool {
-  width: 36px;
-  height: 36px;
-  background: color-mix(in srgb, var(--nr-surface) 88%, transparent);
-  color: var(--nr-text);
-  box-shadow: var(--nr-shadow-1);
-}
-.w-tile__tool:hover { background: var(--nr-surface); }
-.w-tile__tool svg, .w-tile__map svg, .w-tile__site svg { width: 16px; height: 16px; }
-@media (hover: hover) {
-  .w-tile__tool { opacity: 0; transition: opacity var(--nr-dur-fast) var(--nr-ease-out); }
-  .w-tile:hover .w-tile__tool, .w-tile:focus-within .w-tile__tool { opacity: 1; }
-}
-/* The mind map is always one click away, at the end of the name row. */
-.w-tile__name { padding-inline-end: 40px; }
-.w-tile__map { position: absolute; right: 2px; bottom: 0; width: 36px; height: 36px; color: inherit; }
-.w-tile__map:hover { background: var(--nr-fill-hover); }
-.w-tile[data-tinted] .w-tile__map:hover { background: color-mix(in srgb, var(--lane-on) 16%, transparent); }
-/* So is the thought's website, on the cover's corner: always shown, and the name keeps its
-   whole row even on a phone's small card. */
-.w-tile__site { position: absolute; top: 4px; left: 4px; width: 36px; height: 36px; background: color-mix(in srgb, var(--nr-surface) 88%, transparent); color: var(--nr-text); box-shadow: var(--nr-shadow-1); }
-.w-tile__site:hover { background: var(--nr-surface); color: var(--nr-text); }
+.w-tile__tool { flex: none; width: 32px; height: 32px; color: inherit; opacity: 0.72; }
+.w-tile__tool:hover, .w-tile__tool[aria-expanded="true"] { background: var(--nr-fill-hover); opacity: 1; }
+.w-tile[data-tinted] .w-tile__tool:hover, .w-tile[data-tinted] .w-tile__tool[aria-expanded="true"] { background: color-mix(in srgb, var(--lane-on) 16%, transparent); }
+.w-tile__tool svg { width: 16px; height: 16px; }
 .w-tile-slot--new { container-type: inline-size; }
 .w-tile-new {
   display: flex;
@@ -619,13 +670,13 @@
   .w-tile__count { display: none; }
   .w-tile-new__label { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
 }
-/* A small card keeps the map and the menu; the brush is in the menu too. */
+/* A small card keeps the website, the map and the menu; the brush is in the menu too. */
 @container (max-width: 160px) {
   .w-tile__brush { display: none; }
-  .w-tile__tools { top: 2px; right: 2px; }
+  .w-tile__tools { padding-inline-start: var(--nr-space-2); }
   .w-tile__tool { width: 28px; height: 28px; }
-  .w-tile__name { padding-inline-end: 30px; }
-  .w-tile__map { right: 0; width: 30px; }
+  .w-tile__title { padding-inline: var(--nr-space-2); }
+  .w-tile__desc { padding-inline: var(--nr-space-2); }
 }
 
 /* ---------- customise: cover and colour ---------- */
@@ -636,7 +687,9 @@
   top: var(--y, 20%);
   margin: 0;
   width: min(360px, calc(100vw - 16px));
-  max-height: calc(100dvh - 16px);
+  /* Placed where it fitted when it opened; whatever it grows by afterwards (a cover's frame)
+     scrolls inside it instead of running past the bottom of the screen. */
+  max-height: calc(100dvh - var(--y, 20dvh) - 8px);
   padding: var(--nr-space-4);
   overflow-y: auto;
   overscroll-behavior: contain;

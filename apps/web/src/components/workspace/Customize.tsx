@@ -24,8 +24,8 @@ const INK = '#142b45';
 const SETTLE_MS = 350;
 
 /**
- * Everything that makes a column recognisable, in one place: its name, its website, the
- * cover (dropped, pasted or chosen, then dragged into place and zoomed) and the colour (the
+ * Everything that makes a column recognisable, in one place: its name, its description, its
+ * website, the cover (dropped, pasted or chosen, then dragged into place and zoomed) and the colour (the
  * picture's own, the palette or any other). Every change shows at once in the column, its
  * card and its map; each one is a single undo step.
  */
@@ -162,6 +162,13 @@ export function CustomizePanel({ data, target, onClose }: { data: Data; target: 
         </button>
       </header>
 
+      <section className="w-customize__section">
+        <label htmlFor="w-customize-description" className="w-customize__label">
+          {t('customize.description')}
+        </label>
+        <DescriptionField id="w-customize-description" lane={lane} />
+      </section>
+
       <SiteField lane={lane} />
 
       <section className="w-customize__section" aria-labelledby="w-customize-cover">
@@ -261,6 +268,8 @@ export function CustomizePanel({ data, target, onClose }: { data: Data; target: 
  */
 export function openPanel(p: HTMLElement, a: DOMRect, prefer: 'beside' | 'below') {
   if (!p.matches(':popover-open')) p.showPopover();
+  // Measured at the full height it may take: its max-height follows --y.
+  p.style.setProperty('--y', '8px');
   const w = p.offsetWidth;
   const h = p.offsetHeight;
   const vw = window.innerWidth;
@@ -320,6 +329,43 @@ export function NameField({ id, value, label, maxLength, onSave }: { id: string;
  * field is left; a blank field removes it; something that is not a web address stays in
  * the field with a note, and nothing is saved.
  */
+/**
+ * A thought's description, a few lines under its title: saved when the field is left, Esc
+ * undoes the typing first (then closes the panel), Enter makes a new line.
+ */
+export function DescriptionField({ id, lane, className = 'w-input w-description-field' }: { id: string; lane: LaneDto; className?: string }) {
+  const t = useTranslations('app');
+  const { actions } = useWorkspace();
+  const [draft, setDraft] = useState<string | null>(null);
+  const save = () => {
+    if (draft === null) return;
+    const description = draft.trim();
+    if (description !== lane.description) actions.updateLane(lane.id, { description });
+    setDraft(null);
+  };
+  return (
+    <textarea
+      id={id}
+      className={className}
+      rows={3}
+      maxLength={LIMITS.laneDescription}
+      aria-label={t('customize.description')}
+      placeholder={t('customize.descriptionPlaceholder')}
+      value={draft ?? lane.description}
+      onFocus={() => setDraft((d) => d ?? lane.description)}
+      onChange={(e) => setDraft(e.target.value)}
+      onBlur={save}
+      onKeyDown={(e) => {
+        if (e.key === 'Escape' && draft !== null && draft !== lane.description) {
+          e.preventDefault();
+          e.stopPropagation();
+          setDraft(lane.description);
+        }
+      }}
+    />
+  );
+}
+
 function SiteField({ lane }: { lane: LaneDto }) {
   const t = useTranslations('app');
   const { actions } = useWorkspace();

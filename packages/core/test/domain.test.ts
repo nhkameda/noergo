@@ -4,6 +4,7 @@ import { newId } from '../src/ids';
 import { executeOps, type OpOutcome } from '../src/ops/execute';
 import type { Op } from '../src/ops/schema';
 import { readFile, storeImage } from '../src/files';
+import { LIMITS } from '../src/limits';
 import { changesSince, getNote, search, snapshot } from '../src/read';
 import { closePools, newAccount, pools, testDb } from './fixtures';
 
@@ -300,6 +301,39 @@ describe.skipIf(!testDb)('database', () => {
     const [off] = await run(a.ctx, { type: 'lane.update', id: lane.id, url: null });
     const cleared = applied(off).effects[0]!;
     expect(cleared.kind === 'lane' && cleared.data.url).toBeNull();
+  });
+
+  it('folds an idea and opens it again; folding it twice changes nothing', async () => {
+    const a = await newAccount();
+    const note = (await snapshot(a.workspaceId, pools().app)).notes[0]!;
+    expect(note.collapsed).toBe(false);
+    const [fold] = await run(a.ctx, { type: 'note.update', id: note.id, collapsed: true });
+    const after = applied(fold).effects[0]!;
+    expect(after.kind === 'note' && after.data.collapsed).toBe(true);
+    const seq = (await snapshot(a.workspaceId, pools().app)).seq;
+    const [same] = await run(a.ctx, { type: 'note.update', id: note.id, collapsed: true });
+    expect(applied(same).result).toMatchObject({ unchanged: true });
+    expect((await snapshot(a.workspaceId, pools().app)).seq).toBe(seq);
+    const [open] = await run(a.ctx, { type: 'note.update', id: note.id, collapsed: false });
+    const opened = applied(open).effects[0]!;
+    expect(opened.kind === 'note' && opened.data.collapsed).toBe(false);
+  });
+
+  it('keeps a thought’s description, and the database caps it even past the op schema', async () => {
+    const a = await newAccount();
+    const lane = (await snapshot(a.workspaceId, pools().app)).lanes[0]!;
+    expect(lane.description).toBe('');
+    const [set] = await run(a.ctx, { type: 'lane.update', id: lane.id, description: 'Clients we call\nthis week' });
+    const after = applied(set).effects[0]!;
+    expect(after.kind === 'lane' && after.data.description).toBe('Clients we call\nthis week');
+    const seq = (await snapshot(a.workspaceId, pools().app)).seq;
+    const [same] = await run(a.ctx, { type: 'lane.update', id: lane.id, description: 'Clients we call\nthis week' });
+    expect(applied(same).result).toMatchObject({ unchanged: true });
+    expect((await snapshot(a.workspaceId, pools().app)).seq).toBe(seq);
+    await expect(pools().jobs.updateTable('lanes').set({ description: 'x'.repeat(LIMITS.laneDescription + 1) }).where('id', '=', lane.id).execute()).rejects.toThrow(/check constraint/);
+    const [off] = await run(a.ctx, { type: 'lane.update', id: lane.id, description: '' });
+    const cleared = applied(off).effects[0]!;
+    expect(cleared.kind === 'lane' && cleared.data.description).toBe('');
   });
 
   it('keeps a board’s icon and background, and the database refuses what the op schema would', async () => {

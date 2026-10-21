@@ -111,11 +111,13 @@
       "larger": "放大"
     },
     "customize": {
-      "menu": "名称、网站、封面和颜色…",
+      "menu": "名称、描述、网站、封面和颜色…",
       "open": "自定义“{title}”",
       "openShort": "自定义",
       "kicker": "自定义想法",
       "name": "名称",
+      "description": "描述",
+      "descriptionPlaceholder": "用一两句话说明这个想法。",
       "site": "网站",
       "sitePlaceholder": "example.com",
       "siteHint": "在卡片和列上点一下，就会在新标签页打开。",
@@ -215,7 +217,7 @@
       "image": "图片：{alt}"
     },
     "a11y": {
-      "keyboardHelp": "按 Enter 打开笔记。方向键在笔记之间移动；按住 Alt 再按方向键可移动笔记本身。",
+      "keyboardHelp": "按 Enter 打开笔记。方向键在笔记之间移动；按住 Alt 再按方向键可移动笔记本身。按 ⌘/Ctrl + . 折叠或展开下级点子。",
       "movedNote": "已移到“{column}”，第 {position} 个，共 {total} 个。",
       "movedColumn": "想法已移到第 {position} 个，共 {total} 个。",
       "dragHandle": "拖动以移动此想法，也可以拖到其他看板的标签上；双击可重命名",
@@ -247,7 +249,9 @@
       "coverQuota": "存储空间已满。",
       "coverOffline": "离线：图片未上传。",
       "coverBusy": "同时上传的图片太多，请一分钟后再试。",
-      "coverFailed": "图片未能保存，请重试。"
+      "coverFailed": "图片未能保存，请重试。",
+      "foldBlocked": "“{title}”连着不止一个上级点子，所以这一支不能折叠。",
+      "moveBlocked": "“{title}”连着上面不止一个点子，只能在同级点子之间换位置。"
     },
     "map": {
       "open": "导图",
@@ -264,6 +268,11 @@
       "emptyHint": "在任意位置双击，添加第一条。",
       "placeholder": "点子",
       "toolbar": "所选内容的样式",
+      "look": "外观",
+      "details": "详情",
+      "centre": "想法",
+      "closePanel": "关闭面板",
+      "panel": "所选内容",
       "color": "颜色",
       "auto": "自动",
       "fill": "填充",
@@ -321,11 +330,17 @@
         "create": "双击：新点子",
         "connect": "拖动圆点：连接",
         "child": "Tab：相连的点子",
+        "fold": "选中后 ⌘/Ctrl + .：折叠",
         "move": "拖动或空格：移动画布",
         "zoom": "⌘/Ctrl + 滚轮：缩放"
       },
       "selected": "已选择 {count} 个点子",
-      "followAgent": "跟随智能体"
+      "followAgent": "跟随智能体",
+      "fold": "折叠下级点子",
+      "unfold": "展开下级点子",
+      "foldBadge": "折叠了 {count} 个点子。展开",
+      "foldAll": "全部折叠",
+      "unfoldAll": "全部展开"
     },
     "agentWriting": "{name} 正在写…"
   },

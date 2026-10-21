@@ -256,6 +256,35 @@ test('the brush renames a thought and gives it a website that opens in a new tab
   await expect(page.locator('.w-map__bar').getByRole('link', { name: 'Open the website of “Clients”, example.com, in a new tab' })).toBeVisible();
 });
 
+test('a description under the title: on the card, the column and the map', async ({ page }) => {
+  await signIn(page, freshUser('desc'), 'en', { layout: 'cards' });
+  await tile(page, 'Inbox').getByRole('button', { name: 'Customise “Inbox”' }).click();
+  await panel(page).getByRole('textbox', { name: 'Description' }).fill('Everything that arrives first.');
+  // Kept when the field loses focus.
+  await panel(page).getByRole('textbox', { name: 'Name' }).click();
+  await page.keyboard.press('Escape');
+  await expect(panel(page)).toBeHidden();
+  await expect(tile(page, 'Inbox').locator('.w-tile__desc')).toHaveText('Everything that arrives first.');
+
+  await settled(page);
+  await page.reload();
+  await expect(tile(page, 'Inbox').locator('.w-tile__desc')).toHaveText('Everything that arrives first.');
+  await page.getByRole('button', { name: 'Columns' }).click();
+  const column = lane(page, 'Inbox');
+  await expect(column.locator('.w-lane__desc')).toHaveText('Everything that arrives first.');
+
+  // On the map the centre carries it, and it is edited there too.
+  await column.getByRole('button', { name: 'Map of “Inbox”' }).click();
+  await page.locator('.w-map__node[data-root]').click();
+  const side = page.getByRole('complementary', { name: 'The selection' });
+  const field = side.getByRole('textbox', { name: 'Description' });
+  await expect(field).toHaveValue('Everything that arrives first.');
+  await field.fill('');
+  await side.getByRole('textbox', { name: 'Name' }).click();
+  await page.getByRole('button', { name: 'Back to the board' }).click();
+  await expect(column.locator('.w-lane__desc')).toHaveCount(0);
+});
+
 test('cards and the customise sheet on a phone @mobile', async ({ page }) => {
   test.skip(page.viewportSize()!.width > 600, 'phone layout');
   await page.emulateMedia({ reducedMotion: 'reduce' });
@@ -269,7 +298,7 @@ test('cards and the customise sheet on a phone @mobile', async ({ page }) => {
   // A small card keeps its map and its menu; customising is in the menu.
   await expect(tile(page, 'Inbox').getByRole('button', { name: 'Customise “Inbox”' })).toBeHidden();
   await tile(page, 'Inbox').getByRole('button', { name: 'Thought “Inbox”: more actions' }).click();
-  await page.locator('.w-menu:popover-open').getByRole('button', { name: /^Name, website, cover/ }).click();
+  await page.locator('.w-menu:popover-open').getByRole('button', { name: /^Name, description, website, cover/ }).click();
   const sheet = (await panel(page).boundingBox())!;
   expect(sheet.width).toBe(390);
   expect(Math.round(sheet.y + sheet.height)).toBe(844);

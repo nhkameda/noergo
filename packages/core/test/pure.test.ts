@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { between, comparePositioned, isPosition, nBetween } from '../src/position';
 import { opSchema } from '../src/ops/schema';
+import { LIMITS } from '../src/limits';
 import { parseWikilinks, renameInBody } from '../src/ops/wikilinks';
 
 describe('position', () => {
@@ -47,6 +48,15 @@ describe('op schema', () => {
     const op = opSchema.parse({ type: 'lane.update', id, url: ' https://noergo.com/ ' });
     expect(op.type === 'lane.update' && op.url).toBe('https://noergo.com/');
     expect(opSchema.safeParse({ type: 'lane.update', id, url: null }).success).toBe(true);
+  });
+
+  it('trims a thought’s description and caps its length', () => {
+    const op = opSchema.parse({ type: 'lane.update', id, description: '  Clients we call  \n' });
+    expect(op.type === 'lane.update' && op.description).toBe('Clients we call');
+    expect(opSchema.safeParse({ type: 'lane.update', id, description: 'x'.repeat(LIMITS.laneDescription) }).success).toBe(true);
+    expect(opSchema.safeParse({ type: 'lane.update', id, description: 'x'.repeat(LIMITS.laneDescription + 1) }).success).toBe(false);
+    expect(opSchema.safeParse({ type: 'lane.create', id, boardId: id, title: 'x', description: 'x'.repeat(LIMITS.laneDescription + 1) }).success).toBe(false);
+    expect(opSchema.safeParse({ type: 'lane.update', id, description: null }).success).toBe(false);
   });
 
   it('takes one emoji or a noergo icon name as a board’s icon, and nothing else', () => {

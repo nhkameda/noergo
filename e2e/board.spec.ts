@@ -100,3 +100,51 @@ test('the workspace speaks Chinese', async ({ page }) => {
   await expect(page.locator('html')).toHaveAttribute('lang', 'zh-CN');
   await expect(page.getByRole('textbox', { name: /记/ })).toBeVisible();
 });
+
+test('a column as a tree: ideas under their idea, folded on every device, and they move with it', async ({ page, context }) => {
+  await page.emulateMedia({ reducedMotion: 'reduce' });
+  await signIn(page, freshUser('tree'));
+  // The branch is grown on the map, where Tab hangs a new idea from the selected one.
+  await lane(page, 'Inbox').getByRole('button', { name: 'Map of “Inbox”' }).click();
+  const welcome = page.locator('.w-map__node', { hasText: 'Welcome to noergo' });
+  for (const name of ['Extrusion', 'CNC', 'Anodising']) {
+    await welcome.click();
+    await page.keyboard.press('Tab');
+    await page.keyboard.type(name);
+    await page.keyboard.press('Enter');
+    await expect(page.locator('.w-map__node', { hasText: name })).toBeVisible();
+  }
+  await page.getByRole('button', { name: 'Back to the board' }).click();
+
+  // In the column, under it and in the order they were typed.
+  const titles = lane(page, 'Inbox').locator('.w-card__title');
+  await expect(titles).toHaveText(['Welcome to noergo', 'Extrusion', 'CNC', 'Anodising', 'Quick capture']);
+  await expect(page.locator('.w-card-slot', { has: card(page, 'CNC') })).toHaveAttribute('data-depth', '1');
+
+  // Folded here, folded on the other device too.
+  const other = await secondTab(context, page.url());
+  await card(page, 'Welcome to noergo').getByRole('button', { name: 'Fold the ideas below' }).click();
+  await expect(titles).toHaveText(['Welcome to noergo', 'Quick capture']);
+  const badge = (p: typeof page) => card(p, 'Welcome to noergo').getByRole('button', { name: '3 ideas folded inside. Show' });
+  await expect(badge(page)).toHaveText('3');
+  await expect(badge(other)).toHaveText('3');
+  await expect(card(other, 'CNC')).toHaveCount(0);
+
+  // Dragged below the next note, folded: what hangs from it goes along.
+  const below = (await card(page, 'Quick capture').boundingBox())!;
+  await card(page, 'Welcome to noergo').dragTo(card(page, 'Quick capture'), { targetPosition: { x: 40, y: below.height - 4 } });
+  await expect(titles).toHaveText(['Quick capture', 'Welcome to noergo']);
+  await badge(page).click();
+  await expect(titles).toHaveText(['Quick capture', 'Welcome to noergo', 'Extrusion', 'CNC', 'Anodising']);
+  await settled(page);
+  await page.reload();
+  await expect(titles).toHaveText(['Quick capture', 'Welcome to noergo', 'Extrusion', 'CNC', 'Anodising']);
+
+  // Alt + ↑ moves an idea among the ones beside it; out of its group it is dropped, not nudged.
+  await card(page, 'CNC').focus();
+  await page.keyboard.press('Alt+ArrowUp');
+  await expect(titles).toHaveText(['Quick capture', 'Welcome to noergo', 'CNC', 'Extrusion', 'Anodising']);
+  await card(page, 'Anodising').dragTo(card(page, 'Quick capture'), { targetPosition: { x: 40, y: 4 } });
+  await expect(titles).toHaveText(['Anodising', 'Quick capture', 'Welcome to noergo', 'CNC', 'Extrusion']);
+  await expect(page.locator('.w-card-slot', { has: card(page, 'Anodising') })).not.toHaveAttribute('data-depth');
+});

@@ -3,7 +3,7 @@
 import type { LinkDto, NoteDto } from '@noergo/core/dto';
 import { LIMITS } from '@noergo/core/limits';
 import { useFormatter, useNow, useTranslations } from 'next-intl';
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useId, useMemo, useRef, useState } from 'react';
 import { isComposing, useWorkspace } from './context';
 import { IconCheck, IconClose } from './icons';
 import { Markdown } from './Markdown';
@@ -35,7 +35,7 @@ function replaceText(el: HTMLTextAreaElement, before: string, after: string) {
  * keystroke); saves are patches against the last body the server confirmed, and whatever
  * arrives from elsewhere (an agent appending, another tab) is merged under the caret.
  */
-function BodyEditor({ note, onWikilink }: { note: NoteDto; onWikilink: (target: string) => void }) {
+export function BodyEditor({ note, onWikilink }: { note: NoteDto; onWikilink: (target: string) => void }) {
   const t = useTranslations('app');
   const { store } = useWorkspace();
   const ta = useRef<HTMLTextAreaElement>(null);
@@ -287,29 +287,10 @@ function linksOf(data: Data, noteId: string): { outgoing: LinkRow[]; incoming: L
   return { outgoing, incoming };
 }
 
-/**
- * The open note, beside the board (over it on a phone). Every field saves on its own;
- * nothing here has a Save button, because agents may be editing the same note.
- */
-export function NoteDrawer({ data, noteId, onClose }: { data: Data; noteId: string; onClose: () => void }) {
-  const t = useTranslations('app');
-  const format = useFormatter();
-  // "Updated 3 minutes ago" moves on while the note stays open.
-  const now = useNow({ updateInterval: 60_000 });
-  const { actions, openNote, store } = useWorkspace();
-  const where = locate(data, noteId);
-  const [titleDraft, setTitleDraft] = useState<string | null>(null);
-  const [urlDraft, setUrlDraft] = useState<string | null>(null);
-  const panel = useRef<HTMLElement>(null);
-  const { boards, lanes } = data;
-  const columns = useMemo(() => boardsOf(boards).map((b) => ({ board: b, lanes: lanesOf(lanes, b.id) })), [boards, lanes]);
-  const related = useMemo(() => linksOf(data, noteId), [data, noteId]);
-
-  useEffect(() => {
-    panel.current?.focus();
-  }, [noteId]);
-
-  const openByTitle = useCallback(
+/** Opens a note the way a wikilink names it: [[its title]], or note:<id>. */
+export function useOpenByTitle() {
+  const { openNote, store } = useWorkspace();
+  return useCallback(
     (target: string) => {
       const byId = /^note:([0-9a-f-]{36})$/i.exec(target);
       const all = store.getState().data;
@@ -325,15 +306,103 @@ export function NoteDrawer({ data, noteId, onClose }: { data: Data; noteId: stri
     },
     [openNote, store],
   );
+}
 
-  if (!where) return null;
-  const { note, lane, board } = where;
+/** Done, and the title as a field: Enter or leaving saves, Esc gives up. */
+export function NoteTitle({ note, onEscape }: { note: NoteDto; onEscape: () => void }) {
+  const t = useTranslations('app');
+  const { actions } = useWorkspace();
+  const [titleDraft, setTitleDraft] = useState<string | null>(null);
   const done = note.doneAt !== null;
-
   const commitTitle = () => {
     if (titleDraft !== null && titleDraft.trim() !== note.title) actions.updateNote(note.id, { title: titleDraft.trim() });
     setTitleDraft(null);
   };
+  return (
+    <div className="w-drawer__title-row">
+      <button
+        type="button"
+        className={`w-check w-check--lg${done ? ' w-check--on' : ''}`}
+        aria-pressed={done}
+        aria-label={done ? t('note.markOpen') : t('note.markDone')}
+        title={done ? t('note.markOpen') : t('note.markDone')}
+        onClick={() => actions.toggleDone(note)}
+      >
+        {done && <IconCheck />}
+      </button>
+      <textarea
+        className="w-drawer__title"
+        aria-label={t('note.title')}
+        placeholder={t('note.untitled')}
+        rows={1}
+        maxLength={LIMITS.noteTitle}
+        value={titleDraft ?? note.title}
+        onFocus={() => setTitleDraft(note.title)}
+        onChange={(e) => setTitleDraft(e.target.value.replace(/\n/g, ' '))}
+        onBlur={commitTitle}
+        onKeyDown={(e) => {
+          if (e.key === 'Enter' && !isComposing(e)) {
+            e.preventDefault();
+            e.currentTarget.blur();
+          } else if (e.key === 'Escape') {
+            e.preventDefault();
+            setTitleDraft(null);
+            requestAnimationFrame(onEscape);
+          }
+        }}
+      />
+    </div>
+  );
+}
+
+export function TagsField({ note }: { note: NoteDto }) {
+  const t = useTranslations('app');
+  return (
+    <div className="w-field">
+      <dt>{t('note.tags')}</dt>
+      <dd>
+        <TagEditor note={note} />
+      </dd>
+    </div>
+  );
+}
+
+export function DueField({ note }: { note: NoteDto }) {
+  const t = useTranslations('app');
+  const { actions } = useWorkspace();
+  const id = useId();
+  return (
+    <div className="w-field">
+      <dt>
+        <label htmlFor={id}>{t('note.dueDate')}</label>
+      </dt>
+      <dd className="w-field__row">
+        <input
+          id={id}
+          type="date"
+          className="w-input"
+          value={toDateInput(note.dueAt)}
+          onChange={(e) =>
+            actions.updateNote(note.id, {
+              dueAt: fromDateInput(e.target.value),
+            })
+          }
+        />
+        {note.dueAt && (
+          <button type="button" className="nr-btn nr-btn--sm nr-btn--fantasma" onClick={() => actions.updateNote(note.id, { dueAt: null })}>
+            {t('note.clearDue')}
+          </button>
+        )}
+      </dd>
+    </div>
+  );
+}
+
+export function LinkField({ note }: { note: NoteDto }) {
+  const t = useTranslations('app');
+  const { actions } = useWorkspace();
+  const id = useId();
+  const [urlDraft, setUrlDraft] = useState<string | null>(null);
   const commitUrl = () => {
     if (urlDraft === null) return;
     const v = urlDraft.trim();
@@ -345,6 +414,66 @@ export function NoteDrawer({ data, noteId, onClose }: { data: Data; noteId: stri
     setUrlDraft(null);
   };
   const urlInvalid = urlDraft !== null && urlDraft.trim() !== '' && !isSafeUrl(urlDraft.trim());
+  return (
+    <div className="w-field">
+      <dt>
+        <label htmlFor={id}>{t('note.link')}</label>
+      </dt>
+      <dd className="w-field__row">
+        <input
+          id={id}
+          type="url"
+          inputMode="url"
+          className="w-input"
+          placeholder={t('note.linkPlaceholder')}
+          aria-invalid={urlInvalid}
+          maxLength={LIMITS.url}
+          value={urlDraft ?? note.url ?? ''}
+          onFocus={() => setUrlDraft(note.url ?? '')}
+          onChange={(e) => setUrlDraft(e.target.value)}
+          onBlur={commitUrl}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter') {
+              e.preventDefault();
+              e.currentTarget.blur();
+            }
+          }}
+        />
+        {note.url && urlDraft === null && (
+          <a className="nr-btn nr-btn--sm nr-btn--fantasma" href={note.url} target="_blank" rel="noopener noreferrer nofollow ugc">
+            {t('note.openLink')}
+          </a>
+        )}
+      </dd>
+      {urlInvalid && <small className="w-field__error">{t('note.linkInvalid')}</small>}
+    </div>
+  );
+}
+
+/**
+ * The open note, beside the board (over it on a phone). Every field saves on its own;
+ * nothing here has a Save button, because agents may be editing the same note.
+ */
+export function NoteDrawer({ data, noteId, onClose }: { data: Data; noteId: string; onClose: () => void }) {
+  const t = useTranslations('app');
+  const format = useFormatter();
+  // "Updated 3 minutes ago" moves on while the note stays open.
+  const now = useNow({ updateInterval: 60_000 });
+  const { actions } = useWorkspace();
+  const where = locate(data, noteId);
+  const panel = useRef<HTMLElement>(null);
+  const { boards, lanes } = data;
+  const columns = useMemo(() => boardsOf(boards).map((b) => ({ board: b, lanes: lanesOf(lanes, b.id) })), [boards, lanes]);
+  const related = useMemo(() => linksOf(data, noteId), [data, noteId]);
+  const openByTitle = useOpenByTitle();
+  const colId = useId();
+
+  useEffect(() => {
+    panel.current?.focus();
+  }, [noteId]);
+
+  if (!where) return null;
+  const { note, lane, board } = where;
 
   return (
     <aside
@@ -370,78 +499,19 @@ export function NoteDrawer({ data, noteId, onClose }: { data: Data; noteId: stri
         </button>
       </header>
 
-      <div className="w-drawer__title-row">
-        <button
-          type="button"
-          className={`w-check w-check--lg${done ? ' w-check--on' : ''}`}
-          aria-pressed={done}
-          aria-label={done ? t('note.markOpen') : t('note.markDone')}
-          title={done ? t('note.markOpen') : t('note.markDone')}
-          onClick={() => actions.toggleDone(note)}
-        >
-          {done && <IconCheck />}
-        </button>
-        <textarea
-          className="w-drawer__title"
-          aria-label={t('note.title')}
-          placeholder={t('note.untitled')}
-          rows={1}
-          maxLength={LIMITS.noteTitle}
-          value={titleDraft ?? note.title}
-          onFocus={() => setTitleDraft(note.title)}
-          onChange={(e) => setTitleDraft(e.target.value.replace(/\n/g, ' '))}
-          onBlur={commitTitle}
-          onKeyDown={(e) => {
-            if (e.key === 'Enter' && !isComposing(e)) {
-              e.preventDefault();
-              e.currentTarget.blur();
-            } else if (e.key === 'Escape') {
-              e.preventDefault();
-              setTitleDraft(null);
-              requestAnimationFrame(() => panel.current?.focus());
-            }
-          }}
-        />
-      </div>
+      <NoteTitle note={note} onEscape={() => panel.current?.focus()} />
 
       <BodyEditor key={note.id} note={note} onWikilink={openByTitle} />
 
       <dl className="w-fields">
-        <div className="w-field">
-          <dt>{t('note.tags')}</dt>
-          <dd>
-            <TagEditor note={note} />
-          </dd>
-        </div>
+        <TagsField note={note} />
+        <DueField note={note} />
         <div className="w-field">
           <dt>
-            <label htmlFor="w-due">{t('note.dueDate')}</label>
-          </dt>
-          <dd className="w-field__row">
-            <input
-              id="w-due"
-              type="date"
-              className="w-input"
-              value={toDateInput(note.dueAt)}
-              onChange={(e) =>
-                actions.updateNote(note.id, {
-                  dueAt: fromDateInput(e.target.value),
-                })
-              }
-            />
-            {note.dueAt && (
-              <button type="button" className="nr-btn nr-btn--sm nr-btn--fantasma" onClick={() => actions.updateNote(note.id, { dueAt: null })}>
-                {t('note.clearDue')}
-              </button>
-            )}
-          </dd>
-        </div>
-        <div className="w-field">
-          <dt>
-            <label htmlFor="w-col">{t('note.column')}</label>
+            <label htmlFor={colId}>{t('note.column')}</label>
           </dt>
           <dd>
-            <select id="w-col" className="w-input" value={lane.id} onChange={(e) => actions.moveNote(note.id, e.target.value, 0)}>
+            <select id={colId} className="w-input" value={lane.id} onChange={(e) => actions.moveNote(note.id, { laneId: e.target.value, index: 0 })}>
               {columns.map(({ board: b, lanes: ls }) => (
                 <optgroup key={b.id} label={b.title}>
                   {ls.map((l) => (
@@ -454,38 +524,7 @@ export function NoteDrawer({ data, noteId, onClose }: { data: Data; noteId: stri
             </select>
           </dd>
         </div>
-        <div className="w-field">
-          <dt>
-            <label htmlFor="w-url">{t('note.link')}</label>
-          </dt>
-          <dd className="w-field__row">
-            <input
-              id="w-url"
-              type="url"
-              inputMode="url"
-              className="w-input"
-              placeholder={t('note.linkPlaceholder')}
-              aria-invalid={urlInvalid}
-              maxLength={LIMITS.url}
-              value={urlDraft ?? note.url ?? ''}
-              onFocus={() => setUrlDraft(note.url ?? '')}
-              onChange={(e) => setUrlDraft(e.target.value)}
-              onBlur={commitUrl}
-              onKeyDown={(e) => {
-                if (e.key === 'Enter') {
-                  e.preventDefault();
-                  e.currentTarget.blur();
-                }
-              }}
-            />
-            {note.url && urlDraft === null && (
-              <a className="nr-btn nr-btn--sm nr-btn--fantasma" href={note.url} target="_blank" rel="noopener noreferrer nofollow ugc">
-                {t('note.openLink')}
-              </a>
-            )}
-          </dd>
-          {urlInvalid && <small className="w-field__error">{t('note.linkInvalid')}</small>}
-        </div>
+        <LinkField note={note} />
         <div className="w-field">
           <dt>{t('color')}</dt>
           <dd>

@@ -5,6 +5,7 @@ import { between } from '@noergo/core/position';
 import { splitText } from './import-ideario';
 import { boardsOf, lanesOf, notesByLane, type Data } from './model';
 import type { WorkspaceStore } from './store';
+import { columnTree, descendants, noteKey, noteOf, siblings } from './tree';
 
 type Positioned = { id: string; position: string };
 type NoteFields = Pick<Extract<Op, { type: 'note.update' }>, 'title' | 'url' | 'color' | 'done' | 'dueAt'>;
@@ -91,10 +92,10 @@ export class Actions {
     return id;
   }
 
-  updateLane(id: string, patch: { title?: string; color?: string | null; url?: string | null }) {
+  updateLane(id: string, patch: { title?: string; color?: string | null; url?: string | null; description?: string }) {
     const cur = this.data?.lanes.get(id);
     if (!cur) return;
-    const before = { ...(patch.title !== undefined ? { title: cur.title } : {}), ...(patch.color !== undefined ? { color: cur.color } : {}), ...(patch.url !== undefined ? { url: cur.url } : {}) };
+    const before = { ...(patch.title !== undefined ? { title: cur.title } : {}), ...(patch.color !== undefined ? { color: cur.color } : {}), ...(patch.url !== undefined ? { url: cur.url } : {}), ...(patch.description !== undefined ? { description: cur.description } : {}) };
     this.store.dispatch({ type: 'lane.update', id, ...patch }, { undo: [{ type: 'lane.update', id, ...before }] });
   }
 
@@ -178,6 +179,15 @@ export class Actions {
     this.store.dispatch({ type: 'note.update', id, ...patch }, { undo: [{ type: 'note.update', id, ...before }] });
   }
 
+  /**
+   * Folds or unfolds ideas. Not undoable: one click puts it back, and Ctrl+Z should reach
+   * the last change to the content, not the last look at it.
+   */
+  setCollapsed(ids: readonly string[], collapsed: boolean) {
+    const ops: Op[] = ids.filter((id) => this.data?.notes.get(id)?.collapsed === !collapsed).map((id) => ({ type: 'note.update', id, collapsed }));
+    if (ops.length) this.store.dispatch(ops);
+  }
+
   toggleDone(note: NoteDto) {
     this.updateNote(note.id, { done: note.doneAt === null });
   }
@@ -197,47 +207,110 @@ export class Actions {
     this.store.notify({ tone: 'info', key: 'deletedNote', undo: () => this.store.dispatch(undo) });
   }
 
-  /** Moves a note to `index` of a column (its own or another). */
-  moveNote(id: string, laneId: string, index: number): { index: number; total: number } | null {
+  /**
+   * Moves a note to `index` among the ideas hanging from `parent` (null: the top of the
+   * column) in a column, its own or another. What hangs from it goes along. Landing under
+   * another idea moves the link it hangs by, so the map shows the same tree; an idea that
+   * hangs from two only changes place among its siblings, and none lands under itself.
+   */
+  moveNote(id: string, to: { laneId: string; parent?: string | null; index: number }): { index: number; total: number } | null {
     const data = this.data;
     const cur = data?.notes.get(id);
-    if (!data || !cur || !data.lanes.get(laneId)) return null;
-    const list = notesByLane(data.notes, [laneId]).get(laneId) ?? [];
-    const position = positionAt(list, index, id);
-    if (position === cur.position && laneId === cur.laneId) return null;
-    this.store.dispatch({ type: 'note.move', id, laneId, place: { position } }, { undo: [{ type: 'note.move', id, laneId: cur.laneId, place: { position: cur.position } }] });
-    const total = list.filter((n) => n.id !== id).length + 1;
-    return { index: Math.min(index, total - 1), total };
+    if (!data || !cur || !data.lanes.get(to.laneId)) return null;
+    const parent = to.parent ?? null;
+    const from = columnTree(data, cur.laneId);
+    if (parent !== null && (parent === id || (to.laneId === cur.laneId && from.below(noteKey(id)).includes(noteKey(parent))))) return null;
+    const host = parent === null ? null : data.notes.get(parent);
+    if (parent !== null && (!host || host.laneId !== to.laneId || host.deletedAt !== null)) return null;
+
+    // The links it hangs by in the column it lands in, the centre's included.
+    const into = (r: { kind: string; id: string }) => (r.kind === 'lane' ? r.id === to.laneId : r.kind === 'note' && r.id !== id && data.notes.get(r.id)?.laneId === to.laneId && data.notes.get(r.id)?.deletedAt === null);
+    const ins = [...data.links.values()].filter((l) => l.deletedAt === null && l.to.kind === 'note' && l.to.id === id && into(l.from)).sort((a, b) => (a.id < b.id ? -1 : 1));
+    // In its own column the tree says where it hangs (a loop is cut at the top).
+    const now = to.laneId === cur.laneId ? noteOf(from.parent.get(noteKey(id))) : ins[0]?.from.kind === 'note' ? ins[0].from.id : null;
+    const regroup = now !== parent;
+    if (regroup && new Set(ins.map((l) => `${l.from.kind}:${l.from.id}`)).size > 1) {
+      const title = cur.title || cur.excerpt;
+      this.store.notify({ tone: 'info', key: 'moveBlocked', values: { title } });
+      return null;
+    }
+    if (regroup && parent !== null && [...data.links.values()].some((l) => l.deletedAt === null && l.from.kind === 'note' && l.from.id === id && l.to.kind === 'note' && l.to.id === parent)) return null;
+
+    const list = notesByLane(data.notes, [to.laneId]).get(to.laneId) ?? [];
+    const tree = to.laneId === cur.laneId ? from : columnTree(data, to.laneId);
+    const others = siblings(list, tree, parent).filter((n) => n.id !== id);
+    const i = Math.max(0, Math.min(to.index, others.length));
+    const result = { index: i, total: others.length + 1 };
+    if (!regroup && to.laneId === cur.laneId && siblings(list, tree, parent).findIndex((n) => n.id === id) === i) return null;
+    const position = between(others[i - 1]?.position ?? null, others[i]?.position ?? null);
+
+    const ops: Op[] = [{ type: 'note.move', id, laneId: to.laneId, place: { position } }];
+    const undo: Op[] = [{ type: 'note.move', id, laneId: cur.laneId, place: { position: cur.position } }];
+    if (to.laneId !== cur.laneId) {
+      // Its branch keeps its order: places only count among siblings.
+      for (const d of descendants(from, id)) {
+        const n = data.notes.get(d)!;
+        ops.push({ type: 'note.move', id: d, laneId: to.laneId, place: { position: n.position } });
+        undo.push({ type: 'note.move', id: d, laneId: n.laneId, place: { position: n.position } });
+      }
+    }
+    const redo = [...ops];
+    if (regroup) {
+      for (const l of ins) {
+        ops.push({ type: 'link.delete', id: l.id });
+        redo.push({ type: 'link.delete', id: l.id });
+        undo.unshift({ type: 'link.restore', id: l.id });
+      }
+      if (parent !== null) {
+        const link = newId();
+        ops.push({ type: 'link.create', id: link, from: { kind: 'note', id: parent }, to: { kind: 'note', id } });
+        redo.push({ type: 'link.restore', id: link });
+        undo.unshift({ type: 'link.delete', id: link });
+      }
+    }
+    this.store.dispatch(ops, { undo, redo });
+    return result;
   }
 
-  /** Drop of a note on another, above or below it. */
-  moveNoteNear(id: string, targetId: string, edge: 'top' | 'bottom' | null) {
+  /**
+   * Drop of a note on another, above or below it. Below an idea whose own ideas follow it
+   * on show is the first of those.
+   */
+  moveNoteNear(id: string, targetId: string, edge: 'top' | 'bottom' | null, open = false) {
     const data = this.data;
     const target = data?.notes.get(targetId);
-    if (!data || !target || id === targetId) return;
-    const others = (notesByLane(data.notes, [target.laneId]).get(target.laneId) ?? []).filter((n) => n.id !== id);
+    if (!data || !target || id === targetId) return null;
+    if (edge === 'bottom' && open) return this.moveNote(id, { laneId: target.laneId, parent: targetId, index: 0 });
+    const tree = columnTree(data, target.laneId);
+    const parent = noteOf(tree.parent.get(noteKey(targetId)));
+    const others = siblings(notesByLane(data.notes, [target.laneId]).get(target.laneId) ?? [], tree, parent).filter((n) => n.id !== id);
     const i = others.findIndex((n) => n.id === targetId);
-    this.moveNote(id, target.laneId, edge === 'top' ? i : i + 1);
+    return this.moveNote(id, { laneId: target.laneId, parent, index: edge === 'top' ? i : i + 1 });
   }
 
-  /** Keyboard moves: up/down inside the column, left/right to the neighbouring column. */
+  /**
+   * Keyboard moves: up/down among the ideas beside it, left/right to the top of the
+   * neighbouring column, at the same place.
+   */
   nudgeNote(id: string, dir: 'up' | 'down' | 'left' | 'right'): { laneId: string; index: number; total: number } | null {
     const data = this.data;
     const cur = data?.notes.get(id);
     const lane = cur && data?.lanes.get(cur.laneId);
     if (!data || !cur || !lane) return null;
-    const list = notesByLane(data.notes, [cur.laneId]).get(cur.laneId) ?? [];
+    const tree = columnTree(data, cur.laneId);
+    const parent = noteOf(tree.parent.get(noteKey(id)));
+    const list = siblings(notesByLane(data.notes, [cur.laneId]).get(cur.laneId) ?? [], tree, parent);
     const at = list.findIndex((n) => n.id === id);
     if (dir === 'up' || dir === 'down') {
       const to = dir === 'up' ? at - 1 : at + 1;
       if (to < 0 || to >= list.length) return null;
-      const moved = this.moveNote(id, cur.laneId, to);
+      const moved = this.moveNote(id, { laneId: cur.laneId, parent, index: to });
       return moved && { laneId: cur.laneId, ...moved };
     }
     const lanes = lanesOf(data.lanes, lane.boardId);
     const next = lanes[lanes.findIndex((l) => l.id === lane.id) + (dir === 'left' ? -1 : 1)];
     if (!next) return null;
-    const moved = this.moveNote(id, next.id, at);
+    const moved = this.moveNote(id, { laneId: next.id, index: at });
     return moved && { laneId: next.id, ...moved };
   }
 }

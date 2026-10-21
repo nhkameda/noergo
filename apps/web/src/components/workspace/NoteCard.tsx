@@ -7,11 +7,12 @@ import { extractClosestEdge } from '@atlaskit/pragmatic-drag-and-drop-hitbox/clo
 import type { Edge } from '@atlaskit/pragmatic-drag-and-drop-hitbox/types';
 import type { NoteDto } from '@noergo/core/dto';
 import { useFormatter, useTranslations } from 'next-intl';
-import { memo, useEffect, useRef, useState, type KeyboardEvent } from 'react';
+import { memo, useEffect, useRef, useState, type CSSProperties, type KeyboardEvent } from 'react';
 import { agentProps, useAgentMark } from './agent-marks';
 import { isEditable, useWorkspace } from './context';
-import { IconCalendar, IconCheck, IconLink } from './icons';
+import { IconCalendar, IconCheck, IconLink, IconMinus } from './icons';
 import { corProps } from './cover';
+import { columnTree, noteKey, noteOf, type ColumnRow } from './tree';
 
 /** Focus a card after React has drawn it in its new place. */
 export function focusNote(id: string) {
@@ -35,11 +36,19 @@ function focusSibling(from: HTMLElement, dir: 'up' | 'down' | 'left' | 'right') 
 
 const ARROWS: Record<string, 'up' | 'down' | 'left' | 'right'> = { ArrowUp: 'up', ArrowDown: 'down', ArrowLeft: 'left', ArrowRight: 'right' };
 
+type Branch = Pick<ColumnRow, 'depth' | 'open' | 'folded' | 'branch' | 'blocker'> & {
+  /** Hangs below the card being dragged, and goes with it. */
+  carried?: boolean;
+  /** An agent just added something to what is folded in it. */
+  agentInside?: boolean;
+};
+
 /**
  * A note on the board. Drag it with the mouse or finger; with the keyboard, arrows move
- * the focus and Alt + arrows move the note (announced to screen readers).
+ * the focus and Alt + arrows move the note (announced to screen readers). Ideas hanging
+ * from it sit indented under it, go where it goes, and fold into a count.
  */
-export const NoteCard = memo(function NoteCard({ note }: { note: NoteDto }) {
+export const NoteCard = memo(function NoteCard({ note, depth = 0, open = false, folded = 0, branch = 'leaf', blocker = null, carried = false, agentInside = false }: { note: NoteDto } & Partial<Branch>) {
   const t = useTranslations('app');
   const format = useFormatter();
   const { actions, openNote, announce, store } = useWorkspace();
@@ -54,25 +63,40 @@ export const NoteCard = memo(function NoteCard({ note }: { note: NoteDto }) {
     return combine(
       draggable({
         element: el,
-        getInitialData: () => ({ type: 'note', id: note.id, laneId: note.laneId }),
+        // What it reaches through its links can't take it in: no idea lands under itself.
+        getInitialData: () => {
+          const data = store.getState().data;
+          const below = data ? columnTree(data, note.laneId).below(noteKey(note.id)).map(noteOf) : [];
+          return { type: 'note', id: note.id, laneId: note.laneId, below };
+        },
         onDragStart: () => setDragging(true),
         onDrop: () => setDragging(false),
       }),
       dropTargetForElements({
         element: el,
-        canDrop: ({ source }) => source.data.type === 'note' && source.data.id !== note.id,
-        getData: ({ input, element }) => attachClosestEdge({ type: 'note', id: note.id, laneId: note.laneId }, { input, element, allowedEdges: ['top', 'bottom'] }),
+        canDrop: ({ source }) => source.data.type === 'note' && source.data.id !== note.id && !(source.data.below as (string | null)[] | undefined)?.includes(note.id),
+        getData: ({ input, element }) => attachClosestEdge({ type: 'note', id: note.id, laneId: note.laneId, open }, { input, element, allowedEdges: ['top', 'bottom'] }),
         onDrag: ({ self }) => setEdge(extractClosestEdge(self.data)),
         onDragLeave: () => setEdge(null),
         onDrop: () => setEdge(null),
       }),
     );
-  }, [note.id, note.laneId]);
+  }, [note.id, note.laneId, open, store]);
+
+  const toggleFold = () => {
+    if (folded > 0 || branch === 'fold') return actions.setCollapsed([note.id], !(folded > 0 || note.collapsed));
+    // Something below hangs from two: it stays open, and the person is told why.
+    if (note.collapsed) actions.setCollapsed([note.id], false);
+    store.notify({ tone: 'info', key: 'foldBlocked', values: { title: blocker || t('note.untitled') } });
+  };
 
   const onKeyDown = (e: KeyboardEvent<HTMLElement>) => {
     if (e.target !== e.currentTarget || isEditable(e.target)) return;
     const dir = ARROWS[e.key];
-    if (dir && e.altKey) {
+    if ((e.metaKey || e.ctrlKey) && e.key === '.') {
+      e.preventDefault();
+      if (branch !== 'leaf' || folded > 0) toggleFold();
+    } else if (dir && e.altKey) {
       e.preventDefault();
       const moved = actions.nudgeNote(note.id, dir);
       if (moved) {
@@ -99,10 +123,10 @@ export const NoteCard = memo(function NoteCard({ note }: { note: NoteDto }) {
   const title = note.title || note.excerpt || t('note.untitled');
 
   return (
-    <li className="w-card-slot" data-edge={edge ?? undefined}>
+    <li className="w-card-slot" data-edge={edge ?? undefined} data-depth={depth || undefined} data-open={open || undefined} style={depth ? ({ '--depth': Math.min(depth, 4) } as CSSProperties) : undefined}>
       <article
         ref={ref}
-        className={`nr-card w-card${done ? ' nr-card--feito' : ''}${dragging ? ' w-card--dragging' : ''}`}
+        className={`nr-card w-card${done ? ' nr-card--feito' : ''}${dragging || carried ? ' w-card--dragging' : ''}`}
         {...corProps(note.color)}
         {...agentProps(agent)}
         data-note-id={note.id}
@@ -127,6 +151,25 @@ export const NoteCard = memo(function NoteCard({ note }: { note: NoteDto }) {
             {done && <IconCheck />}
           </button>
           <span className="nr-card__titulo w-card__title">{title}</span>
+          {folded > 0 ? (
+            <button type="button" className="w-card__fold" data-folded data-agent-inside={agentInside || undefined} aria-expanded={false} aria-label={t('map.foldBadge', { count: folded })} title={t('map.foldBadge', { count: folded })} onClick={toggleFold}>
+              {folded > 99 ? '99+' : folded}
+            </button>
+          ) : (
+            branch !== 'leaf' && (
+              <button
+                type="button"
+                className="w-card__fold"
+                data-blocked={branch === 'blocked' || undefined}
+                aria-expanded={true}
+                aria-label={t('map.fold')}
+                title={branch === 'blocked' ? t('notices.foldBlocked', { title: blocker || t('note.untitled') }) : t('map.fold')}
+                onClick={toggleFold}
+              >
+                <IconMinus />
+              </button>
+            )
+          )}
         </div>
         {note.title && note.excerpt && <p className="w-card__excerpt">{note.excerpt}</p>}
         {(note.tags.length > 0 || due || note.url) && (

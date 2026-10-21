@@ -160,6 +160,8 @@ export interface LanesTable extends Versioned {
   cover: ColumnType<CoverFrame | null, string | null | undefined, string | null>;
   /** The thought's website, absolute http(s). */
   url: Defaulted<string | null>;
+  /** A line or a paragraph under the title; '' when there is none. */
+  description: Defaulted<string>;
 }
 
 /** How a column's cover image sits in its 3:1 frame (lanes.cover). */
@@ -190,6 +192,8 @@ export interface NotesTable extends Versioned {
   tags: Defaulted<string[]>;
   done_at: Timestamp | null;
   due_at: Timestamp | null;
+  /** What hangs from it is hidden in the column and on the map. */
+  collapsed: Defaulted<boolean>;
   fts: ColumnType<string | null, never, never>;
 }
 

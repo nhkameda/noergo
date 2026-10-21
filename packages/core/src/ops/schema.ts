@@ -101,8 +101,8 @@ export const opSchema = z.discriminatedUnion('type', [
   z.object({ type: z.literal('board.delete'), id }),
   z.object({ type: z.literal('board.restore'), id }),
 
-  z.object({ type: z.literal('lane.create'), id, boardId: id, title: trimmed(LIMITS.laneTitle).pipe(z.string().min(1)), color: color.optional(), url: webUrl.nullable().optional(), place: placement.optional() }),
-  z.object({ type: z.literal('lane.update'), id, title: trimmed(LIMITS.laneTitle).pipe(z.string().min(1)).optional(), color: color.optional(), cover: cover.optional(), url: webUrl.nullable().optional() }),
+  z.object({ type: z.literal('lane.create'), id, boardId: id, title: trimmed(LIMITS.laneTitle).pipe(z.string().min(1)), color: color.optional(), url: webUrl.nullable().optional(), description: trimmed(LIMITS.laneDescription).optional(), place: placement.optional() }),
+  z.object({ type: z.literal('lane.update'), id, title: trimmed(LIMITS.laneTitle).pipe(z.string().min(1)).optional(), color: color.optional(), cover: cover.optional(), url: webUrl.nullable().optional(), description: trimmed(LIMITS.laneDescription).optional() }),
   z.object({ type: z.literal('lane.move'), id, boardId: id.optional(), place: placement }),
   z.object({ type: z.literal('lane.delete'), id }),
   z.object({ type: z.literal('lane.restore'), id }),
@@ -137,6 +137,8 @@ export const opSchema = z.discriminatedUnion('type', [
     tagsRemove: z.array(tag).max(LIMITS.tags).optional(),
     done: z.boolean().optional(),
     dueAt: z.iso.datetime({ offset: true }).nullable().optional(),
+    /** Hides what hangs from it, in the column and on the map. */
+    collapsed: z.boolean().optional(),
   }),
   z.object({ type: z.literal('note.move'), id, laneId: id, place: placement }),
   z.object({ type: z.literal('note.delete'), id }),

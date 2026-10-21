@@ -281,7 +281,7 @@ export async function applyOp(tx: Tx, ctx: OpCtx, op: Op): Promise<Applied> {
       const position = await resolvePlace(tx, ctx, 'lanes', op.boardId, op.place);
       const row = await tx
         .insertInto('lanes')
-        .values({ id: op.id, workspace_id: ws, board_id: op.boardId, title: op.title, color: op.color ?? null, url: op.url ?? null, position, created_by: ctx.actorId, updated_by: ctx.actorId })
+        .values({ id: op.id, workspace_id: ws, board_id: op.boardId, title: op.title, color: op.color ?? null, url: op.url ?? null, description: op.description ?? '', position, created_by: ctx.actorId, updated_by: ctx.actorId })
         .onConflict((oc) => oc.column('id').doNothing())
         .returningAll()
         .executeTakeFirst();
@@ -290,7 +290,7 @@ export async function applyOp(tx: Tx, ctx: OpCtx, op: Op): Promise<Applied> {
     }
     case 'lane.update': {
       const cur = await loadLane(tx, ctx, op.id);
-      const patch = { ...(op.title !== undefined ? { title: op.title } : {}), ...(op.color !== undefined ? { color: op.color } : {}), ...(op.url !== undefined ? { url: op.url } : {}) };
+      const patch = { ...(op.title !== undefined ? { title: op.title } : {}), ...(op.color !== undefined ? { color: op.color } : {}), ...(op.url !== undefined ? { url: op.url } : {}), ...(op.description !== undefined ? { description: op.description } : {}) };
       const changed = Object.entries(patch).some(([k, v]) => cur[k as keyof Lane] !== v);
       let cover: { cover_id: string | null; cover: string | null } | null = null;
       if (op.cover !== undefined) {
@@ -375,6 +375,7 @@ export async function applyOp(tx: Tx, ctx: OpCtx, op: Op): Promise<Applied> {
       if (op.color !== undefined && op.color !== cur.color) patch.color = op.color;
       if (tags !== cur.tags && (tags.length !== cur.tags.length || tags.some((t, i) => t !== cur.tags[i]))) patch.tags = tags;
       if (op.done !== undefined && op.done !== (cur.done_at !== null)) patch.done_at = op.done ? new Date() : null;
+      if (op.collapsed !== undefined && op.collapsed !== cur.collapsed) patch.collapsed = op.collapsed;
       if (op.dueAt !== undefined) {
         const next = op.dueAt === null ? null : new Date(op.dueAt);
         const prev = cur.due_at === null ? null : new Date(cur.due_at).getTime();

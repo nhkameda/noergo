@@ -46,7 +46,9 @@
 .w-map[data-tinted] .w-map__bar :is(.w-icon-btn, .nr-btn--fantasma):hover { background: color-mix(in srgb, var(--lane-on) 14%, transparent); }
 .w-map[data-tinted] .w-map__canvas { background-color: color-mix(in oklab, var(--lane) 7%, var(--nr-surface)); }
 
-.w-map__stage { position: relative; flex: 1; min-height: 0; }
+/* The canvas, and beside it the panel of what is selected. */
+.w-map__stage { position: relative; display: flex; flex: 1; min-height: 0; }
+.w-map__view { position: relative; flex: 1; min-width: 0; }
 .w-map__canvas {
   position: absolute;
   inset: 0;
@@ -166,6 +168,51 @@
 .w-map__node .w-map__handle:hover { background: var(--nr-focus); transform: scale(1.3); }
 .is-panning .w-map__handle { display: none; }
 
+/* Folding, on the side the branch grows: a small "−" on hover where it can fold, and once
+   folded a red count of what is inside, like an unread badge. A click on either toggles. */
+.w-map__fold {
+  position: absolute;
+  z-index: 3;
+  top: 50%;
+  display: grid;
+  place-items: center;
+  min-width: 20px;
+  height: 20px;
+  margin-top: -10px;
+  padding: 0;
+  color: var(--nr-text-muted);
+  background: var(--nr-surface);
+  border: 1.5px solid var(--nr-border-strong);
+  border-radius: 999px;
+  box-shadow: var(--nr-shadow-1);
+  cursor: pointer;
+  opacity: 0;
+  transition: opacity var(--nr-dur-fast), background var(--nr-dur-fast), color var(--nr-dur-fast);
+}
+.w-map__fold svg { width: 12px; height: 12px; }
+.w-map__fold[data-side="e"] { left: calc(100% + 30px); }
+.w-map__fold[data-side="w"] { right: calc(100% + 30px); }
+.w-map__node:hover .w-map__fold,
+.w-map__node[data-selected] .w-map__fold { opacity: 1; }
+.w-map__fold:hover { color: var(--nr-text); border-color: var(--nr-focus); }
+.w-map__node[data-folded] .w-map__fold {
+  padding: 0 6px;
+  color: #fff;
+  background: var(--nr-danger-fill);
+  border-color: var(--nr-surface);
+  font: 700 11px/1 var(--nr-font-ui);
+  font-variant-numeric: tabular-nums;
+  opacity: 1;
+}
+.w-map__node[data-folded] .w-map__fold:hover { filter: brightness(1.08); }
+/* A stub of the folded branch, from the idea to its count. */
+.w-map__node[data-folded] .w-map__fold::before { content: ""; position: absolute; top: 50%; width: 28px; height: 2px; margin-top: -1px; background: var(--nr-border-strong); }
+.w-map__node[data-folded] .w-map__fold[data-side="e"]::before { right: 100%; }
+.w-map__node[data-folded] .w-map__fold[data-side="w"]::before { left: 100%; }
+/* An agent just added something inside: the count wears the agents' colour for a moment. */
+.w-map__fold[data-agent-inside] { box-shadow: 0 0 0 2px var(--nr-surface), 0 0 0 4px var(--nr-agent); }
+.is-panning .w-map__fold { pointer-events: none; }
+
 /* ───── links */
 
 .w-map__edge { --line: var(--nr-border-strong); }
@@ -204,57 +251,108 @@
 }
 .w-map__empty strong { font: var(--nr-weight-bold) var(--nr-text-lg) var(--nr-font-display); color: var(--nr-text-muted); }
 
-/* ───── style bar, hints, zoom */
+/* ───── the panel: the selection's text, details and look */
 
-.w-map__toolbar {
-  position: absolute;
-  left: 50%;
-  bottom: var(--nr-space-5);
-  z-index: 3;
+.w-map__panel {
   display: flex;
-  align-items: stretch;
-  gap: 2px;
-  width: max-content;
-  max-width: calc(100% - 32px);
-  padding: 6px;
-  overflow-x: auto;
-  color: var(--nr-on-primary);
-  background: var(--nr-primary);
-  border-radius: 18px;
-  box-shadow: var(--nr-shadow-3);
-  transform: translateX(-50%);
-  animation: w-map-bar var(--nr-dur-base) var(--nr-ease-out);
-  scrollbar-width: none;
+  flex: none;
+  flex-direction: column;
+  gap: var(--nr-space-4);
+  width: 340px;
+  padding: var(--nr-space-3) var(--nr-space-4) var(--nr-space-5);
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  background: var(--nr-surface);
+  border-left: 1px solid var(--nr-border);
+  animation: w-map-panel var(--nr-dur-base) var(--nr-ease-out);
 }
-@keyframes w-map-bar { from { opacity: 0; transform: translate(-50%, 16px); } }
-.w-map__tb-group { flex: none; display: flex; flex-direction: column; gap: 4px; padding: 4px 8px 5px; }
-.w-map__tb-group + .w-map__tb-group { border-left: 1px solid color-mix(in srgb, currentColor 14%, transparent); }
-.w-map__tb-label { padding-left: 2px; font: var(--nr-weight-medium) 9.5px/1 var(--nr-font-mono); letter-spacing: 0.14em; text-transform: uppercase; white-space: nowrap; opacity: 0.55; }
-.w-map__tb-items { display: flex; align-items: center; gap: 2px; min-height: 32px; }
+@keyframes w-map-panel { from { opacity: 0; transform: translateX(12px); } }
+.w-map__panel-head { display: flex; align-items: center; justify-content: space-between; gap: var(--nr-space-2); margin-bottom: calc(var(--nr-space-2) * -1); }
+.w-map__panel-kicker,
+.w-map__panel-label { margin: 0; color: var(--nr-text-subtle); font: var(--nr-weight-medium) 10.5px/1 var(--nr-font-mono); letter-spacing: var(--nr-tracking-caps); text-transform: uppercase; }
+.w-map__panel-section { display: grid; gap: var(--nr-space-2); }
+.w-map__panel-row { display: flex; flex-wrap: wrap; gap: var(--nr-space-1); }
+.w-map__panel-ends { display: flex; flex-wrap: wrap; align-items: center; gap: var(--nr-space-2); margin: 0; font: var(--nr-weight-semibold) var(--nr-text-md)/1.3 var(--nr-font-ui); overflow-wrap: anywhere; }
+.w-map__panel-ends > [aria-hidden] { color: var(--nr-text-subtle); }
+.w-map__panel-input { width: 100%; }
+.w-map__panel-list { display: grid; gap: 4px; margin: 0; padding: 0; list-style: none; font-size: var(--nr-text-sm); }
+.w-map__panel-list li { overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+.w-map__panel .w-drawer__title { font-size: var(--nr-text-xl); }
+.w-map__panel .w-check--lg { margin-top: 2px; }
+/* A long note scrolls inside its box, so the look stays a short scroll away. */
+.w-map__panel .w-body__preview { max-height: 40vh; overflow-y: auto; }
+.w-map__panel .w-body__input { max-height: 50vh; }
+.w-map__panel .w-field { grid-template-columns: minmax(0, 1fr); }
+.w-map__panel .w-field dt { font-size: var(--nr-text-xs); }
+.w-description-field { width: 100%; min-height: 72px; padding: var(--nr-space-2) var(--nr-space-3); font: var(--nr-weight-regular) var(--nr-text-sm)/1.45 var(--nr-font-ui); resize: vertical; }
+.w-map__panel .w-customize__name { font: var(--nr-weight-bold) var(--nr-text-xl)/1.2 var(--nr-font-display); }
+
+.w-map__panel-fold { display: grid; justify-items: start; gap: var(--nr-space-1); }
+.w-map__panel-hint { margin: 0; color: var(--nr-text-muted); font-size: var(--nr-text-xs); line-height: 1.4; }
+.w-map__fold-count { min-width: 18px; height: 18px; padding: 0 5px; border-radius: 999px; background: var(--nr-surface-sunken); font: 700 11px/18px var(--nr-font-ui); font-variant-numeric: tabular-nums; text-align: center; }
+
+.w-map__toolbar { display: grid; gap: var(--nr-space-3); }
+.w-map__tb-group { display: grid; gap: 6px; }
+.w-map__tb-label { font: var(--nr-weight-semibold) var(--nr-text-xs)/1.2 var(--nr-font-ui); color: var(--nr-text-muted); }
+.w-map__tb-items { display: flex; flex-wrap: wrap; align-items: center; gap: 4px; min-height: 32px; }
 .w-map__tb-btn {
   display: grid;
   place-items: center;
-  width: 32px;
-  height: 32px;
+  width: 36px;
+  height: 36px;
   padding: 0;
-  color: inherit;
-  background: transparent;
-  border: 0;
+  color: var(--nr-text);
+  background: var(--nr-surface-sunken);
+  border: 1px solid transparent;
   border-radius: 9px;
   cursor: pointer;
-  transition: background var(--nr-dur-fast);
+  transition: background var(--nr-dur-fast), border-color var(--nr-dur-fast);
 }
-.w-map__tb-btn:hover { background: color-mix(in srgb, currentColor 12%, transparent); }
-.w-map__tb-btn[aria-pressed="true"] { background: color-mix(in srgb, currentColor 22%, transparent); box-shadow: inset 0 0 0 1px color-mix(in srgb, currentColor 38%, transparent); }
-.w-map__tb-btn--danger:hover { color: var(--nr-on-accent, #fff); background: var(--nr-danger); }
+.w-map__tb-btn:hover { background: var(--nr-fill-hover); border-color: var(--nr-border); }
+.w-map__tb-btn[aria-pressed="true"] { color: var(--nr-on-primary); background: var(--nr-primary); border-color: var(--nr-primary); }
+.w-map__tb-btn--danger { color: var(--nr-danger-text); }
+.w-map__tb-btn--danger:hover { color: var(--nr-on-accent, #fff); background: var(--nr-danger); border-color: var(--nr-danger); }
 .w-map__tb-btn:focus-visible,
-.w-map__toolbar .w-swatch:focus-visible { outline: 2px solid currentColor; outline-offset: 1px; }
+.w-map__toolbar .w-swatch:focus-visible { outline: 2px solid var(--nr-focus); outline-offset: 2px; }
 .w-map__tb-txt { font: 700 12px var(--nr-font-mono); }
-.w-map__tb-input { width: 180px; height: 32px; padding: 0 var(--nr-space-2); color: var(--nr-text); background: var(--nr-surface); border: 0; border-radius: 9px; font: inherit; }
-.w-map__toolbar .w-swatch { width: 20px; height: 20px; margin: 0 1px; }
-.w-map__toolbar .w-swatch[aria-checked="true"] { box-shadow: 0 0 0 2px var(--nr-primary), 0 0 0 4px var(--nr-on-primary); }
+.w-map__toolbar .w-swatch { width: 26px; height: 26px; margin: 0 1px; }
+.w-map__toolbar .w-swatch[aria-checked="true"] { box-shadow: 0 0 0 2px var(--nr-surface), 0 0 0 4px var(--nr-focus); }
 .w-swatch--auto { display: grid; place-items: center; color: var(--c-on, var(--nr-nanquim)); font: 700 10px var(--nr-font-mono); }
 .w-swatch--auto:not([data-cor]) { color: var(--nr-text); background: var(--nr-surface-sunken); }
+
+/* ───── the text of the idea under the mouse */
+
+.w-map__peek {
+  position: absolute;
+  z-index: 4;
+  display: grid;
+  gap: 6px;
+  width: max-content;
+  max-width: min(320px, calc(100% - 16px));
+  max-height: 260px;
+  padding: 10px 14px 12px;
+  overflow: hidden;
+  color: var(--nr-text);
+  background: var(--nr-surface);
+  border: 1px solid var(--nr-border);
+  border-radius: var(--nr-radius-md);
+  box-shadow: var(--nr-shadow-3);
+  font-size: var(--nr-text-sm);
+  line-height: 1.45;
+  pointer-events: none;
+  transform: translateX(-50%);
+  /* A long text fades out at the bottom; the panel has all of it. */
+  mask-image: linear-gradient(to bottom, #000 calc(100% - 28px), transparent);
+  animation: w-map-peek var(--nr-dur-fast) var(--nr-ease-out);
+}
+.w-map__peek[data-above] { transform: translate(-50%, -100%); }
+@keyframes w-map-peek { from { opacity: 0; } }
+.w-map__peek-title { font: var(--nr-weight-bold) var(--nr-text-sm)/1.3 var(--nr-font-ui); }
+.w-map__peek-text { min-width: 0; overflow-wrap: anywhere; }
+.w-map__peek-text > :first-child { margin-top: 0; }
+.w-map__peek-text > :last-child { margin-bottom: 0; }
+.w-map__peek-text :is(p, ul, ol, pre, blockquote, h1, h2, h3, h4) { margin: 0 0 6px; }
+.w-map__peek-text :is(h1, h2, h3, h4) { font-size: var(--nr-text-sm); }
 
 .w-map__hints {
   position: absolute;
@@ -272,7 +370,6 @@
   pointer-events: none;
   transition: opacity var(--nr-dur-base);
 }
-.w-map__toolbar ~ .w-map__hints { opacity: 0; }
 
 .w-map__zoom {
   position: absolute;
@@ -302,20 +399,33 @@
   /* The cover names the column; its title stays for screen readers. */
   .w-map__bar:has(.w-map__cover:not(.w-map__cover--slot)) .w-map__names { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
   .w-map__actions { margin-inline-start: auto; }
-  /* The style bar takes the bottom; zoom goes up. */
+  /* The panel is a sheet over the bottom of the map; zoom goes up. */
   .w-map__zoom { top: var(--nr-space-3); right: var(--nr-space-3); bottom: auto; }
   /* A pinch zooms here; the buttons stay for one hand. */
   .w-map__zoom-range { display: none; }
-  .w-map__toolbar { bottom: var(--nr-space-3); max-width: calc(100% - 16px); }
+  .w-map__panel {
+    position: absolute;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    z-index: 5;
+    width: auto;
+    max-height: 55%;
+    border-left: 0;
+    border-top: 1px solid var(--nr-border);
+    border-radius: var(--nr-radius-lg) var(--nr-radius-lg) 0 0;
+    box-shadow: var(--nr-shadow-3);
+  }
+  @keyframes w-map-panel { from { opacity: 0; transform: translateY(16px); } }
 }
 @media (pointer: coarse) {
   .w-map__tb-btn { width: 44px; height: 44px; }
-  .w-map__toolbar .w-swatch { width: 28px; height: 28px; }
+  .w-map__toolbar .w-swatch { width: 32px; height: 32px; }
   .w-map__handle { opacity: 1; transform: scale(1); }
   .w-map__node:not([data-selected]) .w-map__handle { display: none; }
 }
 @media (prefers-reduced-motion: reduce) {
-  .w-map, .w-map__toolbar { animation: none; }
+  .w-map, .w-map__panel, .w-map__peek { animation: none; }
 }
 
 /* ---------- an agent at work (Uva is the agents' colour alone) ---------- */

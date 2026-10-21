@@ -29,6 +29,9 @@ export const IconUser = () => <Icon d="M12 12a4 4 0 1 0 0-8 4 4 0 0 0 0 8ZM4 21a
 export const IconMap = () => <Icon d="M12 14.5a2.5 2.5 0 1 0 0-5 2.5 2.5 0 0 0 0 5ZM5 8a2 2 0 1 0 0-4 2 2 0 0 0 0 4ZM19 8a2 2 0 1 0 0-4 2 2 0 0 0 0 4ZM5 20a2 2 0 1 0 0-4 2 2 0 0 0 0 4ZM19 20a2 2 0 1 0 0-4 2 2 0 0 0 0 4ZM6.5 7.5 10 10M17.5 7.5 14 10M6.5 16.5 10 14M17.5 16.5 14 14" />;
 export const IconFollow = () => <Icon d="M12 3v3M12 18v3M3 12h3M18 12h3M12 8a4 4 0 1 0 0 8a4 4 0 1 0 0-8Z" />;
 export const IconFit = () => <Icon d="M4 9V4h5M15 4h5v5M20 15v5h-5M9 20H4v-5" />;
+/** Folding a branch shut, and opening it. */
+export const IconFold = () => <Icon d="M7 4l5 5 5-5M7 20l5-5 5 5" />;
+export const IconUnfold = () => <Icon d="M7 9l5-5 5 5M7 15l5 5 5-5" />;
 export const IconOrganize = () => <Icon d="M3 12h5M16 5h5M16 12h5M16 19h5M8 12c4 0 4-7 8-7M8 12h8M8 12c4 0 4 7 8 7" />;
 export const IconMinus = () => <Icon d="M5 12h14" />;
 export const IconEdit = () => <Icon d="M4 20h4L19 9l-4-4L4 16v4ZM13.5 6.5l4 4" />;

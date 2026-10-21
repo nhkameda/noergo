@@ -33,6 +33,8 @@ export interface LaneDto {
   cover: LaneCover | null;
   /** The thought's website, absolute http(s). */
   url: string | null;
+  /** A line or a paragraph under the title; '' when there is none. */
+  description: string;
   position: string;
   version: number;
   updatedAt: string;
@@ -55,6 +57,8 @@ export interface NoteDto {
   tags: string[];
   doneAt: string | null;
   dueAt: string | null;
+  /** What hangs from it (its links out, down the tree) is hidden in the column and on the map. */
+  collapsed: boolean;
   version: number;
   createdBy: string | null;
   updatedBy: string | null;
@@ -116,6 +120,7 @@ export const laneDto = (l: Lane): LaneDto => ({
   color: l.color,
   cover: l.cover_id && l.cover ? { fileId: l.cover_id, ...l.cover } : null,
   url: l.url,
+  description: l.description,
   position: l.position,
   version: l.version,
   updatedAt: isoReq(l.updated_at),
@@ -139,6 +144,7 @@ export function noteDto(n: Note, opts: { fullBody?: boolean } = {}): NoteDto {
     tags: n.tags,
     doneAt: iso(n.done_at),
     dueAt: iso(n.due_at),
+    collapsed: n.collapsed,
     version: n.version,
     createdBy: n.created_by,
     updatedBy: n.updated_by,

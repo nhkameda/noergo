@@ -5,6 +5,8 @@
 export const LIMITS = {
   boardTitle: 200,
   laneTitle: 200,
+  /** The database CHECK on lanes.description says the same. */
+  laneDescription: 2000,
   noteTitle: 300,
   noteBody: 100_000,
   url: 2048,

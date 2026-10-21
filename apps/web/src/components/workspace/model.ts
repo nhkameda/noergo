@@ -38,10 +38,10 @@ export function fromSnapshot(s: Snapshot): Data {
   return {
     seq: s.seq,
     inboxLaneId: s.inboxLaneId,
-    // A cache written before icons, covers or websites existed lacks the fields.
+    // A cache written before icons, covers, websites, descriptions or folding existed lacks the fields.
     boards: new Map(s.boards.map((b) => [b.id, { ...b, icon: b.icon ?? null, background: b.background ?? null }])),
-    lanes: new Map(s.lanes.map((l) => [l.id, { ...l, cover: l.cover ?? null, url: l.url ?? null }])),
-    notes: new Map(s.notes.map((n) => [n.id, n])),
+    lanes: new Map(s.lanes.map((l) => [l.id, { ...l, cover: l.cover ?? null, url: l.url ?? null, description: l.description ?? '' }])),
+    notes: new Map(s.notes.map((n) => [n.id, { ...n, collapsed: n.collapsed ?? false }])),
     links: new Map(s.links.map((l) => [l.id, l])),
     layouts: new Map(s.layouts.map((l) => [layoutKey(l), l])),
   };
@@ -187,7 +187,7 @@ function applyOptimistic(d: Draft, p: Pending): void {
     case 'lane.create': {
       if (d.get('lanes').has(op.id)) return;
       const position = op.place && 'position' in op.place ? op.place.position : 'a0';
-      d.write('lanes').set(op.id, { id: op.id, boardId: op.boardId, title: op.title, color: op.color ?? null, cover: null, url: op.url ?? null, position, version: 0, updatedAt: t, deletedAt: null });
+      d.write('lanes').set(op.id, { id: op.id, boardId: op.boardId, title: op.title, color: op.color ?? null, cover: null, url: op.url ?? null, description: op.description ?? '', position, version: 0, updatedAt: t, deletedAt: null });
       return;
     }
     case 'note.create': {
@@ -209,6 +209,7 @@ function applyOptimistic(d: Draft, p: Pending): void {
         tags: [...new Set(op.tags ?? [])],
         doneAt: null,
         dueAt: op.dueAt ?? null,
+        collapsed: false,
         version: 0,
         createdBy: null,
         updatedBy: null,
@@ -225,7 +226,7 @@ function applyOptimistic(d: Draft, p: Pending): void {
     }
     case 'lane.update': {
       const cur = d.get('lanes').get(op.id);
-      if (cur) d.write('lanes').set(op.id, { ...cur, ...(op.title !== undefined ? { title: op.title } : {}), ...(op.color !== undefined ? { color: op.color } : {}), ...(op.cover !== undefined ? { cover: op.cover } : {}), ...(op.url !== undefined ? { url: op.url } : {}) });
+      if (cur) d.write('lanes').set(op.id, { ...cur, ...(op.title !== undefined ? { title: op.title } : {}), ...(op.color !== undefined ? { color: op.color } : {}), ...(op.cover !== undefined ? { cover: op.cover } : {}), ...(op.url !== undefined ? { url: op.url } : {}), ...(op.description !== undefined ? { description: op.description } : {}) });
       return;
     }
     case 'note.update': {
@@ -248,6 +249,7 @@ function applyOptimistic(d: Draft, p: Pending): void {
       }
       if (op.done !== undefined && op.done !== (cur.doneAt !== null)) next.doneAt = op.done ? t : null;
       if (op.dueAt !== undefined) next.dueAt = op.dueAt;
+      if (op.collapsed !== undefined) next.collapsed = op.collapsed;
       d.write('notes').set(op.id, next);
       return;
     }

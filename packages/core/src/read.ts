@@ -343,7 +343,7 @@ export async function getBoard(workspaceId: string, boardId: string, opts: { not
 }
 
 export interface OutlineBoard extends BoardDto {
-  thoughts: Array<{ id: string; title: string; color: string | null; url: string | null; ideas: number; updatedAt: string }>;
+  thoughts: Array<{ id: string; title: string; description: string; color: string | null; url: string | null; ideas: number; updatedAt: string }>;
 }
 
 /** Every board with its thoughts (columns) and how many open ideas each holds: the map of the workspace for an agent. */
@@ -355,16 +355,16 @@ export async function outline(workspaceId: string, db?: Db): Promise<OutlineBoar
       const lanes = await tx
         .selectFrom('lanes as l')
         .leftJoin('notes as n', (j) => j.onRef('n.lane_id', '=', 'l.id').onRef('n.workspace_id', '=', 'l.workspace_id').on('n.deleted_at', 'is', null).on('n.done_at', 'is', null))
-        .select(['l.id', 'l.board_id', 'l.title', 'l.color', 'l.url', 'l.position', 'l.updated_at', (eb) => eb.fn.count<number>('n.id').as('ideas')])
+        .select(['l.id', 'l.board_id', 'l.title', 'l.description', 'l.color', 'l.url', 'l.position', 'l.updated_at', (eb) => eb.fn.count<number>('n.id').as('ideas')])
         .where('l.workspace_id', '=', workspaceId)
         .where('l.deleted_at', 'is', null)
-        .groupBy(['l.id', 'l.board_id', 'l.title', 'l.color', 'l.url', 'l.position', 'l.updated_at'])
+        .groupBy(['l.id', 'l.board_id', 'l.title', 'l.description', 'l.color', 'l.url', 'l.position', 'l.updated_at'])
         .orderBy('l.position')
         .orderBy('l.id')
         .execute();
       return boards.map((b) => ({
         ...boardDto(b),
-        thoughts: lanes.filter((l) => l.board_id === b.id).map((l) => ({ id: l.id, title: l.title, color: l.color, url: l.url, ideas: Number(l.ideas), updatedAt: new Date(l.updated_at).toISOString() })),
+        thoughts: lanes.filter((l) => l.board_id === b.id).map((l) => ({ id: l.id, title: l.title, description: l.description, color: l.color, url: l.url, ideas: Number(l.ideas), updatedAt: new Date(l.updated_at).toISOString() })),
       }));
     },
     { db, snapshot: true },

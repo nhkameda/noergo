@@ -191,6 +191,49 @@ describe.skipIf(!testDb)('MCP tools', () => {
     await close();
   });
 
+  it('describes a thought, and reads the description back in get_thought, list_boards and fetch', async () => {
+    const a = await agentFor();
+    const [lane] = await lanesOf(a.workspaceId);
+    const { call, close } = await connect(a.principal);
+    expect((await call('update_thought', { thought_id: lane!.id, description: '  Clients we call this week  ' })).isError).toBeFalsy();
+    const read = (await call('get_thought', { thought_id: lane!.id })).structuredContent as { thought: { description: string } };
+    expect(read.thought.description).toBe('Clients we call this week');
+    const listed = (await call('list_boards')).structuredContent as { boards: Array<{ thoughts: Array<{ id: string; description: string }> }> };
+    expect(listed.boards.flatMap((b) => b.thoughts).find((t) => t.id === lane!.id)?.description).toBe('Clients we call this week');
+    const fetched = (await call('fetch', { id: lane!.id })).structuredContent as { text: string };
+    expect(fetched.text).toContain('Clients we call this week');
+    const made = (await call('create_thought', { title: 'Trips', description: 'Where we go in 2027' })).structuredContent as { thought_id: string };
+    expect(((await call('get_thought', { thought_id: made.thought_id })).structuredContent as { thought: { description: string } }).thought.description).toBe('Where we go in 2027');
+    expect((await call('update_thought', { thought_id: lane!.id, description: '' })).isError).toBeFalsy();
+    expect(((await call('get_thought', { thought_id: lane!.id })).structuredContent as { thought: { description: string } }).thought.description).toBe('');
+    await close();
+  });
+
+  it('folds a branch, shows it in get_thought and the outline, and refuses a fold that would hide an idea linked from elsewhere', async () => {
+    const a = await agentFor();
+    const [lane] = await lanesOf(a.workspaceId);
+    const { call, close } = await connect(a.principal);
+    const r = await call('add_notes', { thought_id: lane!.id, ideas: [{ ref: 'case', title: 'Aluminium case' }, { title: 'Extrusion', parent: 'case' }, { title: 'CNC', parent: 'case' }, { title: 'Anodising', parent: 'case' }] });
+    const [kase, , cnc] = (r.structuredContent as { ideas: Array<{ id: string }> }).ideas;
+
+    expect((await call('update_note', { note_id: kase!.id, collapsed: true })).isError).toBeFalsy();
+    const read = (await call('get_thought', { thought_id: lane!.id })).structuredContent as { ideas: Array<{ id: string; collapsed: boolean }> };
+    expect(read.ideas.find((i) => i.id === kase!.id)?.collapsed).toBe(true);
+    const outline = ((await call('fetch', { id: lane!.id })).structuredContent as { text: string }).text;
+    expect(outline).toContain('- Aluminium case (folded: 3 hidden below)');
+    expect(outline).toContain('\n  - CNC');
+
+    // Nothing below: nothing to fold. Linked from a second idea: the branch stays open.
+    expect(errorCode(await call('update_note', { note_id: cnc!.id, collapsed: true }))).toBe('invalid');
+    expect((await call('update_note', { note_id: kase!.id, collapsed: false })).isError).toBeFalsy();
+    const other = ((await call('add_notes', { thought_id: lane!.id, ideas: [{ title: 'Suppliers' }] })).structuredContent as { ideas: Array<{ id: string }> }).ideas[0]!;
+    expect((await call('connect_notes', { from_id: other.id, to_id: cnc!.id })).isError).toBeFalsy();
+    const refused = await call('update_note', { note_id: kase!.id, collapsed: true });
+    expect(errorCode(refused)).toBe('invalid');
+    expect(JSON.stringify(refused.content)).toContain('CNC');
+    await close();
+  });
+
   it('runs every write through the op schema the web uses: trimmed titles, well-formed websites', async () => {
     const a = await agentFor();
     const [lane] = await lanesOf(a.workspaceId);

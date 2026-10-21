@@ -75,6 +75,94 @@ test('the map of a column: create, connect, style, organise, and it survives a r
   await expect(card(page, 'Barista')).toBeVisible();
 });
 
+test('an idea’s text: a glance under the mouse, the whole of it in the panel beside the map', async ({ page }) => {
+  await signIn(page, freshUser('ines'));
+  await openInboxMap(page);
+
+  // Resting the mouse on an idea shows its text, and leaving it hides it.
+  await node(page, 'Quick capture').hover();
+  const peek = page.locator('.w-map__peek');
+  await expect(peek).toContainText('The capture bar drops everything into this thought.');
+  await page.mouse.move(5, 5);
+  await expect(peek).toHaveCount(0);
+
+  // A click opens the panel: the text, the details and every style tool.
+  await node(page, 'Welcome to noergo').click();
+  const side = page.getByRole('complementary', { name: 'The selection' });
+  await expect(side).toContainText('Write the way you think.');
+  await expect(side.getByRole('textbox', { name: 'Title' })).toHaveValue('Welcome to noergo');
+  await side.getByRole('toolbar', { name: 'Style of the selection' }).getByRole('button', { name: 'Diamond' }).click();
+  await expect(node(page, 'Welcome to noergo')).toHaveAttribute('data-shape', 'diamond');
+
+  // A click on the empty canvas closes it.
+  const canvas = (await page.locator('.w-map__canvas').boundingBox())!;
+  await page.mouse.click(canvas.x + 40, canvas.y + canvas.height - 40);
+  await expect(side).toHaveCount(0);
+});
+
+test('folding a branch: a red count, it travels with its idea, it stays folded, and two parents keep it open', async ({ page }) => {
+  // The view lands at once when it is fitted.
+  await page.emulateMedia({ reducedMotion: 'reduce' });
+  await signIn(page, freshUser('fold'));
+  await openInboxMap(page);
+  const top = node(page, 'Welcome to noergo');
+  for (const name of ['Extrusion', 'CNC', 'Anodising']) {
+    await top.click();
+    await page.keyboard.press('Tab');
+    await page.keyboard.type(name);
+    await page.keyboard.press('Enter');
+    await expect(node(page, name)).toBeVisible();
+  }
+
+  // Folded from the panel: the branch goes, a count of it stays.
+  const start = { top: await spot(top), cnc: await spot(node(page, 'CNC')) };
+  await top.click();
+  const side = page.getByRole('complementary', { name: 'The selection' });
+  await side.getByRole('button', { name: /^Fold the ideas below/ }).click();
+  await expect(node(page, 'CNC')).toHaveCount(0);
+  await expect(page.locator('.w-map__edge')).toHaveCount(0);
+  const badge = top.getByRole('button', { name: '3 ideas folded inside. Show' });
+  await expect(badge).toHaveText('3');
+
+  // Dragged while folded: the branch goes along, unseen.
+  const b = (await top.locator('.w-map__text').boundingBox())!;
+  await page.mouse.move(b.x + b.width / 2, b.y + b.height / 2);
+  await page.mouse.down();
+  await page.mouse.move(b.x + b.width / 2 + 120, b.y + b.height / 2 + 60, { steps: 6 });
+  await page.mouse.up();
+  await settled(page);
+
+  // Kept: after a reload it is still folded; ⌘/Ctrl + . opens it where it now belongs.
+  await page.reload();
+  await expect(badge).toHaveText('3');
+  await expect(node(page, 'CNC')).toHaveCount(0);
+  await top.click();
+  await page.keyboard.press('ControlOrMeta+.');
+  await expect(node(page, 'CNC')).toBeVisible();
+  await expect(top.locator('.w-map__fold')).not.toHaveAttribute('aria-label', /folded inside/);
+  const [tx, ty] = await spot(top);
+  const [cx, cy] = await spot(node(page, 'CNC'));
+  expect(tx! - start.top[0]!).toBeGreaterThan(20);
+  expect(Math.abs(cx! - start.cnc[0]! - (tx! - start.top[0]!))).toBeLessThanOrEqual(1);
+  expect(Math.abs(cy! - start.cnc[1]! - (ty! - start.top[1]!))).toBeLessThanOrEqual(1);
+  // Folded again and opened by its count: nothing moves.
+  await page.keyboard.press('ControlOrMeta+.');
+  await expect(node(page, 'CNC')).toHaveCount(0);
+  await badge.click();
+  expect(await spot(node(page, 'CNC'))).toEqual([cx, cy]);
+
+  // CNC linked from a second idea: the branch can no longer fold, and the panel says why.
+  await page.keyboard.press('Escape');
+  await page.locator('.w-map__zoom').getByRole('button', { name: 'Fit to screen' }).click();
+  await connect(page, node(page, 'Quick capture'), node(page, 'CNC'));
+  await expect(page.locator('.w-map__edge')).toHaveCount(4);
+  await top.click();
+  await expect(side.getByRole('button', { name: /^Fold the ideas below/ })).toBeDisabled();
+  await expect(side).toContainText('“CNC” is linked to more than one idea above it');
+  await expect(top.locator('.w-map__fold')).toHaveCount(0);
+  await expect(page.locator('.w-map__bar').getByRole('button', { name: 'Fold all' })).toHaveCount(0);
+});
+
 test('deleting from the map goes to the trash and undoes', async ({ page }) => {
   await signIn(page, freshUser('dora'));
   await openInboxMap(page);

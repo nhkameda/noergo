@@ -10,7 +10,7 @@ import type { WorkspaceStore } from '@/components/workspace/store';
 
 const T = '2026-10-18T12:00:00.000Z';
 const board = (id: string, over: Partial<BoardDto> = {}): BoardDto => ({ id, title: id, color: null, icon: null, background: null, position: 'a0', version: 1, updatedAt: T, deletedAt: null, ...over });
-const lane = (id: string, boardId: string, over: Partial<LaneDto> = {}): LaneDto => ({ id, boardId, title: id, color: null, cover: null, url: null, position: 'a0', version: 1, updatedAt: T, deletedAt: null, ...over });
+const lane = (id: string, boardId: string, over: Partial<LaneDto> = {}): LaneDto => ({ id, boardId, title: id, color: null, cover: null, url: null, description: '', position: 'a0', version: 1, updatedAt: T, deletedAt: null, ...over });
 const note = (id: string, laneId: string, over: Partial<NoteDto> = {}): NoteDto => ({
   id,
   laneId,
@@ -26,6 +26,7 @@ const note = (id: string, laneId: string, over: Partial<NoteDto> = {}): NoteDto 
   tags: [],
   doneAt: null,
   dueAt: null,
+  collapsed: false,
   version: 1,
   createdBy: null,
   updatedBy: null,

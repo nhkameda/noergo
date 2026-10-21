@@ -1,14 +1,15 @@
 'use client';
 
+import type { LaneDto } from '@noergo/core/dto';
 import { newId } from '@noergo/core/ids';
 import { LIMITS } from '@noergo/core/limits';
 import type { Op } from '@noergo/core/ops/schema';
 import { between } from '@noergo/core/position';
 import { useTranslations } from 'next-intl';
-import { memo, useCallback, useEffect, useEffectEvent, useLayoutEffect, useMemo, useRef, useState, type MouseEvent as ReactMouseEvent, type PointerEvent as ReactPointerEvent, type ReactNode } from 'react';
+import { memo, useCallback, useEffect, useEffectEvent, useLayoutEffect, useMemo, useRef, useState, type MouseEvent as ReactMouseEvent, type PointerEvent as ReactPointerEvent, type ReactNode, type RefObject } from 'react';
 import { agentProps, useAgentMarks, useAgentSeen } from './agent-marks';
 import { isComposing, isEditable, useWorkspace } from './context';
-import { ARROW_ICONS, DASH_ICONS, FILL_ICONS, IconBrush, IconClose, IconEdit, IconImage, IconFit, IconFollow, IconGlobe, IconLabel, IconLink, IconMinus, IconNote, IconOrganize, IconPlus, IconSwap, IconTrash, ROUTE_ICONS, SHAPE_ICONS, WidthIcon } from './icons';
+import { ARROW_ICONS, DASH_ICONS, FILL_ICONS, IconBrush, IconClose, IconEdit, IconImage, IconFit, IconFold, IconFollow, IconGlobe, IconLink, IconMinus, IconNote, IconOrganize, IconPlus, IconSwap, IconTrash, IconUnfold, ROUTE_ICONS, SHAPE_ICONS, WidthIcon } from './icons';
 import { splitText } from './import-ideario';
 import {
   ARROWS,
@@ -49,11 +50,15 @@ import {
   type XY,
 } from './map';
 import { CoverArt } from './CoverArt';
+import { DescriptionField, NameField } from './Customize';
 import { corProps, laneStyle } from './cover';
 import { useFileDrag, useImageDrop, useLaneLook } from './cover-client';
+import { Markdown } from './Markdown';
 import { colorName, notesByLane, PALETTE, type Data } from './model';
+import { BodyEditor, DueField, LinkField, NoteTitle, TagsField, useOpenByTitle } from './NoteDrawer';
 import { siteHost } from './site';
 import type { AgentMark } from './store';
+import { mapTree } from './tree';
 import { FOLLOW_AGENT, fromLogSlider, toLogSlider } from './view-prefs';
 import './map.css';
 
@@ -71,6 +76,19 @@ type NodeChange = Partial<XY & NodeStyle>;
 interface Sel {
   nodes: readonly NodeKey[];
   edge: string | null;
+}
+/** Where the text of the idea under the mouse shows, in the map's viewport. */
+interface Peek {
+  key: NodeKey;
+  x: number;
+  y: number;
+  above: boolean;
+}
+/** The fold of the idea in the panel: how many it hides or would hide, and what stops it. */
+interface FoldInfo {
+  folded: number;
+  count: number;
+  blocker: string | null;
 }
 interface Ghost extends XY {
   from: NodeKey | null;
@@ -90,6 +108,10 @@ const MAX_NODES = 500;
 const THRESHOLD = 3;
 const NUDGE_MS = 700;
 const LAYOUT_MS = 460;
+/** How long the mouse rests on an idea before its text shows, and how wide that is. */
+const PEEK_MS = 450;
+const PEEK_W = 320;
+const PEEK_ROOM = 200;
 
 const refOf = (k: NodeKey) => {
   const i = k.indexOf(':');
@@ -119,8 +141,16 @@ export function LaneMap({ data, laneId, blocked, onClose }: { data: Data; laneId
   const t = useTranslations('app');
   const { store, actions, openNote, customize } = useWorkspace();
   const { lanes, notes, links, layouts } = data;
-  const map = useMemo(() => laneMap({ lanes, notes, links, layouts }, laneId), [lanes, notes, links, layouts, laneId]);
   const rootKey = keyOf({ kind: 'lane', id: laneId });
+  const full = useMemo(() => laneMap({ lanes, notes, links, layouts }, laneId), [lanes, notes, links, layouts, laneId]);
+  const tree = useMemo(() => (full ? mapTree(full, rootKey) : null), [full, rootKey]);
+  /** What is on show: a folded idea's branch is left out, with its links. */
+  const map = useMemo(() => {
+    if (!full || !tree?.hidden.size) return full;
+    const hid = tree.hidden;
+    return { ...full, nodes: full.nodes.filter((n) => !hid.has(n.key)), edges: full.edges.filter((e) => !hid.has(e.from) && !hid.has(e.to)) };
+  }, [full, tree]);
+  const byKey = useMemo(() => new Map(full?.nodes.map((n) => [n.key, n])), [full]);
   const look = useLaneLook(lanes.get(laneId));
   const laneColor = look.color ?? undefined;
   const files = useFileDrag();
@@ -132,6 +162,8 @@ export function LaneMap({ data, laneId, blocked, onClose }: { data: Data; laneId
   );
 
   const root = useRef<HTMLElement>(null);
+  const viewport = useRef<HTMLDivElement>(null);
+  const panel = useRef<HTMLElement>(null);
   const canvas = useRef<HTMLDivElement>(null);
   const world = useRef<HTMLDivElement>(null);
   const zoomLabel = useRef<HTMLSpanElement>(null);
@@ -155,6 +187,9 @@ export function LaneMap({ data, laneId, blocked, onClose }: { data: Data; laneId
   const [labelEdit, setLabelEdit] = useState<string | null>(null);
   const [panning, setPanning] = useState(false);
   const [space, setSpace] = useState(false);
+  const [peek, setPeek] = useState<Peek | null>(null);
+  const hovered = useRef<NodeKey | null>(null);
+  const peekTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
   const agentMarks = useAgentMarks();
   const follow = FOLLOW_AGENT.use() === 'on';
   const agentSeen = useAgentSeen();
@@ -286,6 +321,7 @@ export function LaneMap({ data, laneId, blocked, onClose }: { data: Data; laneId
     () => () => {
       cancelAnimationFrame(viewAnim.current);
       cancelAnimationFrame(layoutAnim.current);
+      clearTimeout(peekTimer.current);
       resize.current?.disconnect();
     },
     [],
@@ -364,11 +400,16 @@ export function LaneMap({ data, laneId, blocked, onClose }: { data: Data; laneId
     const { title, body } = splitText(text);
     if (!d || !m || !title) return null;
     const id = newId();
-    const first = notesByLane(d.notes, [laneId]).get(laneId)?.[0];
-    const ops: Op[] = [{ type: 'note.create', id, laneId, title, ...(body ? { body } : {}), ...(url ? { url } : {}), place: { position: between(null, first?.position ?? null) } }];
+    // A loose idea opens the column; one hanging from another comes after its siblings, as typed.
+    const list = notesByLane(d.notes, [laneId]).get(laneId) ?? [];
+    const position = from?.startsWith('note:') ? between(list.at(-1)?.position ?? null, null) : between(null, list[0]?.position ?? null);
+    const ops: Op[] = [{ type: 'note.create', id, laneId, title, ...(body ? { body } : {}), ...(url ? { url } : {}), place: { position } }];
     const layout: LayoutNode[] = [...frozen(m.nodes), { kind: 'note', id, x: Math.round(at.x), y: Math.round(at.y), ...style }];
     for (const nodes of chunks(layout)) ops.push({ type: 'layout.set', viewKind: 'lane_map', viewId: laneId, nodes });
     if (from && m.nodes.some((n) => n.key === from)) ops.push({ type: 'link.create', id: newId(), from: refOf(from), to: { kind: 'note', id }, ...styleOp(lastEdge.current) });
+    // A folded parent opens, or the new idea would vanish as it lands.
+    const parentNote = from ? m.nodes.find((n) => n.key === from)?.note : null;
+    if (parentNote?.collapsed) ops.push({ type: 'note.update', id: parentNote.id, collapsed: false });
     store.dispatch(ops, { undo: [{ type: 'note.delete', id }], redo: [{ type: 'note.restore', id }] });
     return id;
   };
@@ -382,6 +423,9 @@ export function LaneMap({ data, laneId, blocked, onClose }: { data: Data; laneId
       return;
     }
     const id = newId();
+    // A folded idea opens first: what it now links to would vanish under the fold.
+    const source = byKey.get(from)?.note;
+    if (source?.collapsed) actions.setCollapsed([source.id], false);
     store.dispatch({ type: 'link.create', id, from: refOf(from), to: refOf(to), ...styleOp(lastEdge.current) }, { undo: [{ type: 'link.delete', id }], redo: [{ type: 'link.restore', id }] });
     setSel({ nodes: [], edge: id });
   };
@@ -402,6 +446,55 @@ export function LaneMap({ data, laneId, blocked, onClose }: { data: Data; laneId
 
   /** The selected nodes still on the map (another tab or an agent may have removed one). */
   const selKeys = () => sel.nodes.filter((k) => boxes.has(k));
+
+  /** Where `keys` are, and with each folded one what it hides, which travels along and opens where it belongs. */
+  const carried = (keys: readonly NodeKey[]): Map<NodeKey, XY> => {
+    const out = new Map<NodeKey, XY>();
+    for (const k of keys) {
+      const b = boxes.get(k);
+      if (b) out.set(k, b);
+    }
+    for (const k of keys) {
+      for (const h of tree?.folded.get(k) ?? []) {
+        const n = byKey.get(h);
+        if (n && !out.has(h)) out.set(h, { x: n.x, y: n.y });
+      }
+    }
+    return out;
+  };
+
+  /** Folds or opens `keys`: open if any is folded, else fold those that can. One that cannot says why. */
+  const toggleFold = (keys: readonly NodeKey[]) => {
+    if (!tree) return;
+    const list = keys.map((k) => byKey.get(k)?.note).filter((n) => !!n);
+    const open = list.filter((n) => n.collapsed);
+    if (open.length) return actions.setCollapsed(open.map((n) => n.id), false);
+    const can = list.filter((n) => tree.blocker(keyOf({ kind: 'note', id: n.id })) === null);
+    if (can.length) return actions.setCollapsed(can.map((n) => n.id), true);
+    const why = list.map((n) => tree.blocker(keyOf({ kind: 'note', id: n.id }))).find((b) => b !== null && b !== 'leaf');
+    if (why) store.notify({ tone: 'info', key: 'foldBlocked', values: { title: byKey.get(why)?.title || t('note.untitled') } });
+  };
+
+  /** Every branch that can fold, at every level; or everything open again. */
+  const foldAll = (fold: boolean) => {
+    if (!tree || !full) return;
+    const list = full.nodes.filter((n) => n.note && (fold ? !n.note.collapsed && tree.blocker(n.key) === null : n.note.collapsed));
+    actions.setCollapsed(
+      list.map((n) => n.note!.id),
+      fold,
+    );
+  };
+
+  /** Opens a folded idea before something new hangs from it, and gives back where its branch sits. */
+  const unfold = (key: NodeKey): Box[] => {
+    const note = byKey.get(key)?.note;
+    if (!note?.collapsed) return [];
+    actions.setCollapsed([note.id], false);
+    return (tree?.folded.get(key) ?? []).flatMap((h) => {
+      const n = byKey.get(h);
+      return n ? [{ x: n.x, y: n.y, ...(sizes.get(h) ?? GUESS), shape: n.shape }] : [];
+    });
+  };
 
   const deleteSelection = () => {
     if (sel.edge) {
@@ -429,10 +522,10 @@ export function LaneMap({ data, laneId, blocked, onClose }: { data: Data; laneId
     return n ? { shape: n.shape, fill: n.fill, size: n.size, color: n.color ?? n.note?.color ?? null } : NODE_DEFAULT;
   };
 
-  const spawnChild = (from: Box, key: NodeKey, style: NodeStyle, side?: Side) => {
+  const spawnChild = (from: Box, key: NodeKey, style: NodeStyle, side?: Side, more: readonly Box[] = []) => {
     const rootBox = boxes.get(rootKey);
     if (!rootBox) return;
-    const spot = childSpot([...boxes.values(), from], from, key === rootKey, rootBox.x, side);
+    const spot = childSpot([...boxes.values(), ...more, from], from, key === rootKey, rootBox.x, side);
     setGhost({ ...spot, from: key, style });
     setEditing(null);
     reveal(spot);
@@ -440,7 +533,7 @@ export function LaneMap({ data, laneId, blocked, onClose }: { data: Data; laneId
 
   const addChild = (key: NodeKey, side?: Side) => {
     const b = boxes.get(key);
-    if (b) spawnChild(b, key, inherited(key), side);
+    if (b) spawnChild(b, key, inherited(key), side, unfold(key));
   };
 
   const newThought = () => {
@@ -482,8 +575,19 @@ export function LaneMap({ data, laneId, blocked, onClose }: { data: Data; laneId
     const keys = map.nodes.map((n) => n.key);
     const from = new Map(keys.map((k) => [k, boxes.get(k)!] as const));
     const target = autoLayout(rootKey, keys, map.edges, from, (k) => sizes.get(k) ?? GUESS);
+    // A folded branch keeps its shape and moves with the idea that holds it.
+    const saved = new Map(target);
+    for (const [k, hid] of tree?.folded ?? []) {
+      const a = from.get(k);
+      const b = target.get(k);
+      if (!a || !b) continue;
+      for (const h of hid) {
+        const n = byKey.get(h);
+        if (n) saved.set(h, { x: n.x + b.x - a.x, y: n.y + b.y - a.y });
+      }
+    }
     const finish = () => {
-      commitLayout(target);
+      commitLayout(saved);
       setLive(null);
       fitTo(target);
     };
@@ -510,7 +614,7 @@ export function LaneMap({ data, laneId, blocked, onClose }: { data: Data; laneId
       flushNudge();
       n = null;
     }
-    const origin = n?.origin ?? new Map(sk.map((k) => [k, boxes.get(k)!] as const));
+    const origin = n?.origin ?? carried(sk);
     const next = { keys, origin, dx: (n?.dx ?? 0) + dx, dy: (n?.dy ?? 0) + dy, timer: setTimeout(() => flushNudge(), NUDGE_MS) };
     if (n) clearTimeout(n.timer);
     nudging.current = next;
@@ -545,6 +649,7 @@ export function LaneMap({ data, laneId, blocked, onClose }: { data: Data; laneId
 
   const onPointerDown = (e: ReactPointerEvent<HTMLDivElement>) => {
     touched.current = e.timeStamp;
+    hover(null);
     const target = e.target as HTMLElement;
     if (target.closest('[contenteditable], [data-chip]')) return;
     if (e.pointerType === 'mouse' && e.button !== 0 && e.button !== 1) return;
@@ -583,7 +688,7 @@ export function LaneMap({ data, laneId, blocked, onClose }: { data: Data; laneId
       const nodes = was ? cur : additive ? [...cur, key] : [key];
       setSel({ nodes, edge: null });
       setLabelEdit(null);
-      gesture.current = { kind: 'move', ...base, origin: new Map(nodes.map((k) => [k, boxes.get(k)!] as const)), hit: key, toggle: additive && was, only: !additive && was && nodes.length > 1 };
+      gesture.current = { kind: 'move', ...base, origin: carried(nodes), hit: key, toggle: additive && was, only: !additive && was && nodes.length > 1 };
     } else if (edge) {
       setSel({ nodes: [], edge });
       gesture.current = null;
@@ -656,6 +761,7 @@ export function LaneMap({ data, laneId, blocked, onClose }: { data: Data; laneId
         } else if (!g.moved && g.toggle) setSel({ nodes: sel.nodes.filter((k) => k !== g.hit), edge: null });
         else if (!g.moved && g.only) setSel({ nodes: [g.hit], edge: null });
         setLive(null);
+        if (!g.moved && !cancelled && !g.toggle) keepInSight(g.hit);
         return;
       case 'connect': {
         setTemp(null);
@@ -679,6 +785,61 @@ export function LaneMap({ data, laneId, blocked, onClose }: { data: Data; laneId
         return;
       }
     }
+  };
+
+  // ───────────────────────────── the text under the mouse, the panel
+
+  /** A mouse resting on an idea shows its text after a moment; leaving it, or any gesture, hides it. */
+  const hover = (key: NodeKey | null) => {
+    const k = key === GHOST ? null : key;
+    if (k === hovered.current) return;
+    hovered.current = k;
+    clearTimeout(peekTimer.current);
+    setPeek(null);
+    if (!k) return;
+    peekTimer.current = setTimeout(() => {
+      const el = world.current?.querySelector<HTMLElement>(`[data-key="${CSS.escape(k)}"]`);
+      const box = viewport.current?.getBoundingClientRect();
+      if (!el || !box || gesture.current) return;
+      const r = el.getBoundingClientRect();
+      const above = box.bottom - r.bottom < PEEK_ROOM && r.top - box.top > box.bottom - r.bottom;
+      const half = Math.min(PEEK_W, box.width - 16) / 2;
+      const x = Math.max(half + 8, Math.min(box.width - half - 8, r.left + r.width / 2 - box.left));
+      setPeek({ key: k, x, y: above ? r.top - box.top - 10 : r.bottom - box.top + 10, above });
+    }, PEEK_MS);
+  };
+
+  const onPointerOver = (e: ReactPointerEvent<HTMLDivElement>) => {
+    if (e.pointerType !== 'mouse' || gesture.current) return;
+    hover((e.target as Element).closest<HTMLElement>('[data-key]')?.dataset.key ?? null);
+  };
+
+  /** The idea just clicked stays in sight: beside the panel, or above the sheet on a phone. */
+  const keepInSight = (key: NodeKey) => {
+    const el = world.current?.querySelector<HTMLElement>(`[data-key="${CSS.escape(key)}"]`);
+    const c = canvas.current?.getBoundingClientRect();
+    if (!el || !c) return;
+    const r = el.getBoundingClientRect();
+    const p = panel.current?.getBoundingClientRect();
+    const covers = !!p && p.left < c.right && p.right > c.left && p.top < c.bottom && p.bottom > c.top;
+    const right = c.right - 24;
+    const bottom = (covers ? p.top : c.bottom) - 24;
+    const dx = r.right > right ? Math.max(right - r.right, c.left + 24 - r.left) : 0;
+    const dy = r.bottom > bottom ? Math.max(bottom - r.bottom, c.top + 24 - r.top) : 0;
+    if (dx || dy) animateView({ ...view.current, x: view.current.x + dx, y: view.current.y + dy });
+  };
+
+  const closePanel = () => {
+    setSel(NONE);
+    setLabelEdit(null);
+    focusCanvas();
+  };
+
+  /** The fold button and the count beside an idea: buttons inside the canvas, so their clicks land here. */
+  const onClick = (e: ReactMouseEvent<HTMLDivElement>) => {
+    const b = (e.target as Element).closest<HTMLElement>('[data-fold]');
+    const key = b?.closest<HTMLElement>('[data-key]')?.dataset.key;
+    if (key) toggleFold([key]);
   };
 
   const onDoubleClick = (e: ReactMouseEvent<HTMLDivElement>) => {
@@ -721,14 +882,18 @@ export function LaneMap({ data, laneId, blocked, onClose }: { data: Data; laneId
       else if (k === '=' || k === '+') zoomBy(1.25);
       else if (k === '-') zoomBy(0.8);
       else if (k === '0') zoomBy(1 / view.current.z);
+      else if (k === '.' && sel.nodes.length) toggleFold(sel.nodes);
       else return;
       e.preventDefault();
       return;
     }
     if (k === 'Escape') {
       e.preventDefault();
-      if (sel.nodes.length || sel.edge) setSel(NONE);
-      else onClose();
+      if (sel.nodes.length || sel.edge) {
+        setSel(NONE);
+        setLabelEdit(null);
+        canvas.current?.focus({ preventScroll: true });
+      } else onClose();
       return;
     }
     if (!onCanvas) return;
@@ -799,6 +964,9 @@ export function LaneMap({ data, laneId, blocked, onClose }: { data: Data; laneId
     const wheel = (e: WheelEvent) => {
       e.preventDefault();
       touched.current = e.timeStamp;
+      clearTimeout(peekTimer.current);
+      hovered.current = null;
+      setPeek(null);
       cancelAnimationFrame(viewAnim.current);
       const k = e.deltaMode === 1 ? 16 : 1;
       const v = view.current;
@@ -822,6 +990,31 @@ export function LaneMap({ data, laneId, blocked, onClose }: { data: Data; laneId
   if (temp && boxes.get(temp.from)) extra.push(tempPath(boxes.get(temp.from)!, temp.side, temp.to, temp.target ? (boxes.get(temp.target) ?? null) : null));
   const parent = ghost?.from ? boxes.get(ghost.from) : undefined;
   if (ghost && parent) extra.push(buildPath(geometry(parent, { x: ghost.x, y: ghost.y, ...(sizes.get(GHOST) ?? GUESS), shape: ghost.style.shape }, 'curve'), 'none', 2).d);
+  const titleOf = (k: NodeKey) => map.nodes.find((n) => n.key === k)?.title ?? '';
+  // The text under the mouse, unless the panel already shows that idea.
+  const peekNode = peek && !selected.has(peek.key) && editing !== peek.key ? map.nodes.find((n) => n.key === peek.key) : undefined;
+  const peekText = peekNode ? (peekNode.note ? (peekNode.note.body ?? peekNode.note.excerpt) : map.lane.description).trim() : '';
+
+  // Folding: a count where a branch is folded, a button where one can fold.
+  const xOf = (k: NodeKey) => boxes.get(k)?.x ?? byKey.get(k)?.x ?? 0;
+  const foldOf = (n: MapNode): { count: number; side: 'e' | 'w'; agent: boolean } | null => {
+    if (!n.note || !tree) return null;
+    const hid = tree.folded.get(n.key);
+    if (!hid && (n.note.collapsed || tree.blocker(n.key) !== null)) return null;
+    const below = hid ?? tree.below(n.key);
+    const side = below.reduce((t, k) => t + xOf(k), 0) / below.length < xOf(n.key) ? 'w' : 'e';
+    return { count: hid?.length ?? 0, side, agent: !!hid?.some((k) => byKey.get(k)?.note && agentMarks.get(refOf(k).id)?.fresh) };
+  };
+  const canFoldAll = !!tree && !!full && full.nodes.some((n) => n.note && !n.note.collapsed && tree.blocker(n.key) === null);
+  const one = selNodes.length === 1 ? selNodes[0]! : null;
+  const foldInfo = ((): FoldInfo | null => {
+    if (!one?.note || !tree) return null;
+    const folded = tree.folded.get(one.key)?.length ?? 0;
+    if (folded) return { folded, count: folded, blocker: null };
+    const b = tree.blocker(one.key);
+    if (b === 'leaf') return null;
+    return { folded: 0, count: tree.below(one.key).length, blocker: b ? byKey.get(b)?.title || t('note.untitled') : null };
+  })();
 
   return (
     <section ref={root} className="w-map" aria-labelledby={`map-${laneId}`} {...laneStyle(look.color)}>
@@ -861,6 +1054,19 @@ export function LaneMap({ data, laneId, blocked, onClose }: { data: Data; laneId
             <IconOrganize />
             <span className="w-hide-sm">{t('map.organize')}</span>
           </button>
+          {tree?.hidden.size ? (
+            <button type="button" className="nr-btn nr-btn--sm nr-btn--fantasma" onClick={() => foldAll(false)} aria-label={t('map.unfoldAll')}>
+              <IconUnfold />
+              <span className="w-hide-sm">{t('map.unfoldAll')}</span>
+            </button>
+          ) : (
+            canFoldAll && (
+              <button type="button" className="nr-btn nr-btn--sm nr-btn--fantasma" onClick={() => foldAll(true)} aria-label={t('map.foldAll')}>
+                <IconFold />
+                <span className="w-hide-sm">{t('map.foldAll')}</span>
+              </button>
+            )
+          )}
           <button type="button" className="nr-btn nr-btn--sm nr-btn--fantasma" onClick={(e) => personalize(undefined, e.currentTarget)} aria-label={t('customize.open', { title: map.lane.title })}>
             <IconBrush />
             <span className="w-hide-sm">{t('customize.openShort')}</span>
@@ -869,70 +1075,120 @@ export function LaneMap({ data, laneId, blocked, onClose }: { data: Data; laneId
       </header>
 
       <div className="w-map__stage">
-        <div
-          ref={canvas}
-          className={`w-map__canvas nr-tela${panning ? ' is-panning' : ''}${space ? ' is-space' : ''}`}
-          tabIndex={0}
-          role="application"
-          aria-label={t('map.canvas', { title: map.lane.title })}
-          onPointerDown={onPointerDown}
-          onPointerMove={onPointerMove}
-          onPointerUp={onPointerUp}
-          onPointerCancel={onPointerUp}
-          onDoubleClick={onDoubleClick}
-        >
-          <div ref={world} className="w-map__world">
-            <MapEdges edges={map.edges} boxes={boxes} colors={colors} selected={sel.edge} extra={extra} marks={agentMarks} />
-            {map.nodes.map((n) => {
-              const b = boxes.get(n.key)!;
-              return (
+        <div ref={viewport} className="w-map__view">
+          <div
+            ref={canvas}
+            className={`w-map__canvas nr-tela${panning ? ' is-panning' : ''}${space ? ' is-space' : ''}`}
+            tabIndex={0}
+            role="application"
+            aria-label={t('map.canvas', { title: map.lane.title })}
+            onPointerDown={onPointerDown}
+            onPointerMove={onPointerMove}
+            onPointerUp={onPointerUp}
+            onPointerCancel={onPointerUp}
+            onPointerOver={onPointerOver}
+            onPointerLeave={() => hover(null)}
+            onClick={onClick}
+            onDoubleClick={onDoubleClick}
+          >
+            <div ref={world} className="w-map__world">
+              <MapEdges edges={map.edges} boxes={boxes} colors={colors} selected={sel.edge} extra={extra} marks={agentMarks} />
+              {map.nodes.map((n) => {
+                const b = boxes.get(n.key)!;
+                const fold = foldOf(n);
+                return (
+                  <MapNodeView
+                    key={n.key}
+                    node={n}
+                    x={b.x}
+                    y={b.y}
+                    cor={colors.get(n.key)}
+                    selected={selected.has(n.key)}
+                    target={temp?.target === n.key}
+                    editing={editing === n.key}
+                    label={t('map.placeholder')}
+                    linkLabel={t('note.openLink')}
+                    observe={observe}
+                    agent={n.note ? agentMarks.get(n.note.id) : undefined}
+                    fold={fold?.count ?? -1}
+                    foldSide={fold?.side}
+                    foldAgent={fold?.agent}
+                    foldLabel={fold ? (fold.count ? t('map.foldBadge', { count: fold.count }) : t('map.fold')) : undefined}
+                    onEdited={editing === n.key ? (text, then) => finishEdit(n.key, text, then) : undefined}
+                  />
+                );
+              })}
+              {ghost && (
                 <MapNodeView
-                  key={n.key}
-                  node={n}
-                  x={b.x}
-                  y={b.y}
-                  cor={colors.get(n.key)}
-                  selected={selected.has(n.key)}
-                  target={temp?.target === n.key}
-                  editing={editing === n.key}
+                  node={{ key: GHOST, ref: { kind: 'note', id: GHOST }, x: ghost.x, y: ghost.y, ...ghost.style, placed: false, note: null, title: '' }}
+                  x={ghost.x}
+                  y={ghost.y}
+                  cor={ghost.style.color ?? laneColor}
+                  selected
+                  target={false}
+                  editing
                   label={t('map.placeholder')}
-                  linkLabel={t('note.openLink')}
+                  linkLabel=""
                   observe={observe}
-                  agent={n.note ? agentMarks.get(n.note.id) : undefined}
-                  onEdited={editing === n.key ? (text, then) => finishEdit(n.key, text, then) : undefined}
+                  onEdited={finishGhost}
                 />
-              );
-            })}
-            {ghost && (
-              <MapNodeView
-                node={{ key: GHOST, ref: { kind: 'note', id: GHOST }, x: ghost.x, y: ghost.y, ...ghost.style, placed: false, note: null, title: '' }}
-                x={ghost.x}
-                y={ghost.y}
-                cor={ghost.style.color ?? laneColor}
-                selected
-                target={false}
-                editing
-                label={t('map.placeholder')}
-                linkLabel=""
-                observe={observe}
-                onEdited={finishGhost}
-              />
+              )}
+            </div>
+            {marquee && <div className="w-map__marquee" style={{ left: marquee.x0, top: marquee.y0, width: marquee.x1 - marquee.x0, height: marquee.y1 - marquee.y0 }} />}
+            {map.nodes.length === 1 && !ghost && (
+              <div className="w-map__empty">
+                <strong>{t('map.empty')}</strong>
+                <span>{t('map.emptyHint')}</span>
+              </div>
             )}
           </div>
-          {marquee && <div className="w-map__marquee" style={{ left: marquee.x0, top: marquee.y0, width: marquee.x1 - marquee.x0, height: marquee.y1 - marquee.y0 }} />}
-          {map.nodes.length === 1 && !ghost && (
-            <div className="w-map__empty">
-              <strong>{t('map.empty')}</strong>
-              <span>{t('map.emptyHint')}</span>
-            </div>
-          )}
+
+          {peekNode && peekText && <MapPeek peek={peek!} title={peekNode.title} text={peekText} />}
+          <ul className="w-map__hints" aria-hidden="true">
+            {(['create', 'connect', 'child', 'fold', 'move', 'zoom'] as const).map((h) => (
+              <li key={h}>{t(`map.hints.${h}`)}</li>
+            ))}
+          </ul>
+          <div className="w-map__zoom" role="group" aria-label={t('zoom.map')}>
+            <button type="button" className="w-icon-btn" onClick={() => zoomBy(0.8)} aria-label={t('map.zoomOut')} title={t('map.zoomOut')}>
+              <IconMinus />
+            </button>
+            <input
+              ref={zoomRange}
+              type="range"
+              className="w-zoom__range w-map__zoom-range"
+              min={0}
+              max={1}
+              step={0.005}
+              defaultValue={toLogSlider(1, MAP_ZOOM.min, MAP_ZOOM.max)}
+              aria-label={t('zoom.map')}
+              onChange={(e) => zoomToSlider(Number(e.target.value))}
+            />
+            <button type="button" className="w-icon-btn" onClick={() => zoomBy(1.25)} aria-label={t('map.zoomIn')} title={t('map.zoomIn')}>
+              <IconPlus />
+            </button>
+            <button type="button" className="w-map__zoom-label" onClick={() => zoomBy(1 / view.current.z)} aria-label={t('map.zoomReset')} title={t('map.zoomReset')}>
+              <span ref={zoomLabel} />
+            </button>
+            <button type="button" className="w-icon-btn" onClick={() => fitTo()} aria-label={t('map.fit')} title={t('map.fit')}>
+              <IconFit />
+            </button>
+            {agentSeen && (
+              <button type="button" className="w-icon-btn w-map__follow" aria-pressed={follow} onClick={() => FOLLOW_AGENT.write(follow ? 'off' : 'on')} aria-label={t('map.followAgent')} title={t('map.followAgent')}>
+                <IconFollow />
+              </button>
+            )}
+          </div>
         </div>
 
         {(selNodes.length > 0 || selEdge) && (
-          <MapToolbar
+          <MapPanel
+            panelRef={panel}
             nodes={selNodes}
             edge={selEdge}
+            ends={selEdge ? [titleOf(selEdge.from), titleOf(selEdge.to)] : null}
             rootKey={rootKey}
+            lane={map.lane}
             laneCor={laneColor}
             labelEditing={!!selEdge && labelEdit === selEdge.id}
             onNodeStyle={(patch) => commitLayout(new Map(sel.nodes.map((k) => [k, patch])))}
@@ -941,49 +1197,17 @@ export function LaneMap({ data, laneId, blocked, onClose }: { data: Data; laneId
             onChild={() => selNodes[0] && addChild(selNodes[0].key)}
             onOpen={() => selNodes[0]?.note && openNote(selNodes[0].note.id)}
             onDelete={deleteSelection}
-            onLabel={() => selEdge && setLabelEdit(selEdge.id)}
-            onLabelDone={(text) => {
+            fold={foldInfo}
+            onFold={() => one && toggleFold([one.key])}
+            onLabel={(text) => selEdge && updateLink(selEdge.id, { label: text })}
+            onLabelLeft={(byKey) => {
               setLabelEdit(null);
-              if (selEdge && text !== null && text !== selEdge.label) updateLink(selEdge.id, { label: text });
-              focusCanvas();
+              if (byKey) focusCanvas();
             }}
+            onCustomize={(from) => personalize(undefined, from)}
+            onClose={closePanel}
           />
         )}
-        <ul className="w-map__hints" aria-hidden="true">
-          {(['create', 'connect', 'child', 'move', 'zoom'] as const).map((h) => (
-            <li key={h}>{t(`map.hints.${h}`)}</li>
-          ))}
-        </ul>
-        <div className="w-map__zoom" role="group" aria-label={t('zoom.map')}>
-          <button type="button" className="w-icon-btn" onClick={() => zoomBy(0.8)} aria-label={t('map.zoomOut')} title={t('map.zoomOut')}>
-            <IconMinus />
-          </button>
-          <input
-            ref={zoomRange}
-            type="range"
-            className="w-zoom__range w-map__zoom-range"
-            min={0}
-            max={1}
-            step={0.005}
-            defaultValue={toLogSlider(1, MAP_ZOOM.min, MAP_ZOOM.max)}
-            aria-label={t('zoom.map')}
-            onChange={(e) => zoomToSlider(Number(e.target.value))}
-          />
-          <button type="button" className="w-icon-btn" onClick={() => zoomBy(1.25)} aria-label={t('map.zoomIn')} title={t('map.zoomIn')}>
-            <IconPlus />
-          </button>
-          <button type="button" className="w-map__zoom-label" onClick={() => zoomBy(1 / view.current.z)} aria-label={t('map.zoomReset')} title={t('map.zoomReset')}>
-            <span ref={zoomLabel} />
-          </button>
-          <button type="button" className="w-icon-btn" onClick={() => fitTo()} aria-label={t('map.fit')} title={t('map.fit')}>
-            <IconFit />
-          </button>
-          {agentSeen && (
-            <button type="button" className="w-icon-btn w-map__follow" aria-pressed={follow} onClick={() => FOLLOW_AGENT.write(follow ? 'off' : 'on')} aria-label={t('map.followAgent')} title={t('map.followAgent')}>
-              <IconFollow />
-            </button>
-          )}
-        </div>
       </div>
     </section>
   );
@@ -1003,6 +1227,10 @@ const MapNodeView = memo(function MapNodeView({
   linkLabel,
   observe,
   agent,
+  fold = -1,
+  foldSide,
+  foldAgent,
+  foldLabel,
   onEdited,
 }: {
   node: MapNode;
@@ -1016,6 +1244,12 @@ const MapNodeView = memo(function MapNodeView({
   linkLabel: string;
   observe: (el: HTMLElement) => () => void;
   agent?: AgentMark;
+  /** -1: nothing to fold; 0: it can fold; more: that many ideas folded inside it. */
+  fold?: number;
+  foldSide?: 'e' | 'w';
+  /** An agent just added something inside the fold. */
+  foldAgent?: boolean;
+  foldLabel?: string;
   onEdited?: (text: string | null, then?: 'child') => void;
 }) {
   const ref = useRef<HTMLDivElement>(null);
@@ -1036,6 +1270,7 @@ const MapNodeView = memo(function MapNodeView({
       data-target={target || undefined}
       data-done={node.note?.doneAt ? true : undefined}
       data-editing={editing || undefined}
+      data-folded={fold > 0 || undefined}
       {...agentProps(agent)}
       style={{ ...paint.style, left: x, top: y }}
     >
@@ -1051,6 +1286,11 @@ const MapNodeView = memo(function MapNodeView({
         </a>
       )}
       {!editing && SIDES.map((s) => <span key={s} className="w-map__handle" data-handle={s} aria-hidden="true" />)}
+      {fold >= 0 && !editing && (
+        <button type="button" className="w-map__fold" data-fold data-chip data-side={foldSide} data-agent-inside={foldAgent || undefined} tabIndex={-1} aria-label={foldLabel} title={foldLabel}>
+          {fold > 0 ? (fold > 99 ? '99+' : fold) : <IconMinus />}
+        </button>
+      )}
     </div>
   );
 });
@@ -1133,7 +1373,7 @@ const MapEdges = memo(function MapEdges({ edges, boxes, colors, selected, extra,
   );
 });
 
-// ───────────────────────────── style bar
+// ───────────────────────────── the panel beside the map
 
 function Group({ label, radio, children }: { label: string; radio?: boolean; children: ReactNode }) {
   return (
@@ -1177,10 +1417,13 @@ function ColorGroup({ value, laneCor, onChange }: { value: string | null | undef
   );
 }
 
-function MapToolbar(props: {
+interface PanelProps {
   nodes: readonly MapNode[];
   edge: MapEdge | null;
+  /** The titles at the two ends of the selected link. */
+  ends: readonly [string, string] | null;
   rootKey: NodeKey;
+  lane: LaneDto;
   laneCor: string | undefined;
   labelEditing: boolean;
   onNodeStyle: (patch: Partial<NodeStyle>) => void;
@@ -1189,9 +1432,111 @@ function MapToolbar(props: {
   onChild: () => void;
   onOpen: () => void;
   onDelete: () => void;
-  onLabel: () => void;
-  onLabelDone: (text: string | null) => void;
-}) {
+  fold: FoldInfo | null;
+  onFold: () => void;
+  onLabel: (text: string) => void;
+  onLabelLeft: (byKey: boolean) => void;
+  onCustomize: (from: Element) => void;
+  onClose: () => void;
+}
+
+/**
+ * What is selected on the map, beside it (a sheet over it on a phone): the idea's title, its
+ * text and its details, then its look and what can be done with it. A link shows its label
+ * and its stroke. A click on empty canvas, Esc or the close button puts it away.
+ */
+function MapPanel({ panelRef, ...props }: PanelProps & { panelRef: RefObject<HTMLElement | null> }) {
+  const t = useTranslations('app');
+  const { actions } = useWorkspace();
+  const openByTitle = useOpenByTitle();
+  const { nodes, edge } = props;
+  const one = nodes.length === 1 ? nodes[0]! : null;
+  const note = one?.note ?? null;
+  const isRoot = one?.key === props.rootKey;
+  const kicker = edge ? t('map.link') : isRoot ? t('map.centre') : one ? t('map.thought') : t('map.selected', { count: nodes.length });
+  return (
+    <aside ref={panelRef} className="w-map__panel" aria-label={t('map.panel')}>
+      <header className="w-map__panel-head">
+        <h3 className="w-map__panel-kicker">{kicker}</h3>
+        <button type="button" className="w-icon-btn" onClick={props.onClose} aria-label={t('map.closePanel')} title={t('map.closePanel')}>
+          <IconClose />
+        </button>
+      </header>
+
+      {edge ? (
+        <>
+          {props.ends && (
+            <p className="w-map__panel-ends">
+              <span>{props.ends[0] || t('note.untitled')}</span>
+              <span aria-hidden="true">{edge.style.arrow === 'start' ? '←' : edge.style.arrow === 'both' ? '↔' : '→'}</span>
+              <span>{props.ends[1] || t('note.untitled')}</span>
+            </p>
+          )}
+          <LabelField key={edge.id} value={edge.label} label={t('map.label')} focus={props.labelEditing} onSave={props.onLabel} onLeft={props.onLabelLeft} />
+        </>
+      ) : isRoot ? (
+        <>
+          <NameField id="w-map-panel-title" value={props.lane.title} label={t('customize.name')} maxLength={LIMITS.laneTitle} onSave={(title) => actions.updateLane(props.lane.id, { title })} />
+          <DescriptionField id="w-map-panel-description" lane={props.lane} />
+          <div className="w-map__panel-row">
+            {props.lane.url && (
+              <a className="nr-btn nr-btn--sm nr-btn--fantasma" href={props.lane.url} target="_blank" rel="noopener noreferrer nofollow ugc" aria-label={t('site.open', { title: props.lane.title, host: siteHost(props.lane.url) })}>
+                <IconGlobe />
+                {siteHost(props.lane.url)}
+              </a>
+            )}
+            <button type="button" className="nr-btn nr-btn--sm nr-btn--fantasma" onClick={(e) => props.onCustomize(e.currentTarget)}>
+              <IconBrush />
+              {t('customize.openShort')}
+            </button>
+          </div>
+        </>
+      ) : note ? (
+        <>
+          <NoteTitle note={note} onEscape={() => {}} />
+          <BodyEditor key={note.id} note={note} onWikilink={openByTitle} />
+          <section className="w-map__panel-section" aria-labelledby="w-map-panel-details">
+            <h4 id="w-map-panel-details" className="w-map__panel-label">
+              {t('map.details')}
+            </h4>
+            <dl className="w-fields">
+              <TagsField note={note} />
+              <DueField note={note} />
+              <LinkField note={note} />
+            </dl>
+          </section>
+        </>
+      ) : (
+        <ul className="w-map__panel-list">
+          {nodes.slice(0, 12).map((n) => (
+            <li key={n.key}>{n.title || t('note.untitled')}</li>
+          ))}
+          {nodes.length > 12 && <li aria-hidden="true">…</li>}
+        </ul>
+      )}
+
+      {props.fold && (
+        <div className="w-map__panel-fold">
+          <button type="button" className="nr-btn nr-btn--sm nr-btn--fantasma" disabled={!!props.fold.blocker} onClick={props.onFold}>
+            {props.fold.folded ? <IconUnfold /> : <IconFold />}
+            {props.fold.folded ? t('map.unfold') : t('map.fold')}
+            <span className="w-map__fold-count">{props.fold.count}</span>
+          </button>
+          {props.fold.blocker && <p className="w-map__panel-hint">{t('notices.foldBlocked', { title: props.fold.blocker })}</p>}
+        </div>
+      )}
+
+      <section className="w-map__panel-section" aria-labelledby="w-map-panel-look">
+        <h4 id="w-map-panel-look" className="w-map__panel-label">
+          {t('map.look')}
+        </h4>
+        <StyleTools {...props} />
+      </section>
+    </aside>
+  );
+}
+
+function StyleTools(props: PanelProps) {
   const t = useTranslations('app');
   const { nodes, edge } = props;
   if (edge) {
@@ -1237,23 +1582,14 @@ function MapToolbar(props: {
           })}
         </Group>
         <Group label={t('map.link')}>
-          {props.labelEditing ? (
-            <LabelInput value={edge.label} label={t('map.label')} onDone={props.onLabelDone} />
-          ) : (
-            <>
-              {(s.arrow === 'end' || s.arrow === 'start') && (
-                <Btn label={t('map.reverse')} onClick={() => props.onEdgeStyle({ arrow: s.arrow === 'end' ? 'start' : 'end' })}>
-                  <IconSwap />
-                </Btn>
-              )}
-              <Btn label={t('map.label')} onClick={props.onLabel}>
-                <IconLabel />
-              </Btn>
-              <Btn label={t('map.deleteLink')} danger onClick={props.onDelete}>
-                <IconTrash />
-              </Btn>
-            </>
+          {(s.arrow === 'end' || s.arrow === 'start') && (
+            <Btn label={t('map.reverse')} onClick={() => props.onEdgeStyle({ arrow: s.arrow === 'end' ? 'start' : 'end' })}>
+              <IconSwap />
+            </Btn>
           )}
+          <Btn label={t('map.deleteLink')} danger onClick={props.onDelete}>
+            <IconTrash />
+          </Btn>
         </Group>
       </div>
     );
@@ -1319,34 +1655,58 @@ function MapToolbar(props: {
   );
 }
 
-function LabelInput({ value, label, onDone }: { value: string; label: string; onDone: (text: string | null) => void }) {
-  const [text, setText] = useState(value);
-  const done = useRef(false);
-  const finish = (save: boolean) => {
-    if (done.current) return;
-    done.current = true;
-    onDone(save ? text.trim() : null);
-  };
+/** A link's label, always at hand: leaving or Enter saves, Esc gives up. Double-click on a link lands here. */
+function LabelField({ value, label, focus, onSave, onLeft }: { value: string; label: string; focus: boolean; onSave: (text: string) => void; onLeft: (byKey: boolean) => void }) {
+  const [draft, setDraft] = useState<string | null>(null);
+  const ref = useRef<HTMLInputElement>(null);
+  const byKey = useRef(false);
+  const skip = useRef(false);
+  useEffect(() => {
+    if (focus) ref.current?.focus();
+  }, [focus]);
   return (
     <input
-      className="w-map__tb-input"
+      ref={ref}
+      className="w-input w-map__panel-input"
       aria-label={label}
       placeholder={label}
-      value={text}
+      value={draft ?? value}
       maxLength={LIMITS.linkLabel}
-      autoFocus
-      onChange={(e) => setText(e.target.value)}
-      onBlur={() => finish(true)}
+      onFocus={() => setDraft(value)}
+      onChange={(e) => setDraft(e.target.value)}
+      onBlur={() => {
+        const text = draft?.trim();
+        if (!skip.current && text !== undefined && text !== value) onSave(text);
+        skip.current = false;
+        setDraft(null);
+        onLeft(byKey.current);
+        byKey.current = false;
+      }}
       onKeyDown={(e) => {
         if (e.key === 'Enter' && !isComposing(e)) {
           e.preventDefault();
-          finish(true);
+          byKey.current = true;
+          e.currentTarget.blur();
         } else if (e.key === 'Escape') {
           e.preventDefault();
           e.stopPropagation();
-          finish(false);
+          skip.current = true;
+          byKey.current = true;
+          e.currentTarget.blur();
         }
       }}
     />
+  );
+}
+
+/** The text of an idea under the mouse, for a moment, without selecting it. */
+function MapPeek({ peek, title, text }: { peek: Peek; title: string; text: string }) {
+  return (
+    <div className="w-map__peek" data-above={peek.above || undefined} style={{ left: peek.x, top: peek.y }} aria-hidden="true">
+      {title && <strong className="w-map__peek-title">{title}</strong>}
+      <div className="w-map__peek-text">
+        <Markdown text={text} onWikilink={() => {}} />
+      </div>
+    </div>
   );
 }
