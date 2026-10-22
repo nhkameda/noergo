@@ -7,7 +7,7 @@ import type { Op } from '@noergo/core/ops/schema';
 import { between } from '@noergo/core/position';
 import { levelFolds } from '@noergo/core/tree';
 import { useTranslations } from 'next-intl';
-import { memo, useCallback, useEffect, useEffectEvent, useLayoutEffect, useMemo, useRef, useState, type MouseEvent as ReactMouseEvent, type PointerEvent as ReactPointerEvent, type ReactNode, type RefObject } from 'react';
+import { memo, useCallback, useEffect, useEffectEvent, useLayoutEffect, useMemo, useRef, useState, type CSSProperties, type MouseEvent as ReactMouseEvent, type PointerEvent as ReactPointerEvent, type ReactNode, type RefObject } from 'react';
 import { agentProps, useAgentMarks, useAgentSeen } from './agent-marks';
 import { isComposing, isEditable, useWorkspace } from './context';
 import { ARROW_ICONS, DASH_ICONS, FILL_ICONS, IconBrush, IconCheck, IconClose, IconEdit, IconImage, IconFit, IconFold, IconFollow, IconGlobe, IconLink, IconMinus, IconNote, IconOrganize, IconPlus, IconSwap, IconTrash, IconUnfold, LAYOUT_ICONS, ROUTE_ICONS, SHAPE_ICONS, WidthIcon } from './icons';
@@ -1365,6 +1365,7 @@ export function LaneMap({ data, laneId, blocked, onClose }: { data: Data; laneId
                     node={n}
                     x={b.x}
                     y={b.y}
+                    h={b.h}
                     cor={colors.get(n.key)}
                     selected={selected.has(n.key)}
                     target={temp?.target === n.key || hangOn === n.key}
@@ -1483,6 +1484,7 @@ const MapNodeView = memo(function MapNodeView({
   node,
   x,
   y,
+  h,
   cor,
   selected,
   target,
@@ -1500,6 +1502,8 @@ const MapNodeView = memo(function MapNodeView({
   node: MapNode;
   x: number;
   y: number;
+  /** Its height as drawn: the fold sits on the round end of a pill, which it sets. */
+  h?: number;
   cor: string | undefined;
   selected: boolean;
   target: boolean;
@@ -1536,7 +1540,7 @@ const MapNodeView = memo(function MapNodeView({
       data-editing={editing || undefined}
       data-folded={fold > 0 || undefined}
       {...agentProps(agent)}
-      style={{ ...paint.style, left: x, top: y }}
+      style={{ ...paint.style, left: x, top: y, ...(h ? ({ '--h': `${h}px` } as CSSProperties) : {}) }}
     >
       {agent?.fresh && (
         <span className="w-map__agent" aria-hidden="true">
