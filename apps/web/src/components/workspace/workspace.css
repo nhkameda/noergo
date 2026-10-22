@@ -904,6 +904,11 @@ select.w-input { width: 100%; }
 .w-tags__input:focus { outline: none; border-bottom-color: var(--nr-focus); }
 
 .w-related__title { margin: 0 0 var(--nr-space-2); font-size: var(--nr-text-sm); font-weight: var(--nr-weight-bold); }
+.w-below { display: grid; gap: var(--nr-space-2); }
+.w-below .w-related__title { margin: 0; }
+.w-below__fold { display: grid; justify-items: start; gap: 4px; }
+.w-below__fold .nr-btn { gap: 6px; }
+.w-below__hint { margin: 0; font-size: var(--nr-text-xs); }
 .w-related__sub { margin: var(--nr-space-3) 0 var(--nr-space-1); color: var(--nr-text-muted); font-size: var(--nr-text-xs); font-weight: var(--nr-weight-bold); }
 .w-related__list { display: grid; margin: 0; padding: 0; list-style: none; }
 .w-related__item { width: 100%; min-height: 44px; padding: 0 var(--nr-space-2); border: 0; border-radius: var(--nr-radius-md); background: transparent; color: var(--nr-accent-text); font: inherit; text-align: start; cursor: pointer; }

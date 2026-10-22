@@ -212,6 +212,9 @@
       "links": "关联",
       "backlinks": "被以下笔记提及",
       "noLinks": "还没有关联。在笔记里写 [[某个标题]] 即可建立关联。",
+      "below": "下级点子",
+      "addBelow": "新的下级点子",
+      "addBelowHint": "新的下级点子…（回车添加）",
       "updated": "更新于{when}",
       "deleteNote": "删除笔记",
       "image": "图片：{alt}"

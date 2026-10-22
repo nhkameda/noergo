@@ -7,6 +7,8 @@ export interface WorkspaceApi {
   store: WorkspaceStore;
   actions: Actions;
   openNote: (id: string) => void;
+  /** Closes the open note without taking the focus anywhere: a click elsewhere did it. */
+  dismissNote: () => void;
   showBoard: (id: string) => void;
   /** The mind map of a column, over the board (Back closes it). */
   openMap: (laneId: string) => void;

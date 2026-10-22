@@ -167,6 +167,26 @@ export class Actions {
     return id;
   }
 
+  /**
+   * A new idea hanging from `parentId`, after the ones already there (as Tab does on the
+   * map); a folded parent opens so it shows. Undo puts it in the trash, link and all.
+   */
+  createChild(parentId: string, text: string): string | null {
+    const data = this.data;
+    const parent = data?.notes.get(parentId);
+    const { title, body } = splitText(text);
+    if (!data || !parent || parent.deletedAt !== null || !title) return null;
+    const list = notesByLane(data.notes, [parent.laneId]).get(parent.laneId) ?? [];
+    const id = newId();
+    const ops: Op[] = [
+      { type: 'note.create', id, laneId: parent.laneId, title, ...(body ? { body } : {}), place: { position: between(list.at(-1)?.position ?? null, null) } },
+      { type: 'link.create', id: newId(), from: { kind: 'note', id: parentId }, to: { kind: 'note', id } },
+    ];
+    if (parent.collapsed) ops.push({ type: 'note.update', id: parentId, collapsed: false });
+    this.store.dispatch(ops, { undo: [{ type: 'note.delete', id }], redo: [{ type: 'note.restore', id }] });
+    return id;
+  }
+
   updateNote(id: string, patch: NoteFields) {
     const cur = this.data?.notes.get(id);
     if (!cur) return;

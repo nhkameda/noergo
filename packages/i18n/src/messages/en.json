@@ -212,6 +212,9 @@
       "links": "Links",
       "backlinks": "Mentioned in",
       "noLinks": "No links yet. Write [[a title]] in the note to link it.",
+      "below": "Ideas below",
+      "addBelow": "New idea below",
+      "addBelowHint": "New idea below… (Enter adds it)",
       "updated": "Updated {when}",
       "deleteNote": "Delete note",
       "image": "Image: {alt}"

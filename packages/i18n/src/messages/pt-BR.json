@@ -212,6 +212,9 @@
       "links": "Ligações",
       "backlinks": "Citada em",
       "noLinks": "Nenhuma ligação ainda. Escreva [[um título]] na nota para ligá-la.",
+      "below": "Subitens",
+      "addBelow": "Novo subitem",
+      "addBelowHint": "Novo subitem… (Enter adiciona)",
       "updated": "Atualizada {when}",
       "deleteNote": "Excluir nota",
       "image": "Imagem: {alt}"

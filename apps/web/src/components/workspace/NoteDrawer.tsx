@@ -5,10 +5,11 @@ import { LIMITS } from '@noergo/core/limits';
 import { useFormatter, useNow, useTranslations } from 'next-intl';
 import { useCallback, useEffect, useId, useMemo, useRef, useState } from 'react';
 import { isComposing, useWorkspace } from './context';
-import { IconCheck, IconClose } from './icons';
+import { IconCheck, IconClose, IconFold, IconUnfold } from './icons';
 import { Markdown } from './Markdown';
 import { boardsOf, fold, lanesOf, locate, type Data } from './model';
 import { makePatch, mapCaret, rebase } from './text-sync';
+import { columnTree, noteKey, noteOf } from './tree';
 import { Swatches } from './ui';
 
 /** The editor's view of the body: what the text was rebased on, and whether a save is out. */
@@ -533,6 +534,8 @@ export function NoteDrawer({ data, noteId, onClose }: { data: Data; noteId: stri
         </div>
       </dl>
 
+      <Below data={data} note={note} />
+
       <section className="w-related" aria-label={t('note.links')}>
         <h3 className="w-related__title">{t('note.links')}</h3>
         {related.outgoing.length + related.incoming.length === 0 ? (
@@ -582,6 +585,57 @@ export function NoteDrawer({ data, noteId, onClose }: { data: Data; noteId: stri
         </button>
       </footer>
     </aside>
+  );
+}
+
+/**
+ * What hangs from the note, as on the map's panel: fold it or show it, and a new idea
+ * under it, typed here (Enter adds it and keeps the field for the next).
+ */
+function Below({ data, note }: { data: Data; note: NoteDto }) {
+  const t = useTranslations('app');
+  const { actions } = useWorkspace();
+  const [draft, setDraft] = useState('');
+  const id = useId();
+  const tree = useMemo(() => columnTree(data, note.laneId), [data, note.laneId]);
+  const key = noteKey(note.id);
+  const folded = tree.folded.get(key)?.length ?? 0;
+  const why = folded ? null : tree.blocker(key);
+  const by = why && why !== 'leaf' ? data.notes.get(noteOf(why)!) : undefined;
+  const blocker = why && why !== 'leaf' ? by?.title || by?.excerpt || t('note.untitled') : null;
+  const add = () => {
+    if (actions.createChild(note.id, draft)) setDraft('');
+  };
+  return (
+    <section className="w-below" aria-labelledby={id}>
+      <h3 id={id} className="w-related__title">
+        {t('note.below')}
+      </h3>
+      {why !== 'leaf' && (
+        <div className="w-below__fold">
+          <button type="button" className="nr-btn nr-btn--sm nr-btn--fantasma" disabled={blocker !== null} onClick={() => actions.setCollapsed([note.id], !(folded > 0 || note.collapsed))}>
+            {folded ? <IconUnfold /> : <IconFold />}
+            {folded ? t('map.unfold') : t('map.fold')}
+            <span className="w-map__fold-count">{folded || tree.below(key).length}</span>
+          </button>
+          {blocker !== null && <p className="w-muted w-below__hint">{t('notices.foldBlocked', { title: blocker })}</p>}
+        </div>
+      )}
+      <input
+        className="w-input"
+        aria-label={t('note.addBelow')}
+        placeholder={t('note.addBelowHint')}
+        value={draft}
+        maxLength={LIMITS.noteBody}
+        onChange={(e) => setDraft(e.target.value)}
+        onKeyDown={(e) => {
+          if (e.key === 'Enter' && !isComposing(e)) {
+            e.preventDefault();
+            add();
+          }
+        }}
+      />
+    </section>
   );
 }
 

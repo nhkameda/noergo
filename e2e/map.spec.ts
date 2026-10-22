@@ -163,6 +163,56 @@ test('folding a branch: a red count, it travels with its idea, it stays folded, 
   await expect(page.locator('.w-map__bar').getByRole('button', { name: 'Fold all' })).toHaveCount(0);
 });
 
+test('columns and the map work alike: one panel that a blank click, Esc or another view closes, one colour per idea', async ({ page }) => {
+  await page.emulateMedia({ reducedMotion: 'reduce' });
+  await signIn(page, freshUser('alike'));
+  const drawer = page.getByRole('dialog', { name: 'Welcome to noergo' });
+  const welcome = card(page, 'Welcome to noergo');
+
+  // A card opens its note; a click on the empty column closes it, and so does Esc.
+  await welcome.click();
+  await expect(drawer).toBeVisible();
+  const empty = (await lane(page, 'Inbox').locator('.w-cards').boundingBox())!;
+  await page.mouse.click(empty.x + empty.width / 2, empty.y + empty.height - 12);
+  await expect(drawer).toHaveCount(0);
+  await welcome.click();
+  await welcome.focus();
+  await page.keyboard.press('Escape');
+  await expect(drawer).toHaveCount(0);
+
+  // Another view closes it too: here the column's map.
+  await welcome.click();
+  await expect(drawer).toBeVisible();
+  await openInboxMap(page);
+  await expect(drawer).toHaveCount(0);
+
+  // On the map an idea's colour is its note's. A note opened from the panel gives way to a
+  // click on the canvas, like the panel.
+  await node(page, 'Welcome to noergo').click();
+  const side = page.getByRole('complementary', { name: 'The selection' });
+  await side.getByRole('radio', { name: 'Annatto red' }).click();
+  await side.getByRole('button', { name: 'Open note' }).click();
+  await expect(drawer).toBeVisible();
+  const canvas = (await page.locator('.w-map__canvas').boundingBox())!;
+  await page.mouse.click(canvas.x + 40, canvas.y + canvas.height - 40);
+  await expect(drawer).toHaveCount(0);
+  await expect(side).toHaveCount(0);
+
+  // The view switcher leaves the map; the card wears the colour given there.
+  await page.getByRole('button', { name: 'Columns' }).click();
+  await expect(page.locator('.w-map')).toHaveCount(0);
+  await expect(welcome).toHaveAttribute('data-cor', 'urucum');
+
+  // The column's panel hangs a new idea from the note and folds it, as the map's does.
+  await welcome.click();
+  await drawer.getByRole('textbox', { name: 'New idea below' }).fill('Extrusion');
+  await page.keyboard.press('Enter');
+  await expect(page.locator('.w-card-slot', { has: card(page, 'Extrusion') })).toHaveAttribute('data-depth', '1');
+  await drawer.getByRole('button', { name: /^Fold the ideas below/ }).click();
+  await expect(card(page, 'Extrusion')).toHaveCount(0);
+  await expect(welcome.getByRole('button', { name: '1 idea folded inside. Show' })).toHaveText('1');
+});
+
 test('deleting from the map goes to the trash and undoes', async ({ page }) => {
   await signIn(page, freshUser('dora'));
   await openInboxMap(page);

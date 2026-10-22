@@ -31,6 +31,9 @@ import './workspace.css';
 const MAX_IMPORT_BYTES = 200 * 1024 * 1024;
 const boardKey = (userId: string) => `noergo:board:${userId}`;
 
+/** What a click lands on to do something: a note, a control, a field. Anywhere else is blank. */
+const BUSY = 'a, button, input, textarea, select, label, summary, [role="button"], [role="menu"], [role="menuitem"], [role="slider"], [contenteditable="true"], [data-note-id], [popover]';
+
 /** `#map=<column id>`: a map survives a reload and Back closes it. */
 function mapInUrl(): string | null {
   if (typeof window === 'undefined') return null;
@@ -117,7 +120,9 @@ export function Workspace({ userId, signInHref, homeHref, agentsHref, adminHref,
     [userId, store],
   );
 
+  // The open note belongs to the view it was opened in: changing view closes it, as on the map.
   const openMap = useCallback((laneId: string) => {
+    setOpenId(null);
     setMapLane(laneId);
     setView('board');
     const hash = `#map=${laneId}`;
@@ -127,6 +132,7 @@ export function Workspace({ userId, signInHref, homeHref, agentsHref, adminHref,
 
   const closeMap = useCallback(() => {
     returnFocus.current = mapLane;
+    setOpenId(null);
     if (window.history.state?.noergoMap) {
       window.history.back();
       return;
@@ -136,7 +142,10 @@ export function Workspace({ userId, signInHref, homeHref, agentsHref, adminHref,
   }, [mapLane]);
 
   useEffect(() => {
-    const onPop = () => setMapLane(mapInUrl());
+    const onPop = () => {
+      setMapLane(mapInUrl());
+      setOpenId(null);
+    };
     window.addEventListener('popstate', onPop);
     return () => window.removeEventListener('popstate', onPop);
   }, []);
@@ -151,6 +160,7 @@ export function Workspace({ userId, signInHref, homeHref, agentsHref, adminHref,
 
   const revealLane = useCallback((laneId: string) => {
     revealing.current = laneId;
+    setOpenId(null);
     setView('board');
     LAYOUT.write('columns');
   }, []);
@@ -227,10 +237,32 @@ export function Workspace({ userId, signInHref, homeHref, agentsHref, adminHref,
     requestAnimationFrame(() => tabOf(id)?.focus());
   };
 
+  const dismissNote = useCallback(() => setOpenId(null), []);
   const api = useMemo<WorkspaceApi>(
-    () => ({ store, actions, openNote, showBoard, openMap, announce, customize, revealLane }),
-    [store, actions, openNote, showBoard, openMap, announce, customize, revealLane],
+    () => ({ store, actions, openNote, dismissNote, showBoard, openMap, announce, customize, revealLane }),
+    [store, actions, openNote, dismissNote, showBoard, openMap, announce, customize, revealLane],
   );
+
+  /** Cards, columns or dates: from a map too, which the choice closes. */
+  const switchView = (next: 'cards' | 'columns' | 'due') => {
+    if (map || next !== (view === 'due' ? 'due' : layout)) setOpenId(null);
+    if (map) closeMap();
+    setView(next === 'due' ? 'due' : 'board');
+    if (next !== 'due') LAYOUT.write(next);
+  };
+
+  // A click on nothing in particular closes the open note, as a click on the map's canvas
+  // closes its panel. The map looks after its own canvas.
+  useEffect(() => {
+    if (!openId) return;
+    const onClick = (e: MouseEvent) => {
+      const el = e.target instanceof Element ? e.target : null;
+      if (!el?.closest('.w-main') || el.closest('.w-map') || el.closest(BUSY)) return;
+      setOpenId(null);
+    };
+    document.addEventListener('click', onClick);
+    return () => document.removeEventListener('click', onClick);
+  }, [openId]);
 
   const closeNote = useCallback(() => {
     if (map) document.querySelector<HTMLElement>('.w-map__canvas')?.focus();
@@ -261,6 +293,9 @@ export function Workspace({ userId, signInHref, homeHref, agentsHref, adminHref,
       } else if (!mod && !e.altKey && key === 'n') {
         e.preventDefault();
         capture.current?.focus();
+      } else if (e.key === 'Escape') {
+        // From anywhere but a field, as on the map: the open note closes.
+        setOpenId(null);
       }
     };
     window.addEventListener('keydown', onKey);
@@ -291,7 +326,7 @@ export function Workspace({ userId, signInHref, homeHref, agentsHref, adminHref,
                   onCancel={() => setRenamingBoard(false)}
                 />
               ) : (
-                <BoardTab key={b.id} board={b} index={i} current={b.id === boardId && view === 'board'} onSelect={() => showBoard(b.id)} onRename={() => b.id === boardId && setRenamingBoard(true)} />
+                <BoardTab key={b.id} board={b} index={i} current={b.id === boardId && view === 'board'} onSelect={() => { if (b.id !== boardId || view !== 'board') setOpenId(null); showBoard(b.id); }} onRename={() => b.id === boardId && setRenamingBoard(true)} />
               ),
             )}
             {creatingBoard ? (
@@ -341,15 +376,15 @@ export function Workspace({ userId, signInHref, homeHref, agentsHref, adminHref,
 
           <div className="w-top__tools">
             <div className="nr-visoes" role="group" aria-label={t('viewLabel')}>
-              <button type="button" aria-pressed={view === 'board' && layout === 'cards'} onClick={() => { setView('board'); LAYOUT.write('cards'); }}>
+              <button type="button" aria-pressed={view === 'board' && layout === 'cards'} onClick={() => switchView('cards')}>
                 <IconCards />
                 <span className="w-xs-sr">{t('viewCards')}</span>
               </button>
-              <button type="button" aria-pressed={view === 'board' && layout === 'columns'} onClick={() => { setView('board'); LAYOUT.write('columns'); }}>
+              <button type="button" aria-pressed={view === 'board' && layout === 'columns'} onClick={() => switchView('columns')}>
                 <IconColumns />
                 <span className="w-xs-sr">{t('viewColumns')}</span>
               </button>
-              <button type="button" aria-pressed={view === 'due'} onClick={() => setView('due')}>
+              <button type="button" aria-pressed={view === 'due'} onClick={() => switchView('due')}>
                 <IconClock />
                 <span className="w-xs-sr">{t('due')}</span>
               </button>

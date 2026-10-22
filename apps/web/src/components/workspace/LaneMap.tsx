@@ -139,7 +139,7 @@ function frozen(nodes: readonly MapNode[]): LayoutNode[] {
 
 export function LaneMap({ data, laneId, blocked, onClose }: { data: Data; laneId: string; blocked: boolean; onClose: () => void }) {
   const t = useTranslations('app');
-  const { store, actions, openNote, customize } = useWorkspace();
+  const { store, actions, openNote, dismissNote, customize } = useWorkspace();
   const { lanes, notes, links, layouts } = data;
   const rootKey = keyOf({ kind: 'lane', id: laneId });
   const full = useMemo(() => laneMap({ lanes, notes, links, layouts }, laneId), [lanes, notes, links, layouts, laneId]);
@@ -196,6 +196,12 @@ export function LaneMap({ data, laneId, blocked, onClose }: { data: Data; laneId
   /** When the person last moved the map (event time): the camera never follows an agent against their hand. */
   const touched = useRef(-Infinity);
   const followed = useRef(0);
+
+  // Another idea or link chosen: a note opened from the panel gives way to it, as in the column.
+  const selKey = `${sel.nodes.join(' ')}|${sel.edge ?? ''}`;
+  useEffect(() => {
+    dismissNote();
+  }, [selKey, dismissNote]);
 
   const boxes = useMemo(() => {
     const out = new Map<NodeKey, Box>();
@@ -357,8 +363,8 @@ export function LaneMap({ data, laneId, blocked, onClose }: { data: Data; laneId
     return d ? laneMap(d, laneId) : null;
   };
 
-  /** Positions and styles, in one undoable step. */
-  const commitLayout = (changes: ReadonlyMap<NodeKey, NodeChange>) => {
+  /** Positions and styles, in one undoable step, with `also` (ops and their undo) in it. */
+  const commitLayout = (changes: ReadonlyMap<NodeKey, NodeChange>, also: { ops: Op[]; undo: Op[] } = { ops: [], undo: [] }) => {
     const m = current();
     if (!m) return;
     const set: LayoutNode[] = [];
@@ -384,13 +390,29 @@ export function LaneMap({ data, laneId, blocked, onClose }: { data: Data; laneId
       set.push(next);
       back.push(prev);
     }
-    if (!set.length) return;
+    if (!set.length && !also.ops.length) return;
     const where = { viewKind: 'lane_map', viewId: laneId } as const;
-    const undo: Op[] = [...chunks(back).map((nodes) => ({ type: 'layout.set' as const, ...where, nodes })), ...chunks(gone).map((nodes) => ({ type: 'layout.remove' as const, ...where, nodes }))];
-    store.dispatch(
-      chunks(set).map((nodes) => ({ type: 'layout.set', ...where, nodes })),
-      { undo },
-    );
+    const undo: Op[] = [...also.undo, ...chunks(back).map((nodes) => ({ type: 'layout.set' as const, ...where, nodes })), ...chunks(gone).map((nodes) => ({ type: 'layout.remove' as const, ...where, nodes }))];
+    store.dispatch([...also.ops, ...chunks(set).map((nodes) => ({ type: 'layout.set' as const, ...where, nodes }))], { undo });
+  };
+
+  /**
+   * Fill, shape and size are the map's; an idea's colour is its note's, the same on its card,
+   * so a colour left on the map by an older version gives way to it. The centre keeps the map's.
+   */
+  const styleNodes = (keys: readonly NodeKey[], patch: Partial<NodeStyle>) => {
+    const { color, ...look } = patch;
+    if (color === undefined) return commitLayout(new Map(keys.map((k) => [k, look])));
+    const also: { ops: Op[]; undo: Op[] } = { ops: [], undo: [] };
+    const changes = new Map<NodeKey, NodeChange>();
+    for (const k of keys) {
+      const note = byKey.get(k)?.note;
+      changes.set(k, { ...look, color: note ? null : color });
+      if (!note || note.color === color) continue;
+      also.ops.push({ type: 'note.update', id: note.id, color });
+      also.undo.push({ type: 'note.update', id: note.id, color: note.color });
+    }
+    commitLayout(changes, also);
   };
 
   /** A new note on the map, linked from `from` when given. */
@@ -403,8 +425,9 @@ export function LaneMap({ data, laneId, blocked, onClose }: { data: Data; laneId
     // A loose idea opens the column; one hanging from another comes after its siblings, as typed.
     const list = notesByLane(d.notes, [laneId]).get(laneId) ?? [];
     const position = from?.startsWith('note:') ? between(list.at(-1)?.position ?? null, null) : between(null, list[0]?.position ?? null);
-    const ops: Op[] = [{ type: 'note.create', id, laneId, title, ...(body ? { body } : {}), ...(url ? { url } : {}), place: { position } }];
-    const layout: LayoutNode[] = [...frozen(m.nodes), { kind: 'note', id, x: Math.round(at.x), y: Math.round(at.y), ...style }];
+    // Its colour, taken from its parent, is the note's: the card shows it too.
+    const ops: Op[] = [{ type: 'note.create', id, laneId, title, ...(body ? { body } : {}), ...(url ? { url } : {}), ...(style.color ? { color: style.color } : {}), place: { position } }];
+    const layout: LayoutNode[] = [...frozen(m.nodes), { kind: 'note', id, x: Math.round(at.x), y: Math.round(at.y), ...style, color: null }];
     for (const nodes of chunks(layout)) ops.push({ type: 'layout.set', viewKind: 'lane_map', viewId: laneId, nodes });
     if (from && m.nodes.some((n) => n.key === from)) ops.push({ type: 'link.create', id: newId(), from: refOf(from), to: { kind: 'note', id }, ...styleOp(lastEdge.current) });
     // A folded parent opens, or the new idea would vanish as it lands.
@@ -751,6 +774,7 @@ export function LaneMap({ data, laneId, blocked, onClose }: { data: Data; laneId
         if (!g.moved && !cancelled) {
           setSel(NONE);
           setLabelEdit(null);
+          dismissNote();
         }
         return;
       case 'move':
@@ -1191,7 +1215,7 @@ export function LaneMap({ data, laneId, blocked, onClose }: { data: Data; laneId
             lane={map.lane}
             laneCor={laneColor}
             labelEditing={!!selEdge && labelEdit === selEdge.id}
-            onNodeStyle={(patch) => commitLayout(new Map(sel.nodes.map((k) => [k, patch])))}
+            onNodeStyle={(patch) => styleNodes(sel.nodes, patch)}
             onEdgeStyle={(patch) => selEdge && updateLink(selEdge.id, { style: patch })}
             onEdit={() => selNodes[0] && setEditing(selNodes[0].key)}
             onChild={() => selNodes[0] && addChild(selNodes[0].key)}
@@ -1601,7 +1625,7 @@ function StyleTools(props: PanelProps) {
   const size = common(nodes, (n) => n.size);
   return (
     <div className="w-map__toolbar" role="toolbar" aria-label={t('map.toolbar')}>
-      <ColorGroup value={common(nodes, (n) => n.color)} laneCor={props.laneCor} onChange={(color) => props.onNodeStyle({ color })} />
+      <ColorGroup value={common(nodes, (n) => n.color ?? n.note?.color ?? null)} laneCor={props.laneCor} onChange={(color) => props.onNodeStyle({ color })} />
       <Group label={t('map.fill')}>
         {FILLS.map((f) => {
           const I = FILL_ICONS[f];
