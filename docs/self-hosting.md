@@ -56,14 +56,37 @@ Leave out `--profile caddy` and route, on one host name:
 
 ## Updates
 
+A new version is a new commit on `main`: the `edge` image follows it a few minutes later.
+`NOERGO_VERSION` in `docker/.env` must be `edge` until releases exist. An `.env` copied
+before 22 October 2026 says `latest`, a tag that was never published (the pull fails with
+`manifest unknown`); change it to `edge`.
+
+From the directory you cloned, after a [backup](#backups):
+
 ```sh
+grep NOERGO_VERSION docker/.env    # edge
 git pull
 docker compose -f docker/compose.yml --env-file docker/.env pull
 docker compose -f docker/compose.yml --env-file docker/.env up -d
 ```
 
-Migrations run on every start and are append-only; the runner refuses to start if a
-migration file it already applied has changed.
+Add `--profile caddy` to the last line if you installed with it. `up -d` recreates web, mcp
+and worker on the new image; before they start, the `migrate` service applies any new
+migration. Migrations are append-only, and the runner refuses to start if a migration file
+it already applied has changed. If `git pull` stops on a file you edited, keep your
+changes in `docker/.env`, not in `docker/compose.yml`.
+
+To see which commit is running:
+
+```sh
+docker compose -f docker/compose.yml --env-file docker/.env ps
+docker inspect --format '{{index .Config.Labels "org.opencontainers.image.revision"}}' \
+  $(docker compose -f docker/compose.yml --env-file docker/.env ps -q web)
+```
+
+Every build is also tagged `sha-<full commit>`. Setting `NOERGO_VERSION` to an earlier one
+goes back to that image, but migrations do not run backwards: to return to an older
+schema, restore the backup.
 
 ## Backups
 

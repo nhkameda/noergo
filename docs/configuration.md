@@ -35,7 +35,7 @@ alone, so nobody can promote themselves or lock everyone out from the screen.
 | `MCP_ACCESS` | `all` | Starting value. Who may connect agents. `all`: every account. `granted`: administrators and the accounts an administrator enabled on the administration page. |
 | `MCP_CIMD_HOSTS` | `chatgpt.com,claude.ai,claude.com` | Hosts whose client metadata documents mcp fetches, so those clients need no registration. Any other client registers dynamically. `none` turns fetching off. |
 | `NOERGO_MCP_INTERNAL_URL` | `http://127.0.0.1:3042` | How web reaches mcp to answer the consent page. Never routed by the reverse proxy. `docker/compose.yml` sets `http://mcp:3042`. |
-| `NOERGO_VERSION` | `0.1.0` | Version mcp reports to agents. |
+| `NOERGO_VERSION` | `edge` | In `docker/compose.yml`, the image tag ([updates](self-hosting.md#updates)). Given to mcp outside Compose, the version it reports to agents (default `0.1.0`). |
 | `HOSTNAME`, `PORT` | `0.0.0.0`, `3041` | Where web listens (in the image). To listen on loopback only, use `localhost` with `NODE_OPTIONS=--dns-result-order=ipv4first`, never `127.0.0.1`: Next.js then turns every language rewrite into a request to itself, which fails behind a TLS proxy. |
 | `NOERGO_BIND`, `NOERGO_WEB_PORT`, `NOERGO_MCP_PORT` | `127.0.0.1`, `3041`, `3042` | Only for `docker/compose.yml`: the host interface and ports web and mcp are published on. |
 
