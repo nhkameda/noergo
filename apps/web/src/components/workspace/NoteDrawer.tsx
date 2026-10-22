@@ -9,7 +9,7 @@ import { IconCheck, IconClose, IconFold, IconUnfold } from './icons';
 import { Markdown } from './Markdown';
 import { boardsOf, fold, lanesOf, locate, type Data } from './model';
 import { makePatch, mapCaret, rebase } from './text-sync';
-import { columnTree, noteKey, noteOf } from './tree';
+import { columnTree, noteKey } from './tree';
 import { Swatches } from './ui';
 
 /** The editor's view of the body: what the text was rebased on, and whether a save is out. */
@@ -600,9 +600,7 @@ function Below({ data, note }: { data: Data; note: NoteDto }) {
   const tree = useMemo(() => columnTree(data, note.laneId), [data, note.laneId]);
   const key = noteKey(note.id);
   const folded = tree.folded.get(key)?.length ?? 0;
-  const why = folded ? null : tree.blocker(key);
-  const by = why && why !== 'leaf' ? data.notes.get(noteOf(why)!) : undefined;
-  const blocker = why && why !== 'leaf' ? by?.title || by?.excerpt || t('note.untitled') : null;
+  const count = folded || tree.below(key).length;
   const add = () => {
     if (actions.createChild(note.id, draft)) setDraft('');
   };
@@ -611,14 +609,13 @@ function Below({ data, note }: { data: Data; note: NoteDto }) {
       <h3 id={id} className="w-related__title">
         {t('note.below')}
       </h3>
-      {why !== 'leaf' && (
+      {count > 0 && (
         <div className="w-below__fold">
-          <button type="button" className="nr-btn nr-btn--sm nr-btn--fantasma" disabled={blocker !== null} onClick={() => actions.setCollapsed([note.id], !(folded > 0 || note.collapsed))}>
+          <button type="button" className="nr-btn nr-btn--sm nr-btn--fantasma" onClick={() => actions.setCollapsed([note.id], !(folded > 0 || note.collapsed))}>
             {folded ? <IconUnfold /> : <IconFold />}
             {folded ? t('map.unfold') : t('map.fold')}
-            <span className="w-map__fold-count">{folded || tree.below(key).length}</span>
+            <span className="w-map__fold-count">{count}</span>
           </button>
-          {blocker !== null && <p className="w-muted w-below__hint">{t('notices.foldBlocked', { title: blocker })}</p>}
         </div>
       )}
       <input

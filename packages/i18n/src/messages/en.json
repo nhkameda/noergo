@@ -256,7 +256,6 @@
       "coverOffline": "Offline: the image was not sent.",
       "coverBusy": "Too many images at once. Try again in a minute.",
       "coverFailed": "The image could not be saved. Try again.",
-      "foldBlocked": "“{title}” is linked to more than one idea above it, so this branch can’t fold.",
       "moveBlocked": "“{title}” hangs from more than one idea above it, so it only changes place among the ideas beside it.",
       "mapFreed": "You placed an idea by hand, so this map is free now. Organise lays it out again."
     },

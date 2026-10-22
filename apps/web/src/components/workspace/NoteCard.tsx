@@ -36,7 +36,7 @@ function focusSibling(from: HTMLElement, dir: 'up' | 'down' | 'left' | 'right') 
 
 const ARROWS: Record<string, 'up' | 'down' | 'left' | 'right'> = { ArrowUp: 'up', ArrowDown: 'down', ArrowLeft: 'left', ArrowRight: 'right' };
 
-type Branch = Pick<ColumnRow, 'depth' | 'open' | 'folded' | 'branch' | 'blocker'> & {
+type Branch = Pick<ColumnRow, 'depth' | 'open' | 'folded' | 'branch'> & {
   /** Hangs below the card being dragged, and goes with it. */
   carried?: boolean;
   /** An agent just added something to what is folded in it. */
@@ -48,7 +48,7 @@ type Branch = Pick<ColumnRow, 'depth' | 'open' | 'folded' | 'branch' | 'blocker'
  * the focus and Alt + arrows move the note (announced to screen readers). Ideas hanging
  * from it sit indented under it, go where it goes, and fold into a count.
  */
-export const NoteCard = memo(function NoteCard({ note, depth = 0, open = false, folded = 0, branch = 'leaf', blocker = null, carried = false, agentInside = false }: { note: NoteDto } & Partial<Branch>) {
+export const NoteCard = memo(function NoteCard({ note, depth = 0, open = false, folded = 0, branch = 'leaf', carried = false, agentInside = false }: { note: NoteDto } & Partial<Branch>) {
   const t = useTranslations('app');
   const format = useFormatter();
   const { actions, openNote, announce, store } = useWorkspace();
@@ -63,7 +63,7 @@ export const NoteCard = memo(function NoteCard({ note, depth = 0, open = false, 
     return combine(
       draggable({
         element: el,
-        // What it reaches through its links can't take it in: no idea lands under itself.
+        // Its own branch can't take it in: no idea lands under itself.
         getInitialData: () => {
           const data = store.getState().data;
           const below = data ? columnTree(data, note.laneId).below(noteKey(note.id)).map(noteOf) : [];
@@ -83,12 +83,7 @@ export const NoteCard = memo(function NoteCard({ note, depth = 0, open = false, 
     );
   }, [note.id, note.laneId, open, store]);
 
-  const toggleFold = () => {
-    if (folded > 0 || branch === 'fold') return actions.setCollapsed([note.id], !(folded > 0 || note.collapsed));
-    // Something below hangs from two: it stays open, and the person is told why.
-    if (note.collapsed) actions.setCollapsed([note.id], false);
-    store.notify({ tone: 'info', key: 'foldBlocked', values: { title: blocker || t('note.untitled') } });
-  };
+  const toggleFold = () => actions.setCollapsed([note.id], !(folded > 0 || note.collapsed));
 
   const onKeyDown = (e: KeyboardEvent<HTMLElement>) => {
     if (e.target !== e.currentTarget || isEditable(e.target)) return;
@@ -157,15 +152,7 @@ export const NoteCard = memo(function NoteCard({ note, depth = 0, open = false, 
             </button>
           ) : (
             branch !== 'leaf' && (
-              <button
-                type="button"
-                className="w-card__fold"
-                data-blocked={branch === 'blocked' || undefined}
-                aria-expanded={true}
-                aria-label={t('map.fold')}
-                title={branch === 'blocked' ? t('notices.foldBlocked', { title: blocker || t('note.untitled') }) : t('map.fold')}
-                onClick={toggleFold}
-              >
+              <button type="button" className="w-card__fold" aria-expanded={true} aria-label={t('map.fold')} title={t('map.fold')} onClick={toggleFold}>
                 <IconMinus />
               </button>
             )

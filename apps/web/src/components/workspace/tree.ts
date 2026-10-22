@@ -1,10 +1,10 @@
 import type { LinkDto, NoteDto } from '@noergo/core/dto';
 import { comparePositioned } from '@noergo/core/position';
-import { laneTree, reaches, thoughtTree, type LaneTree } from '@noergo/core/tree';
+import { laneTree, thoughtTree, type LaneTree } from '@noergo/core/tree';
 import type { Branch, LaneMap, NodeKey } from './map';
 import { notesByLane, type Data } from './model';
 
-export { laneTree, reaches, type LaneTree };
+export { laneTree, type LaneTree };
 
 /** The tree of a lane's map: the notes in column order, the map's links. */
 export function mapTree(map: LaneMap, rootKey: NodeKey): LaneTree {
@@ -81,12 +81,7 @@ export function siblings(notes: readonly NoteDto[], tree: LaneTree, parent: stri
 
 /** What hangs from `id` in the column, at every level: what goes along when it moves. */
 export function descendants(tree: LaneTree, id: string): string[] {
-  const key = noteKey(id);
-  const at = tree.order.indexOf(key);
-  const depth = tree.depth.get(key) ?? 0;
-  const out: string[] = [];
-  for (let i = at + 1; at >= 0 && i < tree.order.length && tree.depth.get(tree.order[i]!)! > depth; i++) out.push(tree.order[i]!.slice(5));
-  return out;
+  return tree.below(noteKey(id)).map((k) => k.slice(5));
 }
 
 export interface ColumnRow {
@@ -94,10 +89,8 @@ export interface ColumnRow {
   depth: number;
   /** How many ideas a fold of this one hides now. */
   folded: number;
-  /** When nothing is folded in it: none hangs from it, it can fold, or one below has two parents. */
-  branch: 'leaf' | 'fold' | 'blocked';
-  /** The title of the idea that keeps it from folding. */
-  blocker: string | null;
+  /** When nothing is folded in it: none hangs from it, or it can fold. */
+  branch: 'leaf' | 'fold';
   /** Ideas of its own follow it on show. */
   open: boolean;
 }
@@ -127,15 +120,12 @@ export function columnRows(notes: readonly NoteDto[], tree: LaneTree, hideDone: 
   const rows = shown.filter((k) => keep.has(k));
   return rows.map((k, i) => {
     const folded = tree.folded.get(k)?.length ?? 0;
-    const b = folded ? null : tree.blocker(k);
-    const by = b && b !== 'leaf' ? byKey.get(b) : undefined;
     const next = rows[i + 1];
     return {
       note: byKey.get(k)!,
       depth: depthOf(k),
       folded,
-      branch: b === 'leaf' ? 'leaf' : b === null ? 'fold' : 'blocked',
-      blocker: by ? by.title || by.excerpt : null,
+      branch: folded || tree.below(k).length ? 'fold' : 'leaf',
       open: !!next && tree.parent.get(next) === k,
     };
   });

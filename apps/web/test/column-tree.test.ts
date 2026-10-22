@@ -84,10 +84,12 @@ describe('a column as a tree', () => {
     expect(rows(d, 'l1', true)).toEqual(['w', 'g', '  e', '  c']);
   });
 
-  it('names the idea with two parents that keeps a branch open', () => {
+  it('folds a branch whatever lines cross it: a line in from the welcome note changes nothing', () => {
     const d = wow({ links: [link('k4', 'w', 'c')] });
-    const g = columnRows(notesByLane(d.notes, ['l1']).get('l1')!, columnTree(d, 'l1'), false)[1]!;
-    expect(g).toMatchObject({ branch: 'blocked', blocker: 'c' });
+    const [w, g] = columnRows(notesByLane(d.notes, ['l1']).get('l1')!, columnTree(d, 'l1'), false);
+    expect(w).toMatchObject({ branch: 'leaf' });
+    expect(g).toMatchObject({ branch: 'fold' });
+    expect(rows(wow({ links: [link('k4', 'w', 'c')], notes: { g: { collapsed: true } } }))).toEqual(['w', 'g (3)', 'q']);
   });
 });
 
@@ -150,7 +152,7 @@ describe('moving in a column as a tree', () => {
     const sent = r.sent[0]!;
     expect(sent.ops.filter((o) => o.type.startsWith('link.'))).toEqual([{ type: 'link.delete', id: 'k4' }, expect.objectContaining({ type: 'link.create', from: { kind: 'note', id: 'g' }, to: { kind: 'note', id: 'q' } })]);
     expect(sent.undo).toContainEqual({ type: 'link.restore', id: 'k4' });
-    expect(columnTree(r.now(), 'l1').blocker('note:g')).toBeNull();
+    expect(columnTree(r.now(), 'l1').below('note:g')).toEqual(['note:e', 'note:c', 'note:n', 'note:q']);
   });
 
   it('takes the whole branch to another column, in its order, and brings it back', () => {

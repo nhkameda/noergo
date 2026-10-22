@@ -256,7 +256,6 @@
       "coverOffline": "Sem conexão: a imagem não foi enviada.",
       "coverBusy": "Muitas imagens de uma vez. Tente de novo em um minuto.",
       "coverFailed": "Não foi possível salvar a imagem. Tente de novo.",
-      "foldBlocked": "“{title}” está ligada a mais de uma ideia acima dela, por isso este ramo não recolhe.",
       "moveBlocked": "“{title}” está ligado a mais de uma ideia acima dele, então só muda de lugar entre os itens ao lado.",
       "mapFreed": "Você posicionou uma ideia à mão, então este mapa ficou livre. Organizar arruma de novo."
     },

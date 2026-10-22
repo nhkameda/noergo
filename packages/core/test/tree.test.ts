@@ -34,21 +34,32 @@ describe('the tree of a thought', () => {
     expect([...both.folded.keys()]).toEqual(['gabinete']);
   });
 
-  it('folds only when everything below has one link in', () => {
-    expect(laneTree(R, items(keys), edges).blocker('gabinete')).toBeNull();
-    expect(laneTree(R, items(keys), edges).blocker('cnc')).toBe('leaf');
-    expect(laneTree(R, items(keys), edges).blocker(R)).toBe('leaf');
-    const shared = [...edges, ...links('outro>cnc')];
-    expect(laneTree(R, items(keys), shared).blocker('gabinete')).toBe('cnc');
-    // Linked between siblings is a second link in, too.
-    expect(laneTree(R, items(keys), [...edges, ...links('extrusao>cnc')]).blocker('gabinete')).toBe('cnc');
+  it('gives what hangs from an idea, at every level: what its fold hides', () => {
+    const t = laneTree(R, items(`${keys} fresa`), [...edges, ...links('cnc>fresa')]);
+    expect(t.below('gabinete')).toEqual(['anodizacao', 'cnc', 'fresa', 'extrusao']);
+    expect(t.below('cnc')).toEqual(['fresa']);
+    expect(t.below('outro')).toEqual([]);
+    expect(t.below(R)).toEqual([]);
   });
 
-  it('keeps on show an idea that another way reaches, even when a fold sits on one of its ways', () => {
+  it('a fold hides its branch and only it, whatever lines cross it', () => {
+    // outro also links to cnc, which hangs from gabinete by the older link.
     const shared = [...edges, ...links('outro>cnc')];
-    const t = laneTree(R, items(keys, 'gabinete'), shared);
-    expect(t.hidden.has('cnc')).toBe(false);
-    expect([...t.hidden].sort()).toEqual(['anodizacao', 'extrusao']);
+    expect([...laneTree(R, items(keys, 'gabinete'), shared).hidden].sort()).toEqual(['anodizacao', 'cnc', 'extrusao']);
+    expect(laneTree(R, items(keys, 'outro'), shared).hidden.size).toBe(0);
+    // Linked between siblings, too.
+    expect([...laneTree(R, items(keys, 'gabinete'), [...edges, ...links('extrusao>cnc')]).hidden].sort()).toEqual(['anodizacao', 'cnc', 'extrusao']);
+  });
+
+  it('a line back to an earlier stage neither stops a fold nor widens it', () => {
+    // R > dev > roteiro; R > analytics > ctr, ab, post; analytics feeds dev back.
+    const k = 'dev roteiro analytics ctr ab post';
+    const e = links('R>dev dev>roteiro R>analytics analytics>ctr analytics>ab analytics>post analytics>dev');
+    const t = laneTree(R, items(k, 'analytics'), e);
+    expect(t.parent.has('dev')).toBe(false);
+    expect([...t.hidden].sort()).toEqual(['ab', 'ctr', 'post']);
+    expect(t.folded.get('analytics')).toEqual(['ctr', 'ab', 'post']);
+    expect(Object.fromEntries(levelFolds(laneTree(R, items(k), e), 1))).toMatchObject({ dev: true, analytics: true });
   });
 
   it('a loop with nothing above it starts at its first idea in the column, and nothing is lost', () => {
@@ -68,7 +79,7 @@ describe('the tree of a thought', () => {
 });
 
 describe('levels on show', () => {
-  // R > a > a1 > a11; R > b > b1; R > c (a leaf); and a1 also hangs from c.
+  // R > a > a1 > a11; R > b > b1; R > c (a leaf).
   const keys = 'a a1 a11 b b1 c';
   const edges = links('R>a a>a1 a1>a11 R>b b>b1 R>c');
 
@@ -79,9 +90,8 @@ describe('levels on show', () => {
     expect([...levelFolds(t, null).values()].every((v) => !v)).toBe(true);
   });
 
-  it('leaves open an idea that cannot fold', () => {
+  it('folds a branch that a line from elsewhere reaches into', () => {
     const t = laneTree(R, items(keys), [...edges, ...links('c>a1')]);
-    expect(levelFolds(t, 1).get('a')).toBe(false);
-    expect(levelFolds(t, 1).get('b')).toBe(true);
+    expect(Object.fromEntries(levelFolds(t, 1))).toMatchObject({ a: true, b: true, c: false });
   });
 });

@@ -220,7 +220,7 @@ describe.skipIf(!testDb)('MCP tools', () => {
     await close();
   });
 
-  it('folds a branch, shows it in get_thought and the outline, and refuses a fold that would hide an idea linked from elsewhere', async () => {
+  it('folds a branch, shows it in get_thought and the outline, whatever lines cross it', async () => {
     const a = await agentFor();
     const [lane] = await lanesOf(a.workspaceId);
     const { call, close } = await connect(a.principal);
@@ -234,14 +234,14 @@ describe.skipIf(!testDb)('MCP tools', () => {
     expect(outline).toContain('- Aluminium case (folded: 3 hidden below)');
     expect(outline).toContain('\n  - CNC');
 
-    // Nothing below: nothing to fold. Linked from a second idea: the branch stays open.
+    // Nothing below: nothing to fold. A line from another idea into the branch neither stops the fold nor widens the other's.
     expect(errorCode(await call('update_note', { note_id: cnc!.id, collapsed: true }))).toBe('invalid');
     expect((await call('update_note', { note_id: kase!.id, collapsed: false })).isError).toBeFalsy();
     const other = ((await call('add_notes', { thought_id: lane!.id, ideas: [{ title: 'Suppliers' }] })).structuredContent as { ideas: Array<{ id: string }> }).ideas[0]!;
     expect((await call('connect_notes', { from_id: other.id, to_id: cnc!.id })).isError).toBeFalsy();
-    const refused = await call('update_note', { note_id: kase!.id, collapsed: true });
-    expect(errorCode(refused)).toBe('invalid');
-    expect(JSON.stringify(refused.content)).toContain('CNC');
+    expect((await call('update_note', { note_id: kase!.id, collapsed: true })).isError).toBeFalsy();
+    expect(((await call('fetch', { id: lane!.id })).structuredContent as { text: string }).text).toContain('- Aluminium case (folded: 3 hidden below)');
+    expect(errorCode(await call('update_note', { note_id: other.id, collapsed: true }))).toBe('invalid');
     await close();
   });
 

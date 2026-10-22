@@ -411,7 +411,6 @@
 .w-card__fold::after { content: ""; position: absolute; inset: -6px; }
 .w-card__fold svg { width: 14px; height: 14px; }
 .w-card__fold:hover { color: var(--nr-text); background: var(--nr-fill-hover); }
-.w-card__fold[data-blocked] { opacity: 0.45; cursor: help; }
 .w-card__fold[data-folded] { color: #fff; background: var(--nr-danger-fill); font: 700 11px/1 var(--nr-font-ui); font-variant-numeric: tabular-nums; }
 .w-card__fold[data-folded]:hover { filter: brightness(1.08); }
 /* An agent just added something inside: the count wears the agents' colour for a moment. */
@@ -952,7 +951,6 @@ select.w-input { width: 100%; }
 .w-below .w-related__title { margin: 0; }
 .w-below__fold { display: grid; justify-items: start; gap: 4px; }
 .w-below__fold .nr-btn { gap: 6px; }
-.w-below__hint { margin: 0; font-size: var(--nr-text-xs); }
 .w-related__sub { margin: var(--nr-space-3) 0 var(--nr-space-1); color: var(--nr-text-muted); font-size: var(--nr-text-xs); font-weight: var(--nr-weight-bold); }
 .w-related__list { display: grid; margin: 0; padding: 0; list-style: none; }
 .w-related__item { width: 100%; min-height: 44px; padding: 0 var(--nr-space-2); border: 0; border-radius: var(--nr-radius-md); background: transparent; color: var(--nr-accent-text); font: inherit; text-align: start; cursor: pointer; }

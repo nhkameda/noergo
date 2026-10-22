@@ -179,8 +179,8 @@ export const Lane = memo(function Lane({ lane, notes, tree, hideDone, index, tot
                       {t('map.unfoldAll')}
                     </button>
                   )}
-                  {notes.some((n) => !n.collapsed && tree.blocker(noteKey(n.id)) === null) && (
-                    <button type="button" className="w-menu__item" onClick={() => { close(); actions.setCollapsed(notes.filter((n) => !n.collapsed && tree.blocker(noteKey(n.id)) === null).map((n) => n.id), true); }}>
+                  {notes.some((n) => !n.collapsed && tree.below(noteKey(n.id)).length > 0) && (
+                    <button type="button" className="w-menu__item" onClick={() => { close(); actions.setCollapsed(notes.filter((n) => !n.collapsed && tree.below(noteKey(n.id)).length > 0).map((n) => n.id), true); }}>
                       {t('map.foldAll')}
                     </button>
                   )}
@@ -237,7 +237,6 @@ export const Lane = memo(function Lane({ lane, notes, tree, hideDone, index, tot
             open={r.open}
             folded={r.folded}
             branch={r.branch}
-            blocker={r.blocker}
             carried={carried.has(r.note.id)}
             agentInside={r.folded > 0 && !!tree.folded.get(noteKey(r.note.id))?.some((k) => agentMarks.get(k.slice(5))?.fresh)}
           />

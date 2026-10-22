@@ -28,7 +28,7 @@ import {
 } from '@noergo/core';
 import { BOARD_ICON_MAX, BOARD_ICONS } from '@noergo/core/board-icons';
 import { LIMITS } from '@noergo/core/limits';
-import { levelFolds, reaches, thoughtTree, type LaneTree } from '@noergo/core/tree';
+import { levelFolds, thoughtTree, type LaneTree } from '@noergo/core/tree';
 import { z } from 'zod';
 import { PUBLIC_URL } from '../env';
 
@@ -64,7 +64,7 @@ const ideaOut = z.object({
   color: z.string().nullable(),
   done: z.boolean(),
   tags: z.array(z.string()),
-  collapsed: z.boolean().describe('Folded: the ideas below it (along its links out) are hidden in the column and on the map. They still exist.'),
+  collapsed: z.boolean().describe('Folded: the ideas that hang from it, at every level, are hidden in the column and on the map. They still exist.'),
   version: z.number().describe('Pass as expected_version to update_note when replacing the body.'),
   updated_at: z.string(),
 });
@@ -494,7 +494,7 @@ export function registerTools(server: McpServer, ctx: ToolContext): void {
         collapsed: z
           .boolean()
           .optional()
-          .describe('true folds the ideas below it out of sight on every screen; false shows them again. Folding needs each idea below to hang from this branch only (one link in).'),
+          .describe('true folds the ideas that hang from it out of sight on every screen; false shows them again. Lines across branches neither stop a fold nor widen it.'),
       },
       outputSchema: { note_id: z.string(), version: z.number() },
       annotations: { title: 'Change an idea', ...CHANGE },
@@ -503,13 +503,9 @@ export function registerTools(server: McpServer, ctx: ToolContext): void {
       run(ctx, 'update_note', async () => {
         if (a.body !== undefined && a.expected_version === undefined) throw new DomainError('invalid', 'replacing the body needs expected_version; read the idea first');
         if (a.collapsed) {
-          // The rule the screen keeps: a fold never hides an idea that something else links to.
           const { lane } = await getNote(p.workspaceId, a.note_id);
           const t = await thoughtDetail(p.workspaceId, lane.id);
-          const tree = thoughtTree(lane.id, t.ideas, t.links);
-          const why = tree.blocker(`note:${a.note_id}`);
-          if (why === 'leaf') throw new DomainError('invalid', 'nothing hangs from this idea, so there is nothing to fold');
-          if (why) throw new DomainError('invalid', `“${t.ideas.find((n) => `note:${n.id}` === why)?.title ?? why}” is linked to more than one idea above it, so this branch can’t fold`);
+          if (!thoughtTree(lane.id, t.ideas, t.links).below(`note:${a.note_id}`).length) throw new DomainError('invalid', 'nothing hangs from this idea, so there is nothing to fold');
         }
         const [o] = await apply(p, [
           {
@@ -718,8 +714,7 @@ export function registerTools(server: McpServer, ctx: ToolContext): void {
           const back = to !== null && to !== 'root' && to !== now && tree.parent.get(`note:${to}`) !== `note:${note.id}` ? links.filter((l) => l.from.kind === 'note' && l.from.id === note.id && l.to.kind === 'note' && l.to.id === to) : [];
           if (to !== null && to !== 'root') {
             if (!ideas.has(to)) throw new DomainError('not_found', `${at}: parent not found in this thought`);
-            const below = back.length ? reaches(links, `note:${note.id}`, `note:${to}`, new Set(back.map((l) => l.id))) : tree.below(`note:${note.id}`).includes(`note:${to}`);
-            if (to === note.id || below) throw new DomainError('invalid', `${at}: an idea cannot hang from itself or from an idea below it`);
+            if (to === note.id || tree.below(`note:${note.id}`).includes(`note:${to}`)) throw new DomainError('invalid', `${at}: an idea cannot hang from itself or from an idea below it`);
           }
           if (to !== now) {
             const ins = links.filter((l) => l.to.kind === 'note' && l.to.id === note.id && (l.from.kind === 'lane' ? l.from.id === lane.id : ideas.has(l.from.id)));

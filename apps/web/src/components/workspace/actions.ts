@@ -5,7 +5,7 @@ import { between } from '@noergo/core/position';
 import { splitText } from './import-ideario';
 import { boardsOf, lanesOf, notesByLane, type Data } from './model';
 import type { WorkspaceStore } from './store';
-import { columnTree, descendants, linksByLane, noteKey, noteOf, reaches, siblings } from './tree';
+import { columnTree, descendants, noteKey, noteOf, siblings } from './tree';
 
 type Positioned = { id: string; position: string };
 type NoteFields = Pick<Extract<Op, { type: 'note.update' }>, 'title' | 'url' | 'color' | 'done' | 'dueAt'>;
@@ -242,8 +242,7 @@ export class Actions {
     const from = columnTree(data, cur.laneId);
     // A line from it to its new parent is turned round, unless that parent hangs by it.
     const back = parent === null || from.parent.get(noteKey(parent)) === noteKey(id) ? [] : [...data.links.values()].filter((l) => l.deletedAt === null && l.origin === 'manual' && l.from.kind === 'note' && l.from.id === id && l.to.kind === 'note' && l.to.id === parent);
-    const below = (p: string) => (back.length ? reaches(linksByLane(data).get(cur.laneId) ?? [], noteKey(id), noteKey(p), new Set(back.map((l) => l.id))) : from.below(noteKey(id)).includes(noteKey(p)));
-    if (parent !== null && (parent === id || (to.laneId === cur.laneId && below(parent)))) return null;
+    if (parent !== null && (parent === id || (to.laneId === cur.laneId && from.below(noteKey(id)).includes(noteKey(parent))))) return null;
     const host = parent === null ? null : data.notes.get(parent);
     if (parent !== null && (!host || host.laneId !== to.laneId || host.deletedAt !== null)) return null;
 

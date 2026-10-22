@@ -112,7 +112,7 @@ test('an idea’s text: a glance under the mouse, the whole of it in the panel b
   await expect(side).toHaveCount(0);
 });
 
-test('folding a branch: a red count, it travels with its idea, it stays folded, and two parents keep it open', async ({ page }) => {
+test('folding a branch: a red count, it travels with its idea, it stays folded, and a line across it does not stop it', async ({ page }) => {
   // The view lands at once when it is fitted.
   await page.emulateMedia({ reducedMotion: 'reduce' });
   await signIn(page, freshUser('fold'));
@@ -160,16 +160,16 @@ test('folding a branch: a red count, it travels with its idea, it stays folded, 
   await badge.click();
   expect(await spot(node(page, 'CNC'))).toEqual([cx, cy]);
 
-  // CNC linked from a second idea in the branch: it can no longer fold, and the panel says why.
+  // CNC linked from a second idea in the branch too: the branch still folds, the line with it.
   await page.keyboard.press('Escape');
   await page.locator('.w-map__zoom').getByRole('button', { name: 'Fit to screen' }).click();
   await connect(page, node(page, 'Extrusion'), node(page, 'CNC'));
   await expect(page.locator('.w-map__edge')).toHaveCount(4);
-  await top.click();
-  await expect(side.getByRole('button', { name: /^Fold the ideas below/ })).toBeDisabled();
-  await expect(side).toContainText('“CNC” is linked to more than one idea above it');
-  await expect(top.locator('.w-map__fold')).toHaveCount(0);
-  await expect(page.locator('.w-map__bar').getByRole('button', { name: 'Fold all' })).toHaveCount(0);
+  await expect(node(page, 'Extrusion').locator('.w-map__fold')).toHaveCount(0);
+  await page.locator('.w-map__bar').getByRole('button', { name: 'Fold all' }).click();
+  await expect(badge).toHaveText('3');
+  await expect(node(page, 'CNC')).toHaveCount(0);
+  await expect(page.locator('.w-map__edge')).toHaveCount(0);
 });
 
 test('columns and the map work alike: one panel that a blank click, Esc or another view closes, one colour per idea', async ({ page }) => {

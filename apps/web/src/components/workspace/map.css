@@ -304,7 +304,6 @@
 .w-map__panel .w-customize__name { font: var(--nr-weight-bold) var(--nr-text-xl)/1.2 var(--nr-font-display); }
 
 .w-map__panel-fold { display: grid; justify-items: start; gap: var(--nr-space-1); }
-.w-map__panel-hint { margin: 0; color: var(--nr-text-muted); font-size: var(--nr-text-xs); line-height: 1.4; }
 .w-map__fold-count { min-width: 18px; height: 18px; padding: 0 5px; border-radius: 999px; background: var(--nr-surface-sunken); font: 700 11px/18px var(--nr-font-ui); font-variant-numeric: tabular-nums; text-align: center; }
 
 .w-map__toolbar { display: grid; gap: var(--nr-space-3); }

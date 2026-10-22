@@ -88,11 +88,10 @@ interface Peek {
   y: number;
   above: boolean;
 }
-/** The fold of the idea in the panel: how many it hides or would hide, and what stops it. */
+/** The fold of the idea in the panel: how many it hides or would hide. */
 interface FoldInfo {
   folded: number;
   count: number;
-  blocker: string | null;
 }
 interface Ghost extends XY {
   from: NodeKey | null;
@@ -625,22 +624,20 @@ export function LaneMap({ data, laneId, blocked, onClose }: { data: Data; laneId
     return out;
   };
 
-  /** Folds or opens `keys`: open if any is folded, else fold those that can. One that cannot says why. */
+  /** Folds or opens `keys`: open if any is folded, else fold those with something hanging from them. */
   const toggleFold = (keys: readonly NodeKey[]) => {
     if (!tree) return;
     const list = keys.map((k) => byKey.get(k)?.note).filter((n) => !!n);
     const open = list.filter((n) => n.collapsed);
     if (open.length) return actions.setCollapsed(open.map((n) => n.id), false);
-    const can = list.filter((n) => tree.blocker(keyOf({ kind: 'note', id: n.id })) === null);
-    if (can.length) return actions.setCollapsed(can.map((n) => n.id), true);
-    const why = list.map((n) => tree.blocker(keyOf({ kind: 'note', id: n.id }))).find((b) => b !== null && b !== 'leaf');
-    if (why) store.notify({ tone: 'info', key: 'foldBlocked', values: { title: byKey.get(why)?.title || t('note.untitled') } });
+    const can = list.filter((n) => tree.below(keyOf({ kind: 'note', id: n.id })).length > 0);
+    if (can.length) actions.setCollapsed(can.map((n) => n.id), true);
   };
 
-  /** Every branch that can fold, at every level; or everything open again. */
+  /** Every branch, at every level; or everything open again. */
   const foldAll = (fold: boolean) => {
     if (!tree || !full) return;
-    const list = full.nodes.filter((n) => n.note && (fold ? !n.note.collapsed && tree.blocker(n.key) === null : n.note.collapsed));
+    const list = full.nodes.filter((n) => n.note && (fold ? !n.note.collapsed && tree.below(n.key).length > 0 : n.note.collapsed));
     actions.setCollapsed(
       list.map((n) => n.note!.id),
       fold,
@@ -1210,12 +1207,12 @@ export function LaneMap({ data, laneId, blocked, onClose }: { data: Data; laneId
   const foldOf = (n: MapNode): { count: number; side: 'e' | 'w'; agent: boolean } | null => {
     if (!n.note || !tree) return null;
     const hid = tree.folded.get(n.key);
-    if (!hid && (n.note.collapsed || tree.blocker(n.key) !== null)) return null;
-    const below = hid ?? tree.below(n.key);
+    const below = hid ?? (n.note.collapsed ? [] : tree.below(n.key));
+    if (!below.length) return null;
     const side = below.reduce((t, k) => t + xOf(k), 0) / below.length < xOf(n.key) ? 'w' : 'e';
     return { count: hid?.length ?? 0, side, agent: !!hid?.some((k) => byKey.get(k)?.note && agentMarks.get(refOf(k).id)?.fresh) };
   };
-  const canFoldAll = !!tree && !!full && full.nodes.some((n) => n.note && !n.note.collapsed && tree.blocker(n.key) === null);
+  const canFoldAll = !!tree && !!full && full.nodes.some((n) => n.note && !n.note.collapsed && tree.below(n.key).length > 0);
   const autoCor = ((): string | undefined => {
     if (selEdge) return colors.get(selEdge.to);
     const k = selNodes.length === 1 ? selNodes[0]!.key : null;
@@ -1227,10 +1224,8 @@ export function LaneMap({ data, laneId, blocked, onClose }: { data: Data; laneId
   const foldInfo = ((): FoldInfo | null => {
     if (!one?.note || !tree) return null;
     const folded = tree.folded.get(one.key)?.length ?? 0;
-    if (folded) return { folded, count: folded, blocker: null };
-    const b = tree.blocker(one.key);
-    if (b === 'leaf') return null;
-    return { folded: 0, count: tree.below(one.key).length, blocker: b ? byKey.get(b)?.title || t('note.untitled') : null };
+    const count = folded || tree.below(one.key).length;
+    return count ? { folded, count } : null;
   })();
 
   return (
@@ -1788,12 +1783,11 @@ function MapPanel({ panelRef, ...props }: PanelProps & { panelRef: RefObject<HTM
 
       {props.fold && (
         <div className="w-map__panel-fold">
-          <button type="button" className="nr-btn nr-btn--sm nr-btn--fantasma" disabled={!!props.fold.blocker} onClick={props.onFold}>
+          <button type="button" className="nr-btn nr-btn--sm nr-btn--fantasma" onClick={props.onFold}>
             {props.fold.folded ? <IconUnfold /> : <IconFold />}
             {props.fold.folded ? t('map.unfold') : t('map.fold')}
             <span className="w-map__fold-count">{props.fold.count}</span>
           </button>
-          {props.fold.blocker && <p className="w-map__panel-hint">{t('notices.foldBlocked', { title: props.fold.blocker })}</p>}
         </div>
       )}
 

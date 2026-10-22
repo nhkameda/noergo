@@ -59,7 +59,7 @@ export interface NoteDto {
   tags: string[];
   doneAt: string | null;
   dueAt: string | null;
-  /** What hangs from it (its links out, down the tree) is hidden in the column and on the map. */
+  /** What hangs from it in the tree, at every level, is hidden in the column and on the map. */
   collapsed: boolean;
   version: number;
   createdBy: string | null;
