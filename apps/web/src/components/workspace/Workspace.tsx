@@ -1,6 +1,5 @@
 'use client';
 
-import { autoScrollForElements } from '@atlaskit/pragmatic-drag-and-drop-auto-scroll/element';
 import { LIMITS } from '@noergo/core/limits';
 import { languageNames, locales } from '@noergo/i18n';
 import { useLocale, useTranslations } from 'next-intl';
@@ -9,6 +8,7 @@ import { PREFIX } from '@/i18n/routing';
 import { Actions } from './actions';
 import { Board } from './Board';
 import { BoardLookPanel, useBoardLook, type BoardLookTarget } from './BoardLook';
+import { BoardStrip } from './BoardStrip';
 import { CommandPalette } from './CommandPalette';
 import { takePicture } from './cover-client';
 import { CustomizePanel, type CustomizeTarget } from './Customize';
@@ -16,11 +16,11 @@ import { Gallery } from './Gallery';
 import { isComposing, isEditable, useWorkspace, WorkspaceContext, type WorkspaceApi } from './context';
 import { DueList } from './DueList';
 import { useFocusHeartbeat } from './focus';
-import { IconCards, IconCheck, IconClock, IconColumns, IconPlus, IconRedo, IconSearch, IconUndo, IconUser } from './icons';
+import { IconCards, IconCheck, IconChevronDown, IconClock, IconColumns, IconPlus, IconRedo, IconSearch, IconUndo, IconUser } from './icons';
 import { LaneMap } from './LaneMap';
 import { isIdeario, planIdeario } from './import-ideario';
 import { boardsOf, captureLane, locate, type Data } from './model';
-import { BoardTab } from './MoveToBoard';
+import { BoardItem, BoardTab } from './MoveToBoard';
 import { NoteDrawer } from './NoteDrawer';
 import { focusNote } from './NoteCard';
 import { WorkspaceStore, type WorkspaceState } from './store';
@@ -73,6 +73,7 @@ export function Workspace({ userId, signInHref, homeHref, agentsHref, adminHref,
   const [customizing, setCustomizing] = useState<CustomizeTarget | null>(null);
   const [lookingAt, setLookingAt] = useState<BoardLookTarget | null>(null);
   const tabs = useRef<HTMLElement>(null);
+  const [foot, setFoot] = useState<HTMLElement | null>(null);
   const layout = LAYOUT.use();
   const capture = useRef<HTMLInputElement>(null);
   const returnFocus = useRef<string | null>(null);
@@ -82,13 +83,6 @@ export function Workspace({ userId, signInHref, homeHref, agentsHref, adminHref,
     store.start();
     return () => store.stop();
   }, [store]);
-
-  // A tab (or a thought) dragged to the end of a long bar of boards scrolls it.
-  useEffect(() => {
-    const el = tabs.current;
-    if (!el) return;
-    return autoScrollForElements({ element: el });
-  }, []);
 
   const boards = useMemo(() => (data ? boardsOf(data.boards) : []), [data]);
   const mapOf = mapLane ? data?.lanes.get(mapLane) : undefined;
@@ -238,9 +232,14 @@ export function Workspace({ userId, signInHref, homeHref, agentsHref, adminHref,
   };
 
   const dismissNote = useCallback(() => setOpenId(null), []);
+  // Another board, or back to it from the dates: what was open stays with the view it was in.
+  const selectBoard = (id: string) => {
+    if (id !== boardId || view !== 'board') setOpenId(null);
+    showBoard(id);
+  };
   const api = useMemo<WorkspaceApi>(
-    () => ({ store, actions, openNote, dismissNote, showBoard, openMap, announce, customize, revealLane }),
-    [store, actions, openNote, dismissNote, showBoard, openMap, announce, customize, revealLane],
+    () => ({ store, actions, openNote, dismissNote, showBoard, openMap, announce, customize, revealLane, foot }),
+    [store, actions, openNote, dismissNote, showBoard, openMap, announce, customize, revealLane, foot],
   );
 
   /** Cards, columns or dates: from a map too, which the choice closes. */
@@ -311,7 +310,93 @@ export function Workspace({ userId, signInHref, homeHref, agentsHref, adminHref,
           <a className="w-logo" href={homeHref} aria-label="noergo">
             <img src="/favicon.svg" alt="" width={28} height={28} />
           </a>
-          <nav ref={tabs} className="w-boards" aria-label={t('boards')}>
+          <BoardStrip
+            label={t('boards')}
+            current={view === 'board' ? boardId : null}
+            stripRef={tabs}
+            more={(hidden) => (
+              <Menu
+                label={t('allBoards', { hidden })}
+                className="w-icon-btn w-tabs__more"
+                panelClassName="w-tabs__list"
+                icon={
+                  <>
+                    <IconChevronDown />
+                    {hidden > 0 && <span className="w-tabs__count">{hidden}</span>}
+                  </>
+                }
+              >
+                {(close) => (
+                  <>
+                    {boards.map((b) => (
+                      <BoardItem
+                        key={b.id}
+                        board={b}
+                        current={b.id === boardId && view === 'board'}
+                        onSelect={() => {
+                          close();
+                          selectBoard(b.id);
+                        }}
+                      />
+                    ))}
+                    {data && (
+                      <button type="button" className="w-menu__item w-tabs__item w-tabs__add" onClick={() => { close(); setCreatingBoard(true); }}>
+                        <IconPlus />
+                        {t('newBoard')}
+                      </button>
+                    )}
+                  </>
+                )}
+              </Menu>
+            )}
+            after={
+              <>
+                {creatingBoard ? (
+                  <InlineEdit
+                    value=""
+                    label={t('boardName')}
+                    placeholder={t('boardName')}
+                    maxLength={LIMITS.boardTitle}
+                    onSave={(title) => {
+                      const id = actions.createBoard(title);
+                      if (id) showBoard(id);
+                      setCreatingBoard(false);
+                    }}
+                    onCancel={() => setCreatingBoard(false)}
+                  />
+                ) : (
+                  data && (
+                    <button type="button" className="w-icon-btn w-tabs__new" aria-label={t('newBoard')} title={t('newBoard')} onClick={() => setCreatingBoard(true)}>
+                      <IconPlus />
+                    </button>
+                  )
+                )}
+                {board && (
+                  <Menu label={t('boardMenu', { title: board.title })}>
+                    {(close) => (
+                      <>
+                        <button type="button" className="w-menu__item" onClick={() => { close(); setRenamingBoard(true); }}>
+                          {t('rename')}
+                        </button>
+                        <button type="button" className="w-menu__item" onClick={() => { close(); lookAt(board.id); }}>
+                          {t('boardLook.menu')}
+                        </button>
+                        <button type="button" className="w-menu__item" disabled={boardIndex <= 0} onClick={() => { close(); moveTab(board.id, boardIndex - 1); }}>
+                          {t('moveLeft')}
+                        </button>
+                        <button type="button" className="w-menu__item" disabled={boardIndex >= boards.length - 1} onClick={() => { close(); moveTab(board.id, boardIndex + 1); }}>
+                          {t('moveRight')}
+                        </button>
+                        <button type="button" className="w-menu__item w-menu__item--danger" onClick={() => { close(); actions.deleteBoard(board.id); }}>
+                          {t('deleteBoard')}
+                        </button>
+                      </>
+                    )}
+                  </Menu>
+                )}
+              </>
+            }
+          >
             {boards.map((b, i) =>
               b.id === boardId && renamingBoard ? (
                 <InlineEdit
@@ -326,55 +411,43 @@ export function Workspace({ userId, signInHref, homeHref, agentsHref, adminHref,
                   onCancel={() => setRenamingBoard(false)}
                 />
               ) : (
-                <BoardTab key={b.id} board={b} index={i} current={b.id === boardId && view === 'board'} onSelect={() => { if (b.id !== boardId || view !== 'board') setOpenId(null); showBoard(b.id); }} onRename={() => b.id === boardId && setRenamingBoard(true)} />
+                <BoardTab key={b.id} board={b} index={i} current={b.id === boardId && view === 'board'} onSelect={() => selectBoard(b.id)} onRename={() => b.id === boardId && setRenamingBoard(true)} />
               ),
             )}
-            {creatingBoard ? (
-              <InlineEdit
-                value=""
-                label={t('boardName')}
-                placeholder={t('boardName')}
-                maxLength={LIMITS.boardTitle}
-                onSave={(title) => {
-                  const id = actions.createBoard(title);
-                  if (id) showBoard(id);
-                  setCreatingBoard(false);
-                }}
-                onCancel={() => setCreatingBoard(false)}
-              />
-            ) : (
-              data && (
-                <button type="button" className="w-icon-btn" aria-label={t('newBoard')} title={t('newBoard')} onClick={() => setCreatingBoard(true)}>
-                  <IconPlus />
-                </button>
-              )
-            )}
-            {board && (
-              <Menu label={t('boardMenu', { title: board.title })}>
-                {(close) => (
-                  <>
-                    <button type="button" className="w-menu__item" onClick={() => { close(); setRenamingBoard(true); }}>
-                      {t('rename')}
-                    </button>
-                    <button type="button" className="w-menu__item" onClick={() => { close(); lookAt(board.id); }}>
-                      {t('boardLook.menu')}
-                    </button>
-                    <button type="button" className="w-menu__item" disabled={boardIndex <= 0} onClick={() => { close(); moveTab(board.id, boardIndex - 1); }}>
-                      {t('moveLeft')}
-                    </button>
-                    <button type="button" className="w-menu__item" disabled={boardIndex >= boards.length - 1} onClick={() => { close(); moveTab(board.id, boardIndex + 1); }}>
-                      {t('moveRight')}
-                    </button>
-                    <button type="button" className="w-menu__item w-menu__item--danger" onClick={() => { close(); actions.deleteBoard(board.id); }}>
-                      {t('deleteBoard')}
-                    </button>
-                  </>
-                )}
-              </Menu>
-            )}
-          </nav>
+          </BoardStrip>
+          <AccountMenu store={store} data={data} agentsHref={agentsHref} adminHref={adminHref} sourceUrl={sourceUrl} signOut={signOut} onImported={showBoard} />
+        </header>
 
-          <div className="w-top__tools">
+        {data && <Capture data={data} boardId={boardId} inputRef={capture} />}
+
+        <main className="w-main" id="main">
+          {!data ? (
+            <div className="nr-vazio" role="status">
+              <span>{state.connection === 'offline' ? t('offline') : t('loading')}</span>
+            </div>
+          ) : view === 'due' ? (
+            <DueList data={data} />
+          ) : map ? (
+            <LaneMap key={map.id} data={data} laneId={map.id} blocked={palette || !!openNoteVisible || !!customizing || !!lookingAt} onClose={closeMap} />
+          ) : boardId && layout === 'cards' ? (
+            <Gallery data={data} boardId={boardId} hideDone={hideDone} onOpen={revealLane} />
+          ) : boardId ? (
+            <Board data={data} boardId={boardId} hideDone={hideDone} />
+          ) : (
+            <div className="nr-vazio">
+              <strong>{t('emptyBoards')}</strong>
+              <span>{t('emptyBoardsHint')}</span>
+              <button type="button" className="nr-btn nr-btn--primario" onClick={() => setCreatingBoard(true)}>
+                <IconPlus />
+                {t('newBoard')}
+              </button>
+            </div>
+          )}
+        </main>
+
+        {/* The bar along the bottom: how to look and what to do on the left, the view's own on the right. */}
+        <div className="w-foot">
+          <div className="w-foot__tools">
             <div className="nr-visoes" role="group" aria-label={t('viewLabel')}>
               <button type="button" aria-pressed={view === 'board' && layout === 'cards'} onClick={() => switchView('cards')}>
                 <IconCards />
@@ -407,36 +480,9 @@ export function Workspace({ userId, signInHref, homeHref, agentsHref, adminHref,
             </button>
             {state.agentWriting && <AgentPill name={state.agentWriting} />}
             <Status state={state} />
-            <AccountMenu store={store} data={data} agentsHref={agentsHref} adminHref={adminHref} sourceUrl={sourceUrl} signOut={signOut} onImported={showBoard} />
           </div>
-        </header>
-
-        {data && <Capture data={data} boardId={boardId} inputRef={capture} />}
-
-        <main className="w-main" id="main">
-          {!data ? (
-            <div className="nr-vazio" role="status">
-              <span>{state.connection === 'offline' ? t('offline') : t('loading')}</span>
-            </div>
-          ) : view === 'due' ? (
-            <DueList data={data} />
-          ) : map ? (
-            <LaneMap key={map.id} data={data} laneId={map.id} blocked={palette || !!openNoteVisible || !!customizing || !!lookingAt} onClose={closeMap} />
-          ) : boardId && layout === 'cards' ? (
-            <Gallery data={data} boardId={boardId} hideDone={hideDone} onOpen={revealLane} />
-          ) : boardId ? (
-            <Board data={data} boardId={boardId} hideDone={hideDone} />
-          ) : (
-            <div className="nr-vazio">
-              <strong>{t('emptyBoards')}</strong>
-              <span>{t('emptyBoardsHint')}</span>
-              <button type="button" className="nr-btn nr-btn--primario" onClick={() => setCreatingBoard(true)}>
-                <IconPlus />
-                {t('newBoard')}
-              </button>
-            </div>
-          )}
-        </main>
+          <div ref={setFoot} className="w-foot__view" />
+        </div>
 
         {openNoteVisible && data && <NoteDrawer data={data} noteId={openNoteVisible} onClose={closeNote} />}
         {palette && data && <CommandPalette data={data} onClose={() => setPalette(false)} />}

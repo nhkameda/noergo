@@ -18,6 +18,8 @@ export interface WorkspaceApi {
   customize: (laneId: string, anchor: DOMRect, file?: File) => void;
   /** Back to the columns, with this one at the start and lit up. */
   revealLane: (laneId: string) => void;
+  /** Where the view on screen puts its counts and size slider: the right of the bottom bar. */
+  foot: HTMLElement | null;
 }
 
 export const WorkspaceContext = createContext<WorkspaceApi | null>(null);

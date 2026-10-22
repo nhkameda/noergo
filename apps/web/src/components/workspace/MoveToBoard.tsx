@@ -7,10 +7,11 @@ import { extractClosestEdge } from '@atlaskit/pragmatic-drag-and-drop-hitbox/clo
 import type { Edge } from '@atlaskit/pragmatic-drag-and-drop-hitbox/types';
 import type { BoardDto, LaneDto } from '@noergo/core/dto';
 import { useTranslations } from 'next-intl';
-import { useEffect, useRef, useState, useSyncExternalStore, type KeyboardEvent } from 'react';
+import { useEffect, useRef, useState, useSyncExternalStore, type CSSProperties, type KeyboardEvent } from 'react';
 import { BoardGlyph, tabProps, useBoardLook } from './BoardLook';
 import { useWorkspace } from './context';
 import { corProps } from './cover';
+import { IconCheck } from './icons';
 import { boardsOf } from './model';
 import type { WorkspaceStore } from './store';
 
@@ -118,6 +119,18 @@ export function BoardTab({ board, index, current, onSelect, onRename }: { board:
     >
       <BoardGlyph icon={look.icon} />
       <span className="w-board-tab__title">{board.title}</span>
+    </button>
+  );
+}
+
+/** A board in the list of them all, past the tabs: its icon or its colour, its title; the open one ticked. */
+export function BoardItem({ board, current, onSelect }: { board: BoardDto; current: boolean; onSelect: () => void }) {
+  const look = useBoardLook(board)!;
+  return (
+    <button type="button" className="w-menu__item w-tabs__item" aria-current={current ? 'page' : undefined} onClick={onSelect}>
+      {look.icon ? <BoardGlyph icon={look.icon} /> : <span className="w-tabs__dot" aria-hidden="true" style={look.color ? ({ '--tab': look.color } as CSSProperties) : undefined} />}
+      <span className="w-tabs__title">{board.title}</span>
+      {current && <IconCheck />}
     </button>
   );
 }

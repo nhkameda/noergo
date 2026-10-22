@@ -1,18 +1,10 @@
 import { expect, test, type Locator, type Page } from '@playwright/test';
-import { freshUser, lane, settled, signIn } from './helpers';
+import { freshUser, lane, newBoard, settled, signIn } from './helpers';
 
 const tab = (page: Page, title: string) => page.locator('.w-board-tab', { hasText: title });
 const tile = (page: Page, title: string) => page.locator('.w-tile', { hasText: title });
 const tiles = (page: Page) => page.locator('.w-tile__title');
 const openMenu = (page: Page) => page.locator('.w-menu:popover-open');
-
-async function newBoard(page: Page, title: string) {
-  await page.getByRole('button', { name: 'New board' }).click();
-  const input = page.getByRole('textbox', { name: 'Board name' });
-  await input.fill(title);
-  await input.press('Enter');
-  await expect(tab(page, title)).toHaveAttribute('aria-current', 'page');
-}
 
 /** A pointer drag from the middle of one element to the middle of another. */
 async function drag(page: Page, from: Locator, to: Locator, check?: () => Promise<void>) {

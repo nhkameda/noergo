@@ -24,6 +24,17 @@ export async function signIn(page: Page, user: string, locale = 'en', { layout =
   await expect(page.locator('.w-board')).toBeVisible();
 }
 
+/** A new board, opened. On a phone, New board is the last line of the list of every board. */
+export async function newBoard(page: Page, title: string) {
+  const add = page.getByRole('button', { name: 'New board' });
+  if (!(await add.isVisible())) await page.getByRole('button', { name: /^All boards/ }).click();
+  await add.click();
+  const input = page.getByRole('textbox', { name: 'Board name' });
+  await input.fill(title);
+  await input.press('Enter');
+  await expect(page.locator('.w-board-tab', { hasText: title })).toHaveAttribute('aria-current', 'page');
+}
+
 export const lane = (page: Page, title: string) => page.locator('.w-lane', { has: page.getByRole('heading', { name: title, exact: true }) });
 export const card = (page: Page, title: string) => page.locator('.w-card', { hasText: title });
 

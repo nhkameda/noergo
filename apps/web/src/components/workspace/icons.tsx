@@ -20,6 +20,9 @@ export const IconGlobe = () => <Icon d="M12 21a9 9 0 1 0 0-18 9 9 0 0 0 0 18ZM3.
 export const IconLink = () => <Icon d="M10 14a4 4 0 0 0 5.7 0l3-3a4 4 0 0 0-5.7-5.7l-1 1M14 10a4 4 0 0 0-5.7 0l-3 3a4 4 0 0 0 5.7 5.7l1-1" />;
 export const IconUndo = () => <Icon d="M9 14 4 9l5-5M4 9h11a5 5 0 0 1 0 10h-3" />;
 export const IconRedo = () => <Icon d="m15 14 5-5-5-5M20 9H9a5 5 0 0 0 0 10h3" />;
+export const IconChevronLeft = () => <Icon d="m15 5-7 7 7 7" />;
+export const IconChevronRight = () => <Icon d="m9 5 7 7-7 7" />;
+export const IconChevronDown = () => <Icon d="m6 9 6 6 6-6" />;
 export const IconClock = () => <Icon d="M12 21a9 9 0 1 0 0-18 9 9 0 0 0 0 18ZM12 7v5l3 2" />;
 export const IconNote = () => <Icon d="M6 3h9l4 4v14H6zM14 3v5h5M9 13h7M9 17h5" />;
 export const IconBoard = () => <Icon d="M4 4h5v16H4zM10.5 4h5v10h-5zM17 4h3v13h-3z" />;

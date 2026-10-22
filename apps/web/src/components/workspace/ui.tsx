@@ -2,7 +2,8 @@
 
 import { useTranslations } from 'next-intl';
 import { useId, useRef, useState, type ReactNode } from 'react';
-import { isComposing } from './context';
+import { createPortal } from 'react-dom';
+import { isComposing, useWorkspace } from './context';
 import { IconMore, IconSizeLarge, IconSizeSmall } from './icons';
 import { colorName, PALETTE } from './model';
 
@@ -10,7 +11,7 @@ import { colorName, PALETTE } from './model';
  * A menu in the browser's top layer (the Popover API): Esc and a click outside close it,
  * and focus returns to the button by itself.
  */
-export function Menu({ label, children, icon = <IconMore />, className = 'w-icon-btn' }: { label: string; children: (close: () => void) => ReactNode; icon?: ReactNode; className?: string }) {
+export function Menu({ label, children, icon = <IconMore />, className = 'w-icon-btn', panelClassName }: { label: string; children: (close: () => void) => ReactNode; icon?: ReactNode; className?: string; panelClassName?: string }) {
   const id = useId();
   const button = useRef<HTMLButtonElement>(null);
   const panel = useRef<HTMLDivElement>(null);
@@ -23,14 +24,15 @@ export function Menu({ label, children, icon = <IconMore />, className = 'w-icon
       const height = p.offsetHeight;
       p.style.left = `${Math.max(8, Math.min(b.right - width, window.innerWidth - width - 8))}px`;
       p.style.top = `${b.bottom + height + 8 > window.innerHeight ? Math.max(8, b.top - height - 4) : b.bottom + 4}px`;
-      p.querySelector<HTMLElement>('button, input, select, a')?.focus();
+      // The item that is current, when there is one (the open board): else the first.
+      (p.querySelector<HTMLElement>('[aria-current="page"]') ?? p.querySelector<HTMLElement>('button, input, select, a'))?.focus();
     });
   return (
     <>
       <button ref={button} type="button" className={className} aria-label={label} title={label} popoverTarget={id} aria-haspopup="true" onClick={place}>
         {icon}
       </button>
-      <div ref={panel} id={id} popover="auto" className="w-menu" role="group" aria-label={label}>
+      <div ref={panel} id={id} popover="auto" className={panelClassName ? `w-menu ${panelClassName}` : 'w-menu'} role="group" aria-label={label}>
         {children(() => document.getElementById(id)?.hidePopover())}
       </div>
     </>
@@ -106,16 +108,19 @@ export function InlineEdit({
 }
 
 /**
- * The strip under the columns and the cards, like the status bar of a Mac window: what is
- * on the board on the left, a size slider on the right.
+ * What the columns and the cards add to the bottom bar, on its right: what is on the
+ * board, and a size slider. The bar's left holds the workspace's own tools.
  */
 export function ViewFoot({ lanes, notes, children }: { lanes: number; notes: number; children: ReactNode }) {
   const t = useTranslations('app');
-  return (
-    <div className="w-foot">
+  const { foot } = useWorkspace();
+  if (!foot) return null;
+  return createPortal(
+    <>
       <span className="w-foot__count">{t('zoom.summary', { lanes, notes })}</span>
       {children}
-    </div>
+    </>,
+    foot,
   );
 }
 

@@ -2,8 +2,11 @@
    (packages/ui/DESIGN_SYSTEM.md); local classes are prefixed w-. Targets are 44 px. */
 
 .w-app {
+  --w-foot: 48px;
   display: grid;
-  grid-template-rows: auto auto minmax(0, 1fr);
+  /* minmax(0, …): the column is the window's width, never that of a long row of tabs. */
+  grid-template-columns: minmax(0, 1fr);
+  grid-template-rows: auto auto minmax(0, 1fr) auto;
   height: 100dvh;
   overflow: hidden;
   background: var(--nr-canvas);
@@ -27,7 +30,7 @@
 .w-muted { color: var(--nr-text-muted); font-size: var(--nr-text-sm); }
 .w-danger-text { color: var(--nr-danger-text); }
 
-/* ---------- top bar ---------- */
+/* ---------- top bar: the boards' tabs, and the account at the right ---------- */
 .w-top {
   display: flex;
   align-items: center;
@@ -40,6 +43,11 @@
   z-index: var(--nr-z-sticky);
 }
 .w-logo { display: inline-flex; flex: none; width: 44px; height: 44px; align-items: center; justify-content: center; border-radius: var(--nr-radius-md); }
+/* The tabs take the whole bar; past its width they scroll, and an arrow sits over each edge
+   with tabs beyond it (BoardStrip.tsx reads its width, 40 px). New board and the board's
+   menu follow the last tab. */
+.w-tabs { --w-arrow: 40px; display: flex; align-items: center; gap: var(--nr-space-1); flex: 1; min-width: 0; }
+.w-tabs__track { position: relative; display: flex; flex: 0 1 auto; min-width: 0; }
 .w-boards {
   display: flex;
   align-items: center;
@@ -49,7 +57,41 @@
   overflow-x: auto;
   scrollbar-width: none;
 }
-.w-boards .w-inline-input { width: 12rem; flex: none; }
+.w-boards::-webkit-scrollbar { display: none; }
+.w-tabs__arrow {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  z-index: 1;
+  display: grid;
+  place-items: center;
+  width: var(--w-arrow);
+  padding: 0;
+  border: 0;
+  color: var(--nr-text-muted);
+  cursor: pointer;
+}
+.w-tabs__arrow[data-side="start"] { left: 0; justify-items: start; background: linear-gradient(to right, var(--nr-surface) 55%, transparent); }
+.w-tabs__arrow[data-side="end"] { right: 0; justify-items: end; background: linear-gradient(to left, var(--nr-surface) 55%, transparent); }
+.w-tabs__arrow svg { width: 28px; height: 28px; padding: 5px; border-radius: var(--nr-radius-full); }
+.w-tabs__arrow:hover { color: var(--nr-text); }
+.w-tabs__arrow:hover svg { background: var(--nr-fill-hover); }
+.w-tabs[data-dragging] .w-tabs__arrow { pointer-events: none; }
+/* Every board, and a new one, from the button that says how many are out of sight. A wide
+   screen shows it only while some are; a phone always, in place of its own new-board button. */
+.w-tabs__more { width: auto; min-width: 44px; padding: 0 var(--nr-space-2); gap: 2px; }
+@media (min-width: 641px) { .w-tabs:not([data-overflow]) .w-tabs__more { display: none; } }
+.w-tabs__count { font: var(--nr-weight-semibold) var(--nr-text-xs) / 1 var(--nr-font-ui); font-variant-numeric: tabular-nums; }
+.w-tabs__list[popover] { max-height: min(70dvh, 520px); overflow-y: auto; overscroll-behavior: contain; }
+.w-tabs__item { gap: var(--nr-space-2); }
+.w-tabs__item[aria-current="page"] { background: var(--nr-fill-active); font-weight: var(--nr-weight-semibold); }
+.w-tabs__item > svg { flex: none; margin-inline-start: auto; }
+.w-tabs__add { margin-top: var(--nr-space-1); box-shadow: 0 -1px 0 var(--nr-border); border-radius: 0 0 var(--nr-radius-md) var(--nr-radius-md); color: var(--nr-text-muted); }
+.w-tabs__add > svg { margin-inline: 1px 0; }
+.w-tabs__title { min-width: 0; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+.w-tabs__dot { flex: none; width: 20px; height: 20px; display: grid; place-items: center; }
+.w-tabs__dot[style]::before { content: ""; width: 10px; height: 10px; border-radius: 50%; background: var(--tab); }
+.w-tabs .w-inline-input { width: 12rem; flex: none; }
 .w-board-tab {
   position: relative;
   display: inline-flex;
@@ -86,7 +128,6 @@
 /* While a thought is dragged, the other boards' tabs are where it can go. */
 .w-board-tab[data-drop] { outline: 1.5px dashed var(--nr-border-strong); outline-offset: -3px; color: var(--nr-text); }
 .w-board-tab[data-drop="over"] { outline: 2px solid var(--nr-focus); background: var(--nr-fill-active); }
-.w-top__tools { display: flex; align-items: center; gap: var(--nr-space-2); flex: none; }
 .w-search-btn { gap: var(--nr-space-2); }
 
 .w-icon-btn {
@@ -223,23 +264,26 @@
 .w-board > .w-lane { zoom: var(--board-z, 1); }
 .w-board .w-menu[popover] { zoom: calc(1 / var(--board-z, 1)); }
 
-/* ---------- a view with its status bar (columns, cards) ---------- */
+/* ---------- the bar along the bottom: views and tools on the left, the view's own on the right ---------- */
 .w-view { flex: 1; display: flex; flex-direction: column; min-height: 0; }
 .w-view > .w-board { flex: 1; height: auto; min-height: 0; }
 .w-foot {
-  flex: none;
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: var(--nr-space-3);
-  min-height: 40px;
-  padding: 0 var(--nr-space-3) 0 var(--nr-space-4);
+  min-height: var(--w-foot);
+  padding: 2px var(--nr-space-3) 2px var(--nr-space-3);
   border-top: 1px solid var(--nr-border);
   background: var(--nr-surface);
   color: var(--nr-text-subtle);
   font: var(--nr-weight-medium) var(--nr-text-xs) / 1.2 var(--nr-font-ui);
   font-variant-numeric: tabular-nums;
 }
+.w-foot__tools { display: flex; align-items: center; gap: var(--nr-space-1); flex: none; }
+.w-foot__view { display: flex; align-items: center; justify-content: flex-end; gap: var(--nr-space-3); flex: 0 1 auto; min-width: 0; }
+.w-foot .nr-visoes { margin-inline-end: var(--nr-space-1); }
+.w-foot .nr-visoes button { min-height: 32px; }
 .w-foot__count { min-width: 0; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
 .w-zoom { flex: none; display: flex; align-items: center; gap: 2px; }
 .w-zoom__end {
@@ -954,7 +998,7 @@ select.w-input { width: 100%; }
 .w-notices {
   position: fixed;
   left: 50%;
-  bottom: var(--nr-space-5);
+  bottom: calc(var(--w-foot) + var(--nr-space-4));
   z-index: var(--nr-z-toast);
   display: grid;
   justify-items: center;
@@ -976,21 +1020,23 @@ select.w-input { width: 100%; }
 }
 @media (max-width: 640px) {
   .w-hide-sm { display: none !important; }
-  /* Two rows: the tools beside the logo, the boards scrolling under them. */
-  .w-top { flex-wrap: wrap; gap: 0 var(--nr-space-1); padding: 0 var(--nr-space-2); }
-  .w-top__tools { gap: 0; margin-inline-start: auto; }
-  .w-boards { order: 3; flex: 1 0 100%; min-height: 48px; border-top: 1px solid var(--nr-border); }
+  .w-top { gap: var(--nr-space-1); padding: 0 var(--nr-space-2); }
+  .w-tabs { --w-arrow: 28px; }
+  .w-tabs__arrow svg { width: 22px; height: 22px; padding: 2px; }
+  .w-tabs__new { display: none; }
+  .w-tabs .w-inline-input { width: auto; flex: 1 1 10rem; min-width: 7rem; }
   .w-status__text { display: none; }
   .w-status { padding: 0 var(--nr-space-2); }
   .w-search-btn { min-height: 44px; padding: 0 var(--nr-space-3); border: 0; }
-  .w-top .nr-visoes button { padding: 0 var(--nr-space-3); }
+  .w-foot .nr-visoes button { padding: 0 var(--nr-space-3); }
+  .w-foot__count { display: none; }
   .w-capture { padding: var(--nr-space-2) var(--nr-space-3) 0; }
   .w-board { padding: var(--nr-space-3); scroll-snap-type: x mandatory; scroll-padding: var(--nr-space-3); }
   .w-lane { width: calc(100vw - 3rem); scroll-snap-align: start; }
   .w-xs-sr { position: absolute; width: 1px; height: 1px; margin: -1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
   .w-gallery { padding: var(--nr-space-3); }
   .w-gallery__grid { --gap: var(--nr-space-2); }
-  .w-foot { padding-inline-start: var(--nr-space-3); padding-bottom: env(safe-area-inset-bottom); }
+  .w-foot { gap: var(--nr-space-2); padding-inline: var(--nr-space-2); padding-bottom: max(2px, env(safe-area-inset-bottom)); }
   .w-zoom__range { width: 96px; }
   /* On a phone the panel is a sheet at the bottom. */
   .w-customize[popover] { left: 0; right: 0; top: auto; bottom: 0; width: 100%; max-height: 88dvh; border-radius: var(--nr-radius-xl) var(--nr-radius-xl) 0 0; padding-bottom: calc(var(--nr-space-4) + env(safe-area-inset-bottom)); }
