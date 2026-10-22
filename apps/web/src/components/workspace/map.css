@@ -23,6 +23,22 @@
 .w-map__title { margin: 0; overflow: hidden; font: var(--nr-weight-bold) var(--nr-text-xl)/1.15 var(--nr-font-display); letter-spacing: var(--nr-tracking-display); white-space: nowrap; text-overflow: ellipsis; }
 .w-map__actions { display: flex; align-items: center; gap: var(--nr-space-1); }
 .w-map__bar[data-over] { box-shadow: inset 0 0 0 3px var(--nr-focus); }
+/* The layouts menu (it opens from the bar, but in the top layer: none of the bar's tint reaches it). */
+.w-map__layout { gap: var(--nr-space-2); }
+.w-map__layout > svg:last-child:not(:first-child) { margin-inline-start: auto; color: var(--nr-primary); }
+.w-map__layout[aria-pressed="true"] { font-weight: var(--nr-weight-bold); }
+.w-map__levels { display: flex; gap: var(--nr-space-1); padding: var(--nr-space-1) var(--nr-space-2) var(--nr-space-1); }
+.w-map__level {
+  flex: 1;
+  min-height: 40px;
+  border: 1px solid var(--nr-border);
+  border-radius: var(--nr-radius-md);
+  background: transparent;
+  color: var(--nr-text);
+  font: var(--nr-weight-medium) var(--nr-text-md) / 1 var(--nr-font-ui);
+  cursor: pointer;
+}
+.w-map__level:hover { background: var(--nr-fill-hover); }
 
 /* The column's cover, top left, and its colour on the bar and (lightly) on the canvas. */
 .w-map__cover {

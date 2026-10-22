@@ -9,6 +9,19 @@ const node = (page: Page, text: string) => page.locator('.w-map__node', { hasTex
 /** Where a node sits on the map, in map units: the screen position also depends on the zoom. */
 const spot = (l: Locator) => l.evaluate((el) => [parseFloat(el.style.left), parseFloat(el.style.top)]);
 
+/** Picks `l` up by its middle and lets go at `x`, `y` on the screen. */
+async function dragTo(page: Page, l: Locator, x: number, y: number) {
+  const b = (await l.locator('.w-map__text').boundingBox())!;
+  await page.mouse.move(b.x + b.width / 2, b.y + b.height / 2);
+  await page.mouse.down();
+  await page.mouse.move(x, y, { steps: 8 });
+  await page.mouse.up();
+}
+const middle = async (l: Locator) => {
+  const b = (await l.boundingBox())!;
+  return { x: b.x + b.width / 2, y: b.y + b.height / 2 };
+};
+
 /** Drags from the right-hand dot of `from` and lets go over `to`. */
 async function connect(page: Page, from: Locator, to: Locator) {
   await from.hover();
@@ -29,15 +42,17 @@ test('the map of a column: create, connect, style, organise, and it survives a r
   await expect(node(page, 'Welcome to noergo')).toBeVisible();
   await expect(node(page, 'Quick capture')).toBeVisible();
 
-  // Double-click on empty canvas: a new thought, typed in place.
+  // Double-click on empty canvas: a new idea, typed in place, hanging from the centre.
   const canvas = (await page.locator('.w-map__canvas').boundingBox())!;
   await page.mouse.dblclick(canvas.x + 60, canvas.y + 60);
   await page.keyboard.type('Oat milk');
   await page.keyboard.press('Enter');
   await expect(node(page, 'Oat milk')).toBeVisible();
+  await expect(page.locator('.w-map__edge')).toHaveCount(1);
 
-  // From the column to it.
+  // Linking the same two again only selects the link there is.
   await connect(page, page.locator('.w-map__node[data-root]'), node(page, 'Oat milk'));
+  await expect(page.getByText('These two are already linked.')).toBeVisible();
   await expect(page.locator('.w-map__edge')).toHaveCount(1);
   const bar = page.getByRole('toolbar', { name: 'Style of the selection' });
   await bar.getByRole('button', { name: 'At the end' }).click();
@@ -53,14 +68,11 @@ test('the map of a column: create, connect, style, organise, and it survives a r
   // A new link takes the style of the last one changed.
   await expect(page.locator('.w-map__head')).toHaveCount(2);
 
-  // Linking the same two again only selects the link there is.
-  await connect(page, node(page, 'Oat milk'), node(page, 'Barista'));
-  await expect(page.getByText('These two are already linked.')).toBeVisible();
-  await expect(page.locator('.w-map__edge')).toHaveCount(2);
-
   await page.getByRole('button', { name: 'Organise' }).click();
+  await page.getByRole('button', { name: 'To the right' }).click();
   await settled(page);
   const before = await spot(node(page, 'Barista'));
+  expect(before[0]!).toBeGreaterThan((await spot(node(page, 'Oat milk')))[0]!);
 
   await page.reload();
   await expect(node(page, 'Barista')).toBeVisible();
@@ -124,12 +136,9 @@ test('folding a branch: a red count, it travels with its idea, it stays folded, 
   const badge = top.getByRole('button', { name: '3 ideas folded inside. Show' });
   await expect(badge).toHaveText('3');
 
-  // Dragged while folded: the branch goes along, unseen.
-  const b = (await top.locator('.w-map__text').boundingBox())!;
-  await page.mouse.move(b.x + b.width / 2, b.y + b.height / 2);
-  await page.mouse.down();
-  await page.mouse.move(b.x + b.width / 2 + 120, b.y + b.height / 2 + 60, { steps: 6 });
-  await page.mouse.up();
+  // Dragged while folded, clear of the other ideas: the branch goes along, unseen.
+  const b = await middle(top.locator('.w-map__text'));
+  await dragTo(page, top, b.x + 120, b.y + 160);
   await settled(page);
 
   // Kept: after a reload it is still folded; ⌘/Ctrl + . opens it where it now belongs.
@@ -151,10 +160,10 @@ test('folding a branch: a red count, it travels with its idea, it stays folded, 
   await badge.click();
   expect(await spot(node(page, 'CNC'))).toEqual([cx, cy]);
 
-  // CNC linked from a second idea: the branch can no longer fold, and the panel says why.
+  // CNC linked from a second idea in the branch: it can no longer fold, and the panel says why.
   await page.keyboard.press('Escape');
   await page.locator('.w-map__zoom').getByRole('button', { name: 'Fit to screen' }).click();
-  await connect(page, node(page, 'Quick capture'), node(page, 'CNC'));
+  await connect(page, node(page, 'Extrusion'), node(page, 'CNC'));
   await expect(page.locator('.w-map__edge')).toHaveCount(4);
   await top.click();
   await expect(side.getByRole('button', { name: /^Fold the ideas below/ })).toBeDisabled();
@@ -211,6 +220,130 @@ test('columns and the map work alike: one panel that a blank click, Esc or anoth
   await drawer.getByRole('button', { name: /^Fold the ideas below/ }).click();
   await expect(card(page, 'Extrusion')).toHaveCount(0);
   await expect(welcome.getByRole('button', { name: '1 idea folded inside. Show' })).toHaveText('1');
+});
+
+test('a map lays itself out from its tree: a colour per branch, a layout to pick, levels on show, a drop onto an idea', async ({ page }) => {
+  await page.emulateMedia({ reducedMotion: 'reduce' });
+  await signIn(page, freshUser('tree'));
+  await openInboxMap(page);
+  const root = page.locator('.w-map__node[data-root]');
+  const add = async (parent: Locator, name: string) => {
+    await parent.click();
+    await page.keyboard.press('Tab');
+    await page.keyboard.type(name);
+    await page.keyboard.press('Enter');
+    await expect(node(page, name)).toBeVisible();
+  };
+  await add(root, 'Coast');
+  await add(root, 'Budget');
+  await add(node(page, 'Coast'), 'Paraty');
+  await add(node(page, 'Coast'), 'Ilhabela');
+  await add(node(page, 'Budget'), 'Fuel');
+  await settled(page);
+
+  // Nothing on top of anything; the main branches on both sides of the centre.
+  const apart = async () => {
+    const boxes = await page.locator('.w-map__node').evaluateAll((els) => els.map((el) => el.getBoundingClientRect()).map((r) => ({ l: r.left, r: r.right, t: r.top, b: r.bottom })));
+    for (const [i, a] of boxes.entries()) for (const b of boxes.slice(i + 1)) expect(a.r <= b.l || b.r <= a.l || a.b <= b.t || b.b <= a.t).toBe(true);
+  };
+  await apart();
+  const c = await middle(root);
+  expect(((await middle(node(page, 'Coast'))).x - c.x) * ((await middle(node(page, 'Budget'))).x - c.x)).toBeLessThan(0);
+  // A colour per main branch, taken by what hangs from it.
+  const cor = (name: string) => node(page, name).getAttribute('data-cor');
+  expect(await cor('Coast')).toBeTruthy();
+  expect(await cor('Budget')).toBeTruthy();
+  expect(await cor('Coast')).not.toBe(await cor('Budget'));
+  expect(await cor('Paraty')).toBe(await cor('Coast'));
+  expect(await cor('Fuel')).toBe(await cor('Budget'));
+
+  // Downward: each idea under the one it hangs from.
+  const organise = page.getByRole('button', { name: 'Organise' });
+  await organise.click();
+  await expect(page.getByRole('button', { name: 'Both sides' })).toHaveAttribute('aria-pressed', 'true');
+  await page.getByRole('button', { name: 'Downward' }).click();
+  await settled(page);
+  expect((await middle(node(page, 'Coast'))).y).toBeGreaterThan((await middle(root)).y);
+  expect((await middle(node(page, 'Paraty'))).y).toBeGreaterThan((await middle(node(page, 'Coast'))).y);
+  await apart();
+
+  // One level on show, then all of them.
+  await organise.click();
+  await page.getByRole('button', { name: 'Show 1 level' }).click();
+  await expect(node(page, 'Paraty')).toHaveCount(0);
+  await expect(node(page, 'Fuel')).toHaveCount(0);
+  await expect(node(page, 'Coast').getByRole('button', { name: '2 ideas folded inside. Show' })).toBeVisible();
+  await organise.click();
+  await page.getByRole('button', { name: 'Show every level' }).click();
+  await expect(node(page, 'Paraty')).toBeVisible();
+  await settled(page);
+
+  // Dropped onto another idea, it hangs from it, takes its colour, and the map stays laid out.
+  const coast = await middle(node(page, 'Coast'));
+  await dragTo(page, node(page, 'Fuel'), coast.x, coast.y);
+  await settled(page);
+  await expect(node(page, 'Fuel')).toHaveAttribute('data-cor', (await cor('Coast'))!);
+  expect((await middle(node(page, 'Fuel'))).y).toBeGreaterThan((await middle(node(page, 'Coast'))).y);
+  await apart();
+
+  // Put down on empty canvas by hand: the map is free from then on, and the notice undoes that.
+  const canvas = (await page.locator('.w-map__canvas').boundingBox())!;
+  await dragTo(page, node(page, 'Ilhabela'), canvas.x + 120, canvas.y + 90);
+  await expect(page.getByText('You placed an idea by hand, so this map is free now.')).toBeVisible();
+  await organise.click();
+  await expect(page.getByRole('button', { name: 'Free, as placed' })).toHaveAttribute('aria-pressed', 'true');
+  await page.keyboard.press('Escape');
+  await page.getByRole('button', { name: 'Undo' }).last().click();
+  await settled(page);
+  await organise.click();
+  await expect(page.getByRole('button', { name: 'Downward' })).toHaveAttribute('aria-pressed', 'true');
+});
+
+test('an idea made by hand and joined to its parent by a line hangs from it, whichever way the line goes, and the parent folds it', async ({ page }) => {
+  await page.emulateMedia({ reducedMotion: 'reduce' });
+  await signIn(page, freshUser('hand'));
+  await openInboxMap(page);
+  const canvas = (await page.locator('.w-map__canvas').boundingBox())!;
+  const make = async (name: string) => {
+    await page.mouse.dblclick(canvas.x + 60, canvas.y + 60);
+    await page.keyboard.type(name);
+    await page.keyboard.press('Enter');
+    await expect(node(page, name)).toBeVisible();
+    await page.keyboard.press('Escape');
+  };
+  await page.locator('.w-map__node[data-root]').click();
+  await page.keyboard.press('Tab');
+  await page.keyboard.type('Coast');
+  await page.keyboard.press('Enter');
+  await make('Paraty');
+  await make('Ilhabela');
+
+  // From the sub-idea to its parent, and from the parent to the other one.
+  await connect(page, node(page, 'Paraty'), node(page, 'Coast'));
+  await connect(page, node(page, 'Coast'), node(page, 'Ilhabela'));
+  await settled(page);
+  const coast = node(page, 'Coast');
+  await coast.locator('.w-map__fold').click();
+  await expect(node(page, 'Paraty')).toHaveCount(0);
+  await expect(node(page, 'Ilhabela')).toHaveCount(0);
+  await expect(coast.getByRole('button', { name: '2 ideas folded inside. Show' })).toBeVisible();
+  await coast.getByRole('button', { name: '2 ideas folded inside. Show' }).click();
+  await expect(node(page, 'Paraty')).toBeVisible();
+
+  // On a map arranged by hand, an idea put down apart and drawn to the parent joins it the same.
+  await page.getByRole('button', { name: 'Organise' }).click();
+  await page.getByRole('button', { name: 'Free, as placed' }).click();
+  await settled(page);
+  await make('Ubatuba');
+  await connect(page, node(page, 'Ubatuba'), coast);
+  await settled(page);
+  await coast.locator('.w-map__fold').click();
+  await expect(coast.getByRole('button', { name: '3 ideas folded inside. Show' })).toBeVisible();
+  await expect(node(page, 'Ubatuba')).toHaveCount(0);
+  // The column shows the same tree.
+  await page.getByRole('button', { name: 'Back to the board' }).click();
+  await expect(page.locator('.w-map')).toHaveCount(0);
+  await expect(card(page, 'Coast').getByRole('button', { name: /3/ })).toBeVisible();
 });
 
 test('deleting from the map goes to the trash and undoes', async ({ page }) => {

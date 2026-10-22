@@ -51,3 +51,23 @@ export const COLORS = [
   '#1fbf6e', // broto
   '#142b45', // azul profundo
 ] as const;
+
+/**
+ * The colours a mind map's main branches take in turn when they have none of their own,
+ * far apart on the wheel so neighbours differ. The thought's own colour is left out.
+ */
+export const BRANCH_COLORS = [COLORS[4], COLORS[1], COLORS[6], COLORS[3], COLORS[5], COLORS[0], COLORS[2]] as const;
+
+/** The colour of the `index`th main branch (column order) of a thought coloured `thought`. */
+export function branchColor(index: number, thought: string | null): string {
+  const list = BRANCH_COLORS.filter((c) => c !== thought);
+  return list[index % list.length]!;
+}
+
+/**
+ * How a thought's mind map is laid out: from its tree, on both sides of the centre, to one
+ * side or downward, re-laid as ideas come, go and fold; or 'free', each idea where it was put.
+ * Positions stored while a tree layout is on are not read; they are where 'free' starts.
+ */
+export const MAP_LAYOUTS = ['balanced', 'right', 'left', 'down', 'free'] as const;
+export type MapLayout = (typeof MAP_LAYOUTS)[number];

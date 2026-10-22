@@ -2,19 +2,20 @@
 
 import type { LaneDto } from '@noergo/core/dto';
 import { newId } from '@noergo/core/ids';
-import { LIMITS } from '@noergo/core/limits';
+import { LIMITS, type MapLayout } from '@noergo/core/limits';
 import type { Op } from '@noergo/core/ops/schema';
 import { between } from '@noergo/core/position';
+import { levelFolds } from '@noergo/core/tree';
 import { useTranslations } from 'next-intl';
 import { memo, useCallback, useEffect, useEffectEvent, useLayoutEffect, useMemo, useRef, useState, type MouseEvent as ReactMouseEvent, type PointerEvent as ReactPointerEvent, type ReactNode, type RefObject } from 'react';
 import { agentProps, useAgentMarks, useAgentSeen } from './agent-marks';
 import { isComposing, isEditable, useWorkspace } from './context';
-import { ARROW_ICONS, DASH_ICONS, FILL_ICONS, IconBrush, IconClose, IconEdit, IconImage, IconFit, IconFold, IconFollow, IconGlobe, IconLink, IconMinus, IconNote, IconOrganize, IconPlus, IconSwap, IconTrash, IconUnfold, ROUTE_ICONS, SHAPE_ICONS, WidthIcon } from './icons';
+import { ARROW_ICONS, DASH_ICONS, FILL_ICONS, IconBrush, IconCheck, IconClose, IconEdit, IconImage, IconFit, IconFold, IconFollow, IconGlobe, IconLink, IconMinus, IconNote, IconOrganize, IconPlus, IconSwap, IconTrash, IconUnfold, LAYOUT_ICONS, ROUTE_ICONS, SHAPE_ICONS, WidthIcon } from './icons';
 import { splitText } from './import-ideario';
 import {
   ARROWS,
-  autoLayout,
   bounds,
+  branchColors,
   buildPath,
   childSpot,
   clamp,
@@ -34,6 +35,8 @@ import {
   SHAPES,
   SIZES,
   tempPath,
+  TREE_MODES,
+  treeLayout,
   viewFor,
   WIDTHS,
   zoomAt,
@@ -58,8 +61,9 @@ import { colorName, notesByLane, PALETTE, type Data } from './model';
 import { BodyEditor, DueField, LinkField, NoteTitle, TagsField, useOpenByTitle } from './NoteDrawer';
 import { siteHost } from './site';
 import type { AgentMark } from './store';
-import { mapTree } from './tree';
+import { hangingPair, mapBranches, mapTree } from './tree';
 import { FOLLOW_AGENT, fromLogSlider, toLogSlider } from './view-prefs';
+import { Menu } from './ui';
 import './map.css';
 
 /**
@@ -132,6 +136,15 @@ function styleOp(s: EdgeStyle): { style?: Partial<EdgeStyle> } {
   return Object.keys(diff).length ? { style: diff } : {};
 }
 
+/** A node's own colour: the map's, else its note's; for the idea being typed, its style's. */
+const ownColors =
+  (byKey: ReadonlyMap<NodeKey, MapNode>, ghost: string | null) =>
+  (k: NodeKey): string | null =>
+    k === GHOST ? ghost : (byKey.get(k)?.color ?? byKey.get(k)?.note?.color ?? null);
+
+/** The levels the menu offers to show (null: all of them). */
+const LEVELS = [1, 2, 3, null] as const;
+
 /** The layouts every node without a stored spot gets on the first write, so none of them jumps. */
 function frozen(nodes: readonly MapNode[]): LayoutNode[] {
   return nodes.filter((n) => !n.placed).map((n) => ({ kind: n.ref.kind, id: n.ref.id, x: Math.round(n.x), y: Math.round(n.y), shape: n.shape, fill: n.fill, size: n.size, color: n.color }));
@@ -144,13 +157,8 @@ export function LaneMap({ data, laneId, blocked, onClose }: { data: Data; laneId
   const rootKey = keyOf({ kind: 'lane', id: laneId });
   const full = useMemo(() => laneMap({ lanes, notes, links, layouts }, laneId), [lanes, notes, links, layouts, laneId]);
   const tree = useMemo(() => (full ? mapTree(full, rootKey) : null), [full, rootKey]);
-  /** What is on show: a folded idea's branch is left out, with its links. */
-  const map = useMemo(() => {
-    if (!full || !tree?.hidden.size) return full;
-    const hid = tree.hidden;
-    return { ...full, nodes: full.nodes.filter((n) => !hid.has(n.key)), edges: full.edges.filter((e) => !hid.has(e.from) && !hid.has(e.to)) };
-  }, [full, tree]);
-  const byKey = useMemo(() => new Map(full?.nodes.map((n) => [n.key, n])), [full]);
+  const branches = useMemo(() => (full && tree ? mapBranches(full, tree, rootKey) : []), [full, tree, rootKey]);
+  const mode: MapLayout = full?.lane.mapLayout ?? 'free';
   const look = useLaneLook(lanes.get(laneId));
   const laneColor = look.color ?? undefined;
   const files = useFileDrag();
@@ -196,6 +204,39 @@ export function LaneMap({ data, laneId, blocked, onClose }: { data: Data; laneId
   /** When the person last moved the map (event time): the camera never follows an agent against their hand. */
   const touched = useRef(-Infinity);
   const followed = useRef(0);
+  /** Where the nodes laid out from the tree were last drawn, and the frame a reflow is at. */
+  const drawn = useRef<ReadonlyMap<NodeKey, XY> | null>(null);
+  const frame = useRef<ReadonlyMap<NodeKey, XY> | null>(null);
+  /** The idea a dragged one would hang from, on a map laid out from its tree. */
+  const [hangOn, setHangOn] = useState<NodeKey | null>(null);
+
+  // The idea being typed is in the tree while it is: the map makes room for it.
+  const ghostFrom = ghost ? ghost.from : undefined;
+  const growing = useMemo(() => (ghostFrom === undefined ? branches : [...branches, { key: GHOST, parent: ghostFrom }]), [branches, ghostFrom]);
+  /** Where each node goes while the map is laid out from its tree; null while it is free. */
+  const laidOut = useMemo(
+    () => (full && tree && mode !== 'free' ? treeLayout(mode, rootKey, full.nodes[0]!, growing, tree.hidden, (k) => sizes.get(k) ?? GUESS) : null),
+    [full, tree, mode, rootKey, growing, sizes],
+  );
+  const laid = useMemo(() => {
+    if (!full || !laidOut) return full;
+    return {
+      ...full,
+      nodes: full.nodes.map((n) => {
+        const p = laidOut.get(n.key);
+        return p && (p.x !== n.x || p.y !== n.y) ? { ...n, x: p.x, y: p.y } : n;
+      }),
+    };
+  }, [full, laidOut]);
+  /** What is on show: a folded idea's branch is left out, with its links. */
+  const map = useMemo(() => {
+    if (!laid || !tree?.hidden.size) return laid;
+    const hid = tree.hidden;
+    return { ...laid, nodes: laid.nodes.filter((n) => !hid.has(n.key)), edges: laid.edges.filter((e) => !hid.has(e.from) && !hid.has(e.to)) };
+  }, [laid, tree]);
+  const byKey = useMemo(() => new Map(laid?.nodes.map((n) => [n.key, n])), [laid]);
+  const ghostAt: XY | null = ghost ? (laidOut?.get(GHOST) ?? ghost) : null;
+  const ghostColor = ghost?.style.color ?? null;
 
   // Another idea or link chosen: a note opened from the panel gives way to it, as in the column.
   const selKey = `${sel.nodes.join(' ')}|${sel.edge ?? ''}`;
@@ -213,12 +254,16 @@ export function LaneMap({ data, laneId, blocked, onClose }: { data: Data; laneId
     return out;
   }, [map, live, sizes]);
 
-  /** The colour a node shows: its own on the map, else the note's, else the column's. */
+  /**
+   * The colour a node shows: its own, else its branch's, each main branch taking a colour of
+   * its own in turn; the centre and what hangs from nothing, the column's.
+   */
   const colors = useMemo(() => {
     const out = new Map<NodeKey, string | undefined>();
-    for (const n of map?.nodes ?? []) out.set(n.key, n.color ?? n.note?.color ?? laneColor);
+    for (const [k, c] of branchColors(rootKey, growing, ownColors(byKey, ghostColor), laneColor ?? null)) out.set(k, c ?? laneColor);
+    out.set(rootKey, byKey.get(rootKey)?.color ?? laneColor);
     return out;
-  }, [map, laneColor]);
+  }, [growing, byKey, ghostColor, rootKey, laneColor]);
 
   // ───────────────────────────── view
 
@@ -356,6 +401,66 @@ export function LaneMap({ data, laneId, blocked, onClose }: { data: Data; laneId
     return () => ro.unobserve(el);
   }, []);
 
+  // A node drawn for the first time is measured before the paint: a map laid out from its
+  // tree never shows a guessed size, nor moves once the real one is known.
+  useLayoutEffect(() => {
+    const w = world.current;
+    if (!laidOut || !w) return;
+    let next: Map<NodeKey, WH> | null = null;
+    for (const el of w.querySelectorAll<HTMLElement>('[data-key]')) {
+      const k = el.dataset.key!;
+      if (sizes.has(k)) continue;
+      next ??= new Map(sizes);
+      next.set(k, { w: el.offsetWidth, h: el.offsetHeight });
+    }
+    if (next) setSizes(next);
+  }, [laidOut, sizes, map]);
+
+  // When the tree lays the map out again (an idea came, went or folded, another layout was
+  // chosen), what moves glides there from where it was drawn.
+  useLayoutEffect(() => {
+    const to = laidOut;
+    if (!to) {
+      drawn.current = null;
+      return;
+    }
+    // Not yet measured: the next render, before the paint, lays it out again.
+    if (map?.nodes.some((n) => !sizes.has(n.key))) return;
+    const from = frame.current ?? drawn.current;
+    drawn.current = to;
+    if (!from || reducedMotion() || gesture.current?.kind === 'move' || nudging.current) return;
+    const moving = [...to].filter(([k, p]) => {
+      const q = from.get(k);
+      return k !== GHOST && q && Math.hypot(q.x - p.x, q.y - p.y) > 1;
+    });
+    cancelAnimationFrame(layoutAnim.current);
+    frame.current = null;
+    if (!moving.length) {
+      setLive(null);
+      return;
+    }
+    const start = new Map(moving.map(([k]) => [k, from.get(k)!]));
+    const at = (p: number) => new Map(moving.map(([k, b]) => [k, { x: start.get(k)!.x + (b.x - start.get(k)!.x) * p, y: start.get(k)!.y + (b.y - start.get(k)!.y) * p }]));
+    frame.current = start;
+    setLive(start);
+    let t0 = -1;
+    const step = (now: number) => {
+      if (t0 < 0) t0 = now;
+      const p = easeOut(Math.min(1, (now - t0) / LAYOUT_MS));
+      if (p < 1) {
+        const f = at(p);
+        frame.current = new Map([...to, ...f]);
+        setLive(f);
+        layoutAnim.current = requestAnimationFrame(step);
+      } else {
+        frame.current = null;
+        setLive(null);
+      }
+    };
+    layoutAnim.current = requestAnimationFrame(step);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- runs when the layout changes; sizes and nodes are read as of now
+  }, [laidOut]);
+
   // ───────────────────────────── writes
 
   const current = () => {
@@ -363,37 +468,50 @@ export function LaneMap({ data, laneId, blocked, onClose }: { data: Data; laneId
     return d ? laneMap(d, laneId) : null;
   };
 
-  /** Positions and styles, in one undoable step, with `also` (ops and their undo) in it. */
-  const commitLayout = (changes: ReadonlyMap<NodeKey, NodeChange>, also: { ops: Op[]; undo: Op[] } = { ops: [], undo: [] }) => {
+  /**
+   * Positions and styles, in one undoable step, with `also` (ops and their undo) in it. On a
+   * map laid out from its tree, styles keep the stored spots; moving anything but the centre
+   * (or `free`) turns the map free, every node staying where it shows.
+   */
+  const commitLayout = (changes: ReadonlyMap<NodeKey, NodeChange>, also: { ops: Op[]; undo: Op[] } = { ops: [], undo: [] }, free = false) => {
     const m = current();
     if (!m) return;
+    const shown = laidOut;
+    const freeing = !!shown && (free || [...changes].some(([k, c]) => k !== rootKey && (c.x !== undefined || c.y !== undefined)));
     const set: LayoutNode[] = [];
     const back: LayoutNode[] = [];
     const gone: { kind: 'note' | 'lane'; id: string }[] = [];
     for (const n of m.nodes) {
       const c = changes.get(n.key);
       const { kind, id } = n.ref;
-      if (!n.placed) {
-        set.push({ kind, id, x: Math.round(c?.x ?? n.x), y: Math.round(c?.y ?? n.y), shape: c?.shape ?? n.shape, fill: c?.fill ?? n.fill, size: c?.size ?? n.size, color: c?.color !== undefined ? c.color : n.color });
+      const at = freeing ? (shown.get(n.key) ?? n) : n;
+      if (!n.placed && (!shown || freeing || c)) {
+        set.push({ kind, id, x: Math.round(c?.x ?? at.x), y: Math.round(c?.y ?? at.y), shape: c?.shape ?? n.shape, fill: c?.fill ?? n.fill, size: c?.size ?? n.size, color: c?.color !== undefined ? c.color : n.color });
         gone.push({ kind, id });
         continue;
       }
-      if (!c) continue;
-      const next: LayoutNode = { kind, id, x: Math.round(c.x ?? n.x), y: Math.round(c.y ?? n.y) };
+      if (!n.placed || (!c && !freeing)) continue;
+      const next: LayoutNode = { kind, id, x: Math.round(c?.x ?? at.x), y: Math.round(c?.y ?? at.y) };
       const prev: LayoutNode = { kind, id, x: n.x, y: n.y };
       let changed = next.x !== n.x || next.y !== n.y;
-      if (c.shape !== undefined && c.shape !== n.shape) [next.shape, prev.shape, changed] = [c.shape, n.shape, true];
-      if (c.fill !== undefined && c.fill !== n.fill) [next.fill, prev.fill, changed] = [c.fill, n.fill, true];
-      if (c.size !== undefined && c.size !== n.size) [next.size, prev.size, changed] = [c.size, n.size, true];
-      if (c.color !== undefined && c.color !== n.color) [next.color, prev.color, changed] = [c.color, n.color, true];
+      if (c?.shape !== undefined && c.shape !== n.shape) [next.shape, prev.shape, changed] = [c.shape, n.shape, true];
+      if (c?.fill !== undefined && c.fill !== n.fill) [next.fill, prev.fill, changed] = [c.fill, n.fill, true];
+      if (c?.size !== undefined && c.size !== n.size) [next.size, prev.size, changed] = [c.size, n.size, true];
+      if (c?.color !== undefined && c.color !== n.color) [next.color, prev.color, changed] = [c.color, n.color, true];
       if (!changed) continue;
       set.push(next);
       back.push(prev);
     }
-    if (!set.length && !also.ops.length) return;
+    if (!set.length && !also.ops.length && !freeing) return;
     const where = { viewKind: 'lane_map', viewId: laneId } as const;
+    const ops: Op[] = [...also.ops, ...chunks(set).map((nodes) => ({ type: 'layout.set' as const, ...where, nodes }))];
     const undo: Op[] = [...also.undo, ...chunks(back).map((nodes) => ({ type: 'layout.set' as const, ...where, nodes })), ...chunks(gone).map((nodes) => ({ type: 'layout.remove' as const, ...where, nodes }))];
-    store.dispatch([...also.ops, ...chunks(set).map((nodes) => ({ type: 'layout.set' as const, ...where, nodes }))], { undo });
+    if (freeing) {
+      ops.push({ type: 'lane.update', id: laneId, mapLayout: 'free' });
+      undo.unshift({ type: 'lane.update', id: laneId, mapLayout: m.lane.mapLayout });
+    }
+    store.dispatch(ops, { undo });
+    if (freeing && !free) store.notify({ tone: 'info', key: 'mapFreed', undo: () => store.dispatch(undo) });
   };
 
   /**
@@ -422,12 +540,15 @@ export function LaneMap({ data, laneId, blocked, onClose }: { data: Data; laneId
     const { title, body } = splitText(text);
     if (!d || !m || !title) return null;
     const id = newId();
-    // A loose idea opens the column; one hanging from another comes after its siblings, as typed.
+    // A loose idea opens the column; one hanging from another (the centre too) comes after its siblings, as typed.
     const list = notesByLane(d.notes, [laneId]).get(laneId) ?? [];
-    const position = from?.startsWith('note:') ? between(list.at(-1)?.position ?? null, null) : between(null, list[0]?.position ?? null);
+    const position = from ? between(list.at(-1)?.position ?? null, null) : between(null, list[0]?.position ?? null);
     // Its colour, taken from its parent, is the note's: the card shows it too.
     const ops: Op[] = [{ type: 'note.create', id, laneId, title, ...(body ? { body } : {}), ...(url ? { url } : {}), ...(style.color ? { color: style.color } : {}), place: { position } }];
-    const layout: LayoutNode[] = [...frozen(m.nodes), { kind: 'note', id, x: Math.round(at.x), y: Math.round(at.y), ...style, color: null }];
+    // Laid out from the tree, it needs a row only for a look of its own.
+    const own = style.shape !== NODE_DEFAULT.shape || style.fill !== NODE_DEFAULT.fill || style.size !== NODE_DEFAULT.size;
+    const row: LayoutNode = { kind: 'note', id, x: Math.round(at.x), y: Math.round(at.y), ...style, color: null };
+    const layout: LayoutNode[] = laidOut ? (own ? [row] : []) : [...frozen(m.nodes), row];
     for (const nodes of chunks(layout)) ops.push({ type: 'layout.set', viewKind: 'lane_map', viewId: laneId, nodes });
     if (from && m.nodes.some((n) => n.key === from)) ops.push({ type: 'link.create', id: newId(), from: refOf(from), to: { kind: 'note', id }, ...styleOp(lastEdge.current) });
     // A folded parent opens, or the new idea would vanish as it lands.
@@ -437,9 +558,27 @@ export function LaneMap({ data, laneId, blocked, onClose }: { data: Data; laneId
     return id;
   };
 
+  /** Hangs `child` from `parent` (the centre too), last among what hangs there. Whether it could. */
+  const hang = (child: NodeKey, parent: NodeKey) => {
+    // A folded idea opens first, or what lands in it would vanish.
+    const host = byKey.get(parent)?.note;
+    if (host?.collapsed) actions.setCollapsed([host.id], false);
+    return !!actions.moveNote(refOf(child).id, { laneId, parent: parent === rootKey ? null : refOf(parent).id, centre: parent === rootKey, index: Number.MAX_SAFE_INTEGER });
+  };
+
   const connect = (from: NodeKey, to: NodeKey) => {
     if (!map || from === to) return;
+    // A line to an idea with no place yet hangs it there, whichever way it was drawn.
+    const older = (x: NodeKey, y: NodeKey) => {
+      const [a, b] = [byKey.get(x)?.note, byKey.get(y)?.note];
+      return !!a && !!b && (a.createdAt < b.createdAt || (a.createdAt === b.createdAt && a.id < b.id));
+    };
+    const pair = tree ? hangingPair(tree, branches, rootKey, from, to, older) : null;
     const dup = edgeBetween(map.edges, from, to);
+    if (pair && (!dup || (dup.origin === 'manual' && dup.from === pair.child && dup.to === pair.parent)) && hang(pair.child, pair.parent)) {
+      setSel({ nodes: [pair.child], edge: null });
+      return;
+    }
     if (dup) {
       setSel({ nodes: [], edge: dup.id });
       store.notify({ tone: 'info', key: 'alreadyLinked' });
@@ -539,16 +678,16 @@ export function LaneMap({ data, laneId, blocked, onClose }: { data: Data; laneId
     setSel(NONE);
   };
 
-  /** What a node linked from `k` starts as: its parent's look, unless the parent is the column. */
+  /** What a node linked from `k` starts as: its parent's look, unless the parent is the column. Its colour follows the branch. */
   const inherited = (k: NodeKey): NodeStyle => {
     const n = k === rootKey ? undefined : map?.nodes.find((x) => x.key === k);
-    return n ? { shape: n.shape, fill: n.fill, size: n.size, color: n.color ?? n.note?.color ?? null } : NODE_DEFAULT;
+    return n ? { shape: n.shape, fill: n.fill, size: n.size, color: null } : NODE_DEFAULT;
   };
 
   const spawnChild = (from: Box, key: NodeKey, style: NodeStyle, side?: Side, more: readonly Box[] = []) => {
     const rootBox = boxes.get(rootKey);
     if (!rootBox) return;
-    const spot = childSpot([...boxes.values(), ...more, from], from, key === rootKey, rootBox.x, side);
+    const spot = (mode !== 'free' && full && tree ? treeLayout(mode, rootKey, full.nodes[0]!, [...branches, { key: GHOST, parent: key }], tree.hidden, (k) => sizes.get(k) ?? GUESS).get(GHOST) : null) ?? childSpot([...boxes.values(), ...more, from], from, key === rootKey, rootBox.x, side);
     setGhost({ ...spot, from: key, style });
     setEditing(null);
     reveal(spot);
@@ -561,6 +700,7 @@ export function LaneMap({ data, laneId, blocked, onClose }: { data: Data; laneId
 
   const newThought = () => {
     if (sel.nodes.length === 1) return addChild(sel.nodes[0]!);
+    if (laidOut) return addChild(rootKey);
     const { w, h } = size();
     const v = view.current;
     const at = freeNear([...boxes.values()], (w / 2 - v.x) / v.z, ((h - 70) / 2 - v.y) / v.z);
@@ -593,38 +733,34 @@ export function LaneMap({ data, laneId, blocked, onClose }: { data: Data; laneId
     if (then === 'child') spawnChild({ x: g.x, y: g.y, ...(sizes.get(GHOST) ?? GUESS), shape: g.style.shape }, key, g.style);
   };
 
-  const organize = () => {
-    if (!map) return;
-    const keys = map.nodes.map((n) => n.key);
-    const from = new Map(keys.map((k) => [k, boxes.get(k)!] as const));
-    const target = autoLayout(rootKey, keys, map.edges, from, (k) => sizes.get(k) ?? GUESS);
-    // A folded branch keeps its shape and moves with the idea that holds it.
-    const saved = new Map(target);
-    for (const [k, hid] of tree?.folded ?? []) {
-      const a = from.get(k);
-      const b = target.get(k);
-      if (!a || !b) continue;
-      for (const h of hid) {
-        const n = byKey.get(h);
-        if (n) saved.set(h, { x: n.x + b.x - a.x, y: n.y + b.y - a.y });
-      }
+  /**
+   * Lays the map out from its tree (the reflow glides there and the view frames it), or sets
+   * it free where it shows. Undo goes back to the layout before.
+   */
+  const arrange = (next: MapLayout) => {
+    if (!map || !full || !tree) return;
+    const cur = map.lane.mapLayout;
+    if (next === 'free') {
+      if (cur !== 'free') commitLayout(new Map(), undefined, true);
+      return;
     }
-    const finish = () => {
-      commitLayout(saved);
-      setLive(null);
-      fitTo(target);
-    };
-    cancelAnimationFrame(layoutAnim.current);
-    if (reducedMotion()) return finish();
-    let t0 = -1;
-    const step = (now: number) => {
-      if (t0 < 0) t0 = now;
-      const p = easeOut(Math.min(1, (now - t0) / LAYOUT_MS));
-      setLive(new Map(keys.map((k) => [k, { x: from.get(k)!.x + (target.get(k)!.x - from.get(k)!.x) * p, y: from.get(k)!.y + (target.get(k)!.y - from.get(k)!.y) * p }])));
-      if (p < 1) layoutAnim.current = requestAnimationFrame(step);
-      else finish();
-    };
-    layoutAnim.current = requestAnimationFrame(step);
+    if (next !== cur) store.dispatch({ type: 'lane.update', id: laneId, mapLayout: next }, { undo: [{ type: 'lane.update', id: laneId, mapLayout: cur }] });
+    fitTo(treeLayout(next, rootKey, full.nodes[0]!, branches, tree.hidden, (k) => sizes.get(k) ?? GUESS));
+  };
+
+  /** Shows the first `levels` levels of the tree (null: all), folding the last where it can. */
+  const showLevels = (levels: number | null) => {
+    if (!tree || !full) return;
+    const want = levelFolds(tree, levels);
+    const ideas = full.nodes.filter((n) => n.note && want.has(n.key) && want.get(n.key) !== n.note.collapsed).map((n) => n.note!);
+    actions.setCollapsed(
+      ideas.filter((n) => !n.collapsed).map((n) => n.id),
+      true,
+    );
+    actions.setCollapsed(
+      ideas.filter((n) => n.collapsed).map((n) => n.id),
+      false,
+    );
   };
 
   /** Arrow keys move the selection; a run of presses is one undo step. */
@@ -654,6 +790,32 @@ export function LaneMap({ data, laneId, blocked, onClose }: { data: Data; laneId
   };
   const flushOnLeave = useEffectEvent(flushNudge);
   useEffect(() => () => flushOnLeave(), []);
+
+  /**
+   * The idea under the pointer that dragged ones could hang from: not one of them nor
+   * anything below them. The dragged node itself is under the pointer, so look through it.
+   */
+  const dropTarget = (cx: number, cy: number, moving: ReadonlyMap<NodeKey, XY>): NodeKey | null => {
+    for (const el of document.elementsFromPoint(cx, cy)) {
+      const k = el.closest<HTMLElement>('[data-key]')?.dataset.key;
+      if (!k || k === GHOST || moving.has(k)) continue;
+      if (tree && [...moving.keys()].some((m) => tree.below(m).includes(k))) return null;
+      return k;
+    }
+    return null;
+  };
+
+  /** Dragged ideas dropped on another hang from it, after what already does; on the centre they become main branches. */
+  const hangUnder = (keys: readonly NodeKey[], to: NodeKey) => {
+    // Ideas whose parent goes along keep hanging from it.
+    const moving = new Set(keys);
+    for (const k of keys) {
+      if (k === rootKey) continue;
+      let up = tree?.parent.get(k);
+      while (up && !moving.has(up)) up = tree?.parent.get(up);
+      if (!up) hang(k, to);
+    }
+  };
 
   // ───────────────────────────── pointer
 
@@ -688,7 +850,10 @@ export function LaneMap({ data, laneId, blocked, onClose }: { data: Data; laneId
     if (pointers.current.size === 2) {
       // A second finger: whatever the first one started becomes a pinch.
       const g = gesture.current;
-      if (g?.kind === 'move') setLive(null);
+      if (g?.kind === 'move') {
+        setLive(null);
+        setHangOn(null);
+      }
       if (g?.kind === 'connect') setTemp(null);
       if (g?.kind === 'marquee') setMarquee(null);
       const [a, b] = [...pointers.current.values()] as [XY, XY];
@@ -711,7 +876,12 @@ export function LaneMap({ data, laneId, blocked, onClose }: { data: Data; laneId
       const nodes = was ? cur : additive ? [...cur, key] : [key];
       setSel({ nodes, edge: null });
       setLabelEdit(null);
-      gesture.current = { kind: 'move', ...base, origin: carried(nodes), hit: key, toggle: additive && was, only: !additive && was && nodes.length > 1 };
+      // A reflow under way stops where it is; on a tree layout the centre takes the whole map along.
+      cancelAnimationFrame(layoutAnim.current);
+      frame.current = null;
+      setLive(null);
+      const whole = !!laidOut && nodes.includes(rootKey);
+      gesture.current = { kind: 'move', ...base, origin: carried(whole ? [...boxes.keys()] : nodes), hit: key, toggle: additive && was, only: !additive && was && nodes.length > 1 };
     } else if (edge) {
       setSel({ nodes: [], edge });
       gesture.current = null;
@@ -747,7 +917,10 @@ export function LaneMap({ data, laneId, blocked, onClose }: { data: Data; laneId
     }
     const z = view.current.z;
     if (g.kind === 'pan') setView({ ...view.current, x: g.v0.x + dx, y: g.v0.y + dy });
-    else if (g.kind === 'move') setLive(new Map([...g.origin].map(([k, p]) => [k, { x: p.x + dx / z, y: p.y + dy / z }])));
+    else if (g.kind === 'move') {
+      setLive(new Map([...g.origin].map(([k, p]) => [k, { x: p.x + dx / z, y: p.y + dy / z }])));
+      if (laidOut && !g.origin.has(rootKey)) setHangOn(dropTarget(e.clientX, e.clientY, g.origin));
+    }
     else if (g.kind === 'connect') setTemp({ from: g.from, side: g.side, to: toWorld(toCanvas(e)), target: keyAt(e.clientX, e.clientY, g.from) });
     else {
       const a = toCanvas({ clientX: g.sx, clientY: g.sy });
@@ -778,10 +951,17 @@ export function LaneMap({ data, laneId, blocked, onClose }: { data: Data; laneId
         }
         return;
       case 'move':
+        setHangOn(null);
         if (g.moved && !cancelled) {
           const dx = (e.clientX - g.sx) / z;
           const dy = (e.clientY - g.sy) / z;
-          commitLayout(new Map([...g.origin].map(([k, p]) => [k, { x: p.x + dx, y: p.y + dy }])));
+          const to = laidOut && !g.origin.has(rootKey) ? dropTarget(e.clientX, e.clientY, g.origin) : null;
+          if (to) {
+            // The reflow starts where the hand let go.
+            frame.current = new Map([...(drawn.current ?? []), ...[...g.origin].map(([k, p]) => [k, { x: p.x + dx, y: p.y + dy }] as const)]);
+            hangUnder(sel.nodes, to);
+          } else if (laidOut && g.origin.has(rootKey)) commitLayout(new Map([[rootKey, { x: g.origin.get(rootKey)!.x + dx, y: g.origin.get(rootKey)!.y + dy }]]));
+          else commitLayout(new Map([...g.origin].map(([k, p]) => [k, { x: p.x + dx, y: p.y + dy }])));
         } else if (!g.moved && g.toggle) setSel({ nodes: sel.nodes.filter((k) => k !== g.hit), edge: null });
         else if (!g.moved && g.only) setSel({ nodes: [g.hit], edge: null });
         setLive(null);
@@ -882,7 +1062,7 @@ export function LaneMap({ data, laneId, blocked, onClose }: { data: Data; laneId
     } else {
       const at = toWorld(toCanvas(e));
       setSel(NONE);
-      setGhost({ x: Math.round(at.x), y: Math.round(at.y), from: null, style: NODE_DEFAULT });
+      setGhost({ x: Math.round(at.x), y: Math.round(at.y), from: laidOut ? rootKey : null, style: NODE_DEFAULT });
     }
   };
 
@@ -891,6 +1071,8 @@ export function LaneMap({ data, laneId, blocked, onClose }: { data: Data; laneId
   /** Keys reach the map when it has focus, or nobody has (and no drawer or search is open). */
   const forMap = (target: EventTarget | null) => {
     if (isEditable(target)) return false;
+    // A menu open over the map takes its own keys: Esc closes it, not the map.
+    if (target instanceof Element && target.closest('[popover]')) return false;
     if (target instanceof Node && root.current?.contains(target)) return true;
     return !blocked && (target === document.body || target === null);
   };
@@ -950,7 +1132,7 @@ export function LaneMap({ data, laneId, blocked, onClose }: { data: Data; laneId
     const text = e.clipboardData?.getData('text/plain').trim();
     if (!text) return;
     e.preventDefault();
-    const one = sel.nodes.length === 1 ? sel.nodes[0]! : null;
+    const one = sel.nodes.length === 1 ? sel.nodes[0]! : laidOut ? rootKey : null;
     const b = one ? boxes.get(one) : undefined;
     const rootBox = boxes.get(rootKey)!;
     let at: XY;
@@ -1012,8 +1194,12 @@ export function LaneMap({ data, laneId, blocked, onClose }: { data: Data; laneId
   const selEdge = sel.edge ? (map.edges.find((e) => e.id === sel.edge) ?? null) : null;
   const extra: string[] = [];
   if (temp && boxes.get(temp.from)) extra.push(tempPath(boxes.get(temp.from)!, temp.side, temp.to, temp.target ? (boxes.get(temp.target) ?? null) : null));
+  // Laid out from the tree, the line from an idea to one hanging from it runs the layout's way.
+  const axis = laidOut ? (mode === 'down' ? 'y' : 'x') : undefined;
+  const hangsFrom = new Map(branches.map((b) => [b.key, b.parent]));
+  const axes = new Map(axis ? map.edges.filter((e) => hangsFrom.get(e.to) === e.from).map((e) => [e.id, axis] as const) : []);
   const parent = ghost?.from ? boxes.get(ghost.from) : undefined;
-  if (ghost && parent) extra.push(buildPath(geometry(parent, { x: ghost.x, y: ghost.y, ...(sizes.get(GHOST) ?? GUESS), shape: ghost.style.shape }, 'curve'), 'none', 2).d);
+  if (ghost && ghostAt && parent) extra.push(buildPath(geometry(parent, { ...ghostAt, ...(sizes.get(GHOST) ?? GUESS), shape: ghost.style.shape }, 'curve', axis), 'none', 2).d);
   const titleOf = (k: NodeKey) => map.nodes.find((n) => n.key === k)?.title ?? '';
   // The text under the mouse, unless the panel already shows that idea.
   const peekNode = peek && !selected.has(peek.key) && editing !== peek.key ? map.nodes.find((n) => n.key === peek.key) : undefined;
@@ -1030,6 +1216,13 @@ export function LaneMap({ data, laneId, blocked, onClose }: { data: Data; laneId
     return { count: hid?.length ?? 0, side, agent: !!hid?.some((k) => byKey.get(k)?.note && agentMarks.get(refOf(k).id)?.fresh) };
   };
   const canFoldAll = !!tree && !!full && full.nodes.some((n) => n.note && !n.note.collapsed && tree.blocker(n.key) === null);
+  const autoCor = ((): string | undefined => {
+    if (selEdge) return colors.get(selEdge.to);
+    const k = selNodes.length === 1 ? selNodes[0]!.key : null;
+    if (!k || k === rootKey) return laneColor;
+    const own = ownColors(byKey, ghostColor);
+    return branchColors(rootKey, growing, (x) => (x === k ? null : own(x)), laneColor ?? null).get(k) ?? laneColor;
+  })();
   const one = selNodes.length === 1 ? selNodes[0]! : null;
   const foldInfo = ((): FoldInfo | null => {
     if (!one?.note || !tree) return null;
@@ -1074,10 +1267,61 @@ export function LaneMap({ data, laneId, blocked, onClose }: { data: Data; laneId
             <IconPlus />
             <span className="w-hide-sm">{t('newNote')}</span>
           </button>
-          <button type="button" className="nr-btn nr-btn--sm nr-btn--fantasma" onClick={organize} aria-label={t('map.organize')}>
-            <IconOrganize />
-            <span className="w-hide-sm">{t('map.organize')}</span>
-          </button>
+          <Menu
+            label={t('map.organize')}
+            className="nr-btn nr-btn--sm nr-btn--fantasma"
+            panelClassName="w-map__layouts"
+            icon={
+              <>
+                <IconOrganize />
+                <span className="w-hide-sm">{t('map.organize')}</span>
+              </>
+            }
+          >
+            {(close) => (
+              <>
+                <div className="w-menu__label">{t('map.layout.title')}</div>
+                {[...TREE_MODES, 'free' as const].map((m) => (
+                  <button
+                    key={m}
+                    type="button"
+                    className="w-menu__item w-map__layout"
+                    aria-pressed={mode === m}
+                    onClick={() => {
+                      close();
+                      arrange(m);
+                    }}
+                  >
+                    {LAYOUT_ICONS[m]}
+                    <span className="w-menu__text">{t(`map.layout.${m}`)}</span>
+                    {mode === m && <IconCheck />}
+                  </button>
+                ))}
+                {tree && tree.order.some((k) => (tree.depth.get(k) ?? 0) > 0) && (
+                  <>
+                    <div className="w-menu__label">{t('map.levels.title')}</div>
+                    <div className="w-map__levels">
+                      {LEVELS.map((n) => (
+                        <button
+                          key={n ?? 'all'}
+                          type="button"
+                          className="w-map__level"
+                          aria-label={n === null ? t('map.levels.all') : t('map.levels.count', { count: n })}
+                          title={n === null ? t('map.levels.all') : t('map.levels.count', { count: n })}
+                          onClick={() => {
+                            close();
+                            showLevels(n);
+                          }}
+                        >
+                          {n ?? t('map.levels.allShort')}
+                        </button>
+                      ))}
+                    </div>
+                  </>
+                )}
+              </>
+            )}
+          </Menu>
           {tree?.hidden.size ? (
             <button type="button" className="nr-btn nr-btn--sm nr-btn--fantasma" onClick={() => foldAll(false)} aria-label={t('map.unfoldAll')}>
               <IconUnfold />
@@ -1116,7 +1360,7 @@ export function LaneMap({ data, laneId, blocked, onClose }: { data: Data; laneId
             onDoubleClick={onDoubleClick}
           >
             <div ref={world} className="w-map__world">
-              <MapEdges edges={map.edges} boxes={boxes} colors={colors} selected={sel.edge} extra={extra} marks={agentMarks} />
+              <MapEdges edges={map.edges} axes={axes} boxes={boxes} colors={colors} selected={sel.edge} extra={extra} marks={agentMarks} />
               {map.nodes.map((n) => {
                 const b = boxes.get(n.key)!;
                 const fold = foldOf(n);
@@ -1128,7 +1372,7 @@ export function LaneMap({ data, laneId, blocked, onClose }: { data: Data; laneId
                     y={b.y}
                     cor={colors.get(n.key)}
                     selected={selected.has(n.key)}
-                    target={temp?.target === n.key}
+                    target={temp?.target === n.key || hangOn === n.key}
                     editing={editing === n.key}
                     label={t('map.placeholder')}
                     linkLabel={t('note.openLink')}
@@ -1142,12 +1386,12 @@ export function LaneMap({ data, laneId, blocked, onClose }: { data: Data; laneId
                   />
                 );
               })}
-              {ghost && (
+              {ghost && ghostAt && (
                 <MapNodeView
-                  node={{ key: GHOST, ref: { kind: 'note', id: GHOST }, x: ghost.x, y: ghost.y, ...ghost.style, placed: false, note: null, title: '' }}
-                  x={ghost.x}
-                  y={ghost.y}
-                  cor={ghost.style.color ?? laneColor}
+                  node={{ key: GHOST, ref: { kind: 'note', id: GHOST }, x: ghostAt.x, y: ghostAt.y, ...ghost.style, placed: false, note: null, title: '' }}
+                  x={ghostAt.x}
+                  y={ghostAt.y}
+                  cor={colors.get(GHOST) ?? laneColor}
                   selected
                   target={false}
                   editing
@@ -1169,7 +1413,7 @@ export function LaneMap({ data, laneId, blocked, onClose }: { data: Data; laneId
 
           {peekNode && peekText && <MapPeek peek={peek!} title={peekNode.title} text={peekText} />}
           <ul className="w-map__hints" aria-hidden="true">
-            {(['create', 'connect', 'child', 'fold', 'move', 'zoom'] as const).map((h) => (
+            {(['create', 'connect', 'child', ...(laidOut ? (['hang'] as const) : []), 'fold', 'move', 'zoom'] as const).map((h) => (
               <li key={h}>{t(`map.hints.${h}`)}</li>
             ))}
           </ul>
@@ -1214,6 +1458,7 @@ export function LaneMap({ data, laneId, blocked, onClose }: { data: Data; laneId
             rootKey={rootKey}
             lane={map.lane}
             laneCor={laneColor}
+            autoCor={autoCor}
             labelEditing={!!selEdge && labelEdit === selEdge.id}
             onNodeStyle={(patch) => styleNodes(sel.nodes, patch)}
             onEdgeStyle={(patch) => selEdge && updateLink(selEdge.id, { style: patch })}
@@ -1367,14 +1612,14 @@ function TitleEditor({ initial, label, onDone }: { initial: string; label: strin
   );
 }
 
-const MapEdges = memo(function MapEdges({ edges, boxes, colors, selected, extra, marks }: { edges: readonly MapEdge[]; boxes: ReadonlyMap<NodeKey, Box>; colors: ReadonlyMap<NodeKey, string | undefined>; selected: string | null; extra: readonly string[]; marks: ReadonlyMap<string, AgentMark> }) {
+const MapEdges = memo(function MapEdges({ edges, axes, boxes, colors, selected, extra, marks }: { edges: readonly MapEdge[]; axes: ReadonlyMap<string, 'x' | 'y'>; boxes: ReadonlyMap<NodeKey, Box>; colors: ReadonlyMap<NodeKey, string | undefined>; selected: string | null; extra: readonly string[]; marks: ReadonlyMap<string, AgentMark> }) {
   return (
     <svg className="w-map__edges" aria-hidden="true">
       {edges.map((e) => {
         const A = boxes.get(e.from);
         const B = boxes.get(e.to);
         if (!A || !B) return null;
-        const { d, heads, mid } = buildPath(geometry(A, B, e.style.route), e.style.arrow, e.style.width);
+        const { d, heads, mid } = buildPath(geometry(A, B, e.style.route, axes.get(e.id)), e.style.arrow, e.style.width);
         return (
           <g key={e.id} className="w-map__edge" data-edge={e.id} {...corProps(e.style.color ?? colors.get(e.to))} {...agentProps(marks.get(e.id))} data-selected={selected === e.id || undefined}>
             <path className="w-map__hit" d={d} />
@@ -1449,6 +1694,8 @@ interface PanelProps {
   rootKey: NodeKey;
   lane: LaneDto;
   laneCor: string | undefined;
+  /** What "Automatic" paints the selection: its branch's colour, a link its end's. */
+  autoCor: string | undefined;
   labelEditing: boolean;
   onNodeStyle: (patch: Partial<NodeStyle>) => void;
   onEdgeStyle: (patch: Partial<EdgeStyle>) => void;
@@ -1567,7 +1814,7 @@ function StyleTools(props: PanelProps) {
     const s = edge.style;
     return (
       <div className="w-map__toolbar" role="toolbar" aria-label={t('map.toolbar')}>
-        <ColorGroup value={s.color} laneCor={props.laneCor} onChange={(color) => props.onEdgeStyle({ color })} />
+        <ColorGroup value={s.color} laneCor={props.autoCor} onChange={(color) => props.onEdgeStyle({ color })} />
         <Group label={t('map.width')}>
           {WIDTHS.map((w) => (
             <Btn key={w} label={t('map.widthValue', { width: w })} on={s.width === w} onClick={() => props.onEdgeStyle({ width: w })}>
@@ -1625,7 +1872,7 @@ function StyleTools(props: PanelProps) {
   const size = common(nodes, (n) => n.size);
   return (
     <div className="w-map__toolbar" role="toolbar" aria-label={t('map.toolbar')}>
-      <ColorGroup value={common(nodes, (n) => n.color ?? n.note?.color ?? null)} laneCor={props.laneCor} onChange={(color) => props.onNodeStyle({ color })} />
+      <ColorGroup value={common(nodes, (n) => n.color ?? n.note?.color ?? null)} laneCor={props.autoCor} onChange={(color) => props.onNodeStyle({ color })} />
       <Group label={t('map.fill')}>
         {FILLS.map((f) => {
           const I = FILL_ICONS[f];

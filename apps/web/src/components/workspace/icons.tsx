@@ -58,6 +58,15 @@ export const SHAPE_ICONS = {
   plain: () => <Icon d="M4 19h16M8 15l4-10 4 10M9.5 11.5h5" />,
 } as const;
 
+/** The map's layouts: from the centre to both sides, to the right, downward, to the left; or placed by hand. */
+export const LAYOUT_ICONS = {
+  balanced: <Icon d="M9.5 12h5M3 6c3.5 0 3 6 6.5 6M3 18c3.5 0 3-6 6.5-6M21 6c-3.5 0-3 6-6.5 6M21 18c-3.5 0-3-6-6.5-6" />,
+  right: <Icon d="M3 12h4M7 12c4 0 4-6 8-6h6M7 12h14M7 12c4 0 4 6 8 6h6" />,
+  down: <Icon d="M12 3v4M12 7c0 4-6 4-6 8v6M12 7v14M12 7c0 4 6 4 6 8v6" />,
+  left: <Icon d="M21 12h-4M17 12c-4 0-4-6-8-6H3M17 12H3M17 12c-4 0-4 6-8 6H3" />,
+  free: <Icon d="M4 6h5M15 4.5h5M9.5 12.5h5M4 18.5h5M15 19h5" />,
+} as const;
+
 const DOT = 'M12 19a7 7 0 1 0 0-14 7 7 0 0 0 0 14Z';
 export const FILL_ICONS = {
   solid: () => <Icon d={DOT} fill="currentColor" />,

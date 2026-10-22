@@ -1,10 +1,10 @@
 import type { LinkDto, NoteDto } from '@noergo/core/dto';
 import { comparePositioned } from '@noergo/core/position';
-import { laneTree, thoughtTree, type LaneTree } from '@noergo/core/tree';
-import type { LaneMap, NodeKey } from './map';
+import { laneTree, reaches, thoughtTree, type LaneTree } from '@noergo/core/tree';
+import type { Branch, LaneMap, NodeKey } from './map';
 import { notesByLane, type Data } from './model';
 
-export { laneTree, type LaneTree };
+export { laneTree, reaches, type LaneTree };
 
 /** The tree of a lane's map: the notes in column order, the map's links. */
 export function mapTree(map: LaneMap, rootKey: NodeKey): LaneTree {
@@ -14,6 +14,38 @@ export function mapTree(map: LaneMap, rootKey: NodeKey): LaneTree {
     notes.map((n) => ({ key: n.key, collapsed: n.note!.collapsed })),
     map.edges,
   );
+}
+
+/**
+ * The map's tree as layouts and colours read it: each idea under the one it hangs from, in
+ * column order; at the top, a main branch hangs from the centre when the centre links to it,
+ * else from nothing.
+ */
+export function mapBranches(map: LaneMap, tree: LaneTree, rootKey: NodeKey): Branch[] {
+  const fromRoot = new Set(map.edges.filter((e) => e.from === rootKey).map((e) => e.to));
+  return tree.order.map((key) => ({ key, parent: tree.parent.get(key) ?? (fromRoot.has(key) ? rootKey : null) }));
+}
+
+/**
+ * A line a person draws between two ends of a map, read as the tree: which one hangs from the
+ * other. An idea with no place of its own yet (at the top, loose, or hanging from the centre
+ * with nothing below it) hangs from the other end, whichever way the line went: from the
+ * centre, from an idea with its place, from one with ideas of its own, else from the older of
+ * the two. Null when both have their place (a line across branches) or it would close a loop.
+ */
+export function hangingPair(tree: LaneTree, branches: readonly Branch[], rootKey: NodeKey, a: NodeKey, b: NodeKey, older: (x: NodeKey, y: NodeKey) => boolean): { child: NodeKey; parent: NodeKey } | null {
+  const up = new Map(branches.map((br) => [br.key, br.parent]));
+  const kids = new Set(branches.flatMap((br) => (br.parent === null ? [] : [br.parent])));
+  const unplaced = (k: NodeKey) => up.has(k) && (up.get(k) === null || (up.get(k) === rootKey && !kids.has(k)));
+  let child: NodeKey;
+  if (a === rootKey || b === rootKey) child = a === rootKey ? b : a;
+  else if (unplaced(a) !== unplaced(b)) child = unplaced(a) ? a : b;
+  else if (kids.has(a) !== kids.has(b)) child = kids.has(a) ? b : a;
+  else child = older(a, b) ? b : a;
+  const parent = child === a ? b : a;
+  if (!unplaced(child)) return null;
+  for (let k = tree.parent.get(parent); k; k = tree.parent.get(k)) if (k === child) return null;
+  return { child, parent };
 }
 
 export const noteKey = (id: string) => `note:${id}`;

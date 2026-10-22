@@ -157,3 +157,35 @@ export function thoughtTree(laneId: string, ideas: readonly { id: string; collap
     links.map((l) => ({ id: l.id, from: keyOf(l.from), to: keyOf(l.to) })),
   );
 }
+
+/**
+ * The folds that show `levels` levels of a tree (null: all of it): each idea on the last level
+ * folds what hangs from it where it can, and every other idea opens, so that fold is the
+ * only one. Ideas at the top of the column are the first level. Gives each idea's fold.
+ */
+export function levelFolds(tree: LaneTree, levels: number | null): Map<string, boolean> {
+  const out = new Map<string, boolean>();
+  for (const k of tree.order) out.set(k, levels !== null && tree.depth.get(k) === levels - 1 && tree.blocker(k) === null);
+  return out;
+}
+
+/**
+ * Whether `to` is reached from `from` by links out, the links in `skip` aside: a line drawn
+ * the wrong way between two ideas is no loop once it is the one being turned round.
+ */
+export function reaches(links: readonly { id: string; from: { kind: string; id: string }; to: { kind: string; id: string } }[], from: string, to: string, skip: ReadonlySet<string>): boolean {
+  const out = new Map<string, string[]>();
+  for (const l of links) if (!skip.has(l.id)) out.set(keyOf(l.from), [...(out.get(keyOf(l.from)) ?? []), keyOf(l.to)]);
+  const seen = new Set([from]);
+  const queue = [from];
+  while (queue.length) {
+    for (const next of out.get(queue.pop()!) ?? []) {
+      if (next === to) return true;
+      if (!seen.has(next)) {
+        seen.add(next);
+        queue.push(next);
+      }
+    }
+  }
+  return false;
+}

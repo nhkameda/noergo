@@ -1,12 +1,14 @@
 import type { LaneDto, LayoutDto, LinkDto, NoteDto } from '@noergo/core/dto';
 import { opSchema, type Op } from '@noergo/core/ops/schema';
 import { describe, expect, it } from 'vitest';
-import { autoLayout, boundary, buildPath, childSpot, edgeBetween, geometry, laneMap, ROOT_DEFAULT, viewFor, zoomAt, type Box } from '@/components/workspace/map';
+import { BRANCH_COLORS, COLORS } from '@noergo/core/limits';
+import { boundary, branchColors, buildPath, childSpot, edgeBetween, geometry, laneMap, ROOT_DEFAULT, treeLayout, viewFor, zoomAt, type Box, type Branch, type WH } from '@/components/workspace/map';
+import { hangingPair, mapBranches, mapTree } from '@/components/workspace/tree';
 import { fromSnapshot, withPending, type Data } from '@/components/workspace/model';
 
 const T = '2026-10-18T12:00:00.000Z';
 const L = '00000000-0000-7000-8000-00000000000a';
-const lane: LaneDto = { id: L, boardId: 'b1', title: 'Ideas', color: null, cover: null, url: null, description: '', position: 'a0', version: 1, updatedAt: T, deletedAt: null };
+const lane: LaneDto = { id: L, boardId: 'b1', title: 'Ideas', color: null, cover: null, url: null, description: '', mapLayout: 'balanced', position: 'a0', version: 1, updatedAt: T, deletedAt: null };
 const note = (id: string, over: Partial<NoteDto> = {}): NoteDto => ({
   id,
   laneId: L,
@@ -173,38 +175,172 @@ describe('placement', () => {
     const taken = box(right.x, right.y, 150, 42);
     expect(childSpot([root, taken], root, true, 0).y).not.toBe(0);
   });
+});
 
-  it('organises a tree from the centre, half to each side, loose notes below', () => {
-    const size = () => ({ w: 100, h: 40 });
-    const pos = new Map([
-      ['r', { x: 0, y: 0 }],
-      ['a', { x: 50, y: 0 }],
-      ['b', { x: -50, y: 0 }],
-      ['a1', { x: 0, y: 0 }],
-      ['loose', { x: 0, y: 0 }],
-    ]);
-    const edges = [
-      { from: 'r', to: 'a' },
-      { from: 'r', to: 'b' },
-      { from: 'a', to: 'a1' },
-    ];
-    const t = autoLayout('r', [...pos.keys()], edges, pos, size);
-    expect(t.get('r')).toEqual({ x: 0, y: 0 });
-    expect(t.get('a')!.x).toBeGreaterThan(0);
-    expect(t.get('b')!.x).toBeLessThan(0);
-    expect(t.get('a1')!.x).toBeGreaterThan(t.get('a')!.x);
-    expect(t.get('loose')!.y).toBeGreaterThan(100);
+/** A tree for the layouts: the centre r; a with a1, a2 (a2 holding a21); b; c with c1; and z from nothing. */
+const TREE: Branch[] = [
+  { key: 'a', parent: 'r' },
+  { key: 'a1', parent: 'a' },
+  { key: 'a2', parent: 'a' },
+  { key: 'a21', parent: 'a2' },
+  { key: 'b', parent: 'r' },
+  { key: 'c', parent: 'r' },
+  { key: 'c1', parent: 'c' },
+  { key: 'z', parent: null },
+];
+const sized = (k: string): WH => (k === 'r' ? { w: 160, h: 56 } : { w: 100 + k.length * 10, h: 40 });
+const edgesOf = (p: Map<string, { x: number; y: number }>, k: string) => {
+  const { x, y } = p.get(k)!;
+  const { w, h } = sized(k);
+  return { x0: x - w / 2, x1: x + w / 2, y0: y - h / 2, y1: y + h / 2 };
+};
+/** No two nodes on show overlap. */
+const apart = (p: Map<string, { x: number; y: number }>, keys: readonly string[]) => {
+  for (const [i, a] of keys.entries()) {
+    for (const b of keys.slice(i + 1)) {
+      const A = edgesOf(p, a);
+      const B = edgesOf(p, b);
+      if (A.x0 < B.x1 && B.x0 < A.x1 && A.y0 < B.y1 && B.y0 < A.y1) return `${a} overlaps ${b}`;
+    }
+  }
+  return null;
+};
+const ALL = ['r', ...TREE.map((b) => b.key)];
+
+describe('layouts from the tree', () => {
+  it('to the right: each idea beside its parent, its own stacked in column order, nothing overlapping', () => {
+    const p = treeLayout('right', 'r', { x: 10, y: 20 }, TREE, new Set(), sized);
+    expect(p.get('r')).toEqual({ x: 10, y: 20 });
+    // Children start a fixed gap after their parent's edge, all on one line.
+    expect(edgesOf(p, 'a1').x0).toBe(edgesOf(p, 'a2').x0);
+    expect(edgesOf(p, 'a1').x0).toBeGreaterThan(edgesOf(p, 'a').x1);
+    expect(p.get('a')!.y).toBeLessThan(p.get('b')!.y);
+    expect(p.get('b')!.y).toBeLessThan(p.get('c')!.y);
+    expect(p.get('a1')!.y).toBeLessThan(p.get('a2')!.y);
+    // A parent sits in the middle of what hangs from it.
+    expect(Math.abs(p.get('a')!.y - (p.get('a1')!.y + p.get('a2')!.y) / 2)).toBeLessThanOrEqual(1);
+    expect(apart(p, ALL)).toBeNull();
+    // The tree from nothing goes under the map.
+    expect(edgesOf(p, 'z').y0).toBeGreaterThan(Math.max(...ALL.filter((k) => k !== 'z').map((k) => edgesOf(p, k).y1)));
   });
 
-  it('rings the notes around the centre when nothing is linked', () => {
-    const pos = new Map([
-      ['r', { x: 0, y: 0 }],
-      ['a', { x: 0, y: 0 }],
-      ['b', { x: 0, y: 0 }],
+  it('balanced: the main branches split by the room they take, clockwise, both sides around the centre', () => {
+    const p = treeLayout('balanced', 'r', { x: 0, y: 0 }, TREE, new Set(), sized);
+    // a (three ideas tall) against b and c (one and two).
+    expect(p.get('a')!.x).toBeGreaterThan(0);
+    expect(p.get('b')!.x).toBeLessThan(0);
+    expect(p.get('c')!.x).toBeLessThan(0);
+    // The left side reads from the bottom up: c above b.
+    expect(p.get('c')!.y).toBeLessThan(p.get('b')!.y);
+    expect(p.get('c1')!.x).toBeLessThan(p.get('c')!.x);
+    expect(apart(p, ALL)).toBeNull();
+    // To the left is the mirror of to the right.
+    const r = treeLayout('right', 'r', { x: 0, y: 0 }, TREE, new Set(), sized);
+    const l = treeLayout('left', 'r', { x: 0, y: 0 }, TREE, new Set(), sized);
+    for (const k of ['a', 'a21', 'c1']) expect(l.get(k)).toEqual({ x: -r.get(k)!.x, y: r.get(k)!.y });
+  });
+
+  it('downward: levels one under the other, siblings side by side', () => {
+    const p = treeLayout('down', 'r', { x: 0, y: 0 }, TREE, new Set(), sized);
+    expect(p.get('a')!.y).toBe(p.get('b')!.y);
+    expect(p.get('a1')!.y).toBeGreaterThan(p.get('a')!.y);
+    expect(p.get('a')!.x).toBeLessThan(p.get('b')!.x);
+    expect(p.get('b')!.x).toBeLessThan(p.get('c')!.x);
+    expect(Math.abs(p.get('a')!.x - (p.get('a1')!.x + p.get('a2')!.x) / 2)).toBeLessThanOrEqual(1);
+    expect(apart(p, ALL)).toBeNull();
+  });
+
+  it('closes up around a fold, and still gives what it hides a spot beside the idea that hides it', () => {
+    const open = treeLayout('right', 'r', { x: 0, y: 0 }, TREE, new Set(), sized);
+    const hidden = new Set(['a1', 'a2', 'a21']);
+    const p = treeLayout('right', 'r', { x: 0, y: 0 }, TREE, hidden, sized);
+    const shown = ALL.filter((k) => !hidden.has(k));
+    expect(apart(p, shown)).toBeNull();
+    // b moves up into the room the branch left.
+    expect(p.get('b')!.y - p.get('a')!.y).toBeLessThan(open.get('b')!.y - open.get('a')!.y);
+    // The hidden ideas keep their shape, around a.
+    expect(p.get('a1')!.x - p.get('a')!.x).toBe(open.get('a1')!.x - open.get('a')!.x);
+    expect(p.get('a21')!.x).toBeGreaterThan(p.get('a2')!.x);
+  });
+
+  it('is the same for the same tree, and a new idea makes room where it lands', () => {
+    const p = treeLayout('balanced', 'r', { x: 0, y: 0 }, TREE, new Set(), sized);
+    expect(treeLayout('balanced', 'r', { x: 0, y: 0 }, [...TREE], new Set(), sized)).toEqual(p);
+    const more = [...TREE, { key: 'b1', parent: 'b' }];
+    const q = treeLayout('balanced', 'r', { x: 0, y: 0 }, more, new Set(), sized);
+    expect(q.get('b1')!.x).toBeLessThan(q.get('b')!.x);
+    expect(apart(q, [...ALL, 'b1'])).toBeNull();
+  });
+
+  it('reads the tree of a column: what hangs from the centre is a main branch, the rest from nothing', () => {
+    const d = data([note('a', { position: 'a0' }), note('a1', { position: 'a1' }), note('z', { position: 'a2' })], [link('k1', L, 'a'), link('k2', 'a', 'a1')]);
+    const m = laneMap(d, L)!;
+    const rootKey = `lane:${L}`;
+    expect(mapBranches(m, mapTree(m, rootKey), rootKey)).toEqual([
+      { key: 'note:a', parent: rootKey },
+      { key: 'note:a1', parent: 'note:a' },
+      { key: 'note:z', parent: null },
     ]);
-    const t = autoLayout('r', [...pos.keys()], [], pos, () => ({ w: 100, h: 40 }));
-    expect(t.get('a')!.x).toBeGreaterThan(0);
-    expect(t.get('b')!.x).toBeLessThan(0);
+  });
+});
+
+describe('a line drawn by hand', () => {
+  // A main branch with an idea under it, a fresh main branch, two loose ideas (one with an idea of its own).
+  const d = data(
+    [note('a', { position: 'a0' }), note('a1', { position: 'a1' }), note('n', { position: 'a2', createdAt: '2026-10-19T12:00:00.000Z' }), note('x', { position: 'a3' }), note('y', { position: 'a4', createdAt: '2026-10-19T12:00:00.000Z' }), note('y1', { position: 'a5' })],
+    [link('k1', L, 'a'), link('k2', 'a', 'a1'), link('k3', L, 'n'), link('k4', 'y', 'y1')],
+  );
+  const m = laneMap(d, L)!;
+  const rootKey = `lane:${L}`;
+  const tree = mapTree(m, rootKey);
+  const branches = mapBranches(m, tree, rootKey);
+  const older = (p: string, q: string) => d.notes.get(p.slice(5))!.createdAt < d.notes.get(q.slice(5))!.createdAt;
+  const pair = (from: string, to: string) => hangingPair(tree, branches, rootKey, `note:${from}`, to === 'root' ? rootKey : `note:${to}`, older);
+
+  it('hangs an idea with no place yet from the other end, whichever way the line was drawn', () => {
+    // The sub-idea drawn to its parent, and the parent to it: the same tree.
+    expect(pair('x', 'a')).toEqual({ child: 'note:x', parent: 'note:a' });
+    expect(pair('a1', 'x')).toEqual({ child: 'note:x', parent: 'note:a1' });
+    // A main branch just made, with nothing below it, has no place of its own yet.
+    expect(pair('n', 'a1')).toEqual({ child: 'note:n', parent: 'note:a1' });
+    expect(pair('x', 'root')).toEqual({ child: 'note:x', parent: rootKey });
+  });
+
+  it('between two with no place, the one with ideas of its own, else the older, is the parent', () => {
+    expect(pair('x', 'y')).toEqual({ child: 'note:x', parent: 'note:y' });
+    expect(pair('n', 'x')).toEqual({ child: 'note:n', parent: 'note:x' });
+    expect(pair('x', 'n')).toEqual({ child: 'note:n', parent: 'note:x' });
+  });
+
+  it('leaves a line between two ideas with their place as a line, and never closes a loop', () => {
+    expect(pair('a1', 'y1')).toBeNull();
+    expect(pair('a', 'a1')).toBeNull();
+    expect(pair('y1', 'y')).toBeNull();
+  });
+});
+
+describe('branch colours', () => {
+  it('gives each main branch its turn, and what hangs from it the same colour', () => {
+    const c = branchColors('r', TREE, () => null, null);
+    expect(c.get('a')).toBe(BRANCH_COLORS[0]);
+    expect(c.get('a21')).toBe(BRANCH_COLORS[0]);
+    expect(c.get('b')).toBe(BRANCH_COLORS[1]);
+    expect(c.get('c1')).toBe(BRANCH_COLORS[2]);
+    // The centre and a tree from nothing take the thought's colour.
+    expect(c.get('r')).toBeNull();
+    expect(c.get('z')).toBeNull();
+  });
+
+  it('keeps an idea’s own colour, passes it down, and never paints a branch the thought’s colour', () => {
+    const own = (k: string) => (k === 'a2' ? COLORS[3] : k === 'b' ? COLORS[0] : null);
+    const c = branchColors('r', TREE, own, BRANCH_COLORS[0]);
+    expect(c.get('a1')).toBe(BRANCH_COLORS[1]);
+    expect(c.get('a2')).toBe(COLORS[3]);
+    expect(c.get('a21')).toBe(COLORS[3]);
+    expect(c.get('b')).toBe(COLORS[0]);
+    // c keeps its turn whatever b chose: colours never shift to a neighbour.
+    expect(c.get('c')).toBe(BRANCH_COLORS[3]);
+    expect([...c.values()].filter((x) => x === BRANCH_COLORS[0])).toEqual([BRANCH_COLORS[0], BRANCH_COLORS[0]]);
   });
 });
 

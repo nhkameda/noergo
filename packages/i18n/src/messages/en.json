@@ -257,7 +257,8 @@
       "coverBusy": "Too many images at once. Try again in a minute.",
       "coverFailed": "The image could not be saved. Try again.",
       "foldBlocked": "“{title}” is linked to more than one idea above it, so this branch can’t fold.",
-      "moveBlocked": "“{title}” hangs from more than one idea above it, so it only changes place among the ideas beside it."
+      "moveBlocked": "“{title}” hangs from more than one idea above it, so it only changes place among the ideas beside it.",
+      "mapFreed": "You placed an idea by hand, so this map is free now. Organise lays it out again."
     },
     "map": {
       "open": "Map",
@@ -265,6 +266,14 @@
       "kicker": "Mind map",
       "back": "Back to the board",
       "organize": "Organise",
+      "layout": {
+        "title": "Layout",
+        "balanced": "Both sides",
+        "right": "To the right",
+        "down": "Downward",
+        "left": "To the left",
+        "free": "Free, as placed"
+      },
       "fit": "Fit to screen",
       "zoomIn": "Zoom in",
       "zoomOut": "Zoom out",
@@ -336,6 +345,7 @@
         "create": "Double-click: new idea",
         "connect": "Drag a dot: connect",
         "child": "Tab: linked idea",
+        "hang": "Drop on an idea: hang it there",
         "fold": "Select, then ⌘/Ctrl + .: fold",
         "move": "Drag or Space: move around",
         "zoom": "⌘/Ctrl + scroll: zoom"
@@ -346,7 +356,13 @@
       "unfold": "Show the ideas below",
       "foldBadge": "{count, plural, one {# idea folded inside} other {# ideas folded inside}}. Show",
       "foldAll": "Fold all",
-      "unfoldAll": "Show all"
+      "unfoldAll": "Show all",
+      "levels": {
+        "title": "Levels on show",
+        "count": "{count, plural, one {Show # level} other {Show # levels}}",
+        "all": "Show every level",
+        "allShort": "All"
+      }
     },
     "agentWriting": "{name} is writing…"
   },

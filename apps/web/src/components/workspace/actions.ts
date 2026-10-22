@@ -5,7 +5,7 @@ import { between } from '@noergo/core/position';
 import { splitText } from './import-ideario';
 import { boardsOf, lanesOf, notesByLane, type Data } from './model';
 import type { WorkspaceStore } from './store';
-import { columnTree, descendants, noteKey, noteOf, siblings } from './tree';
+import { columnTree, descendants, linksByLane, noteKey, noteOf, reaches, siblings } from './tree';
 
 type Positioned = { id: string; position: string };
 type NoteFields = Pick<Extract<Op, { type: 'note.update' }>, 'title' | 'url' | 'color' | 'done' | 'dueAt'>;
@@ -232,14 +232,18 @@ export class Actions {
    * column) in a column, its own or another. What hangs from it goes along. Landing under
    * another idea moves the link it hangs by, so the map shows the same tree; an idea that
    * hangs from two only changes place among its siblings, and none lands under itself.
+   * With `centre`, at the top it hangs from the column itself: a main branch on the map.
    */
-  moveNote(id: string, to: { laneId: string; parent?: string | null; index: number }): { index: number; total: number } | null {
+  moveNote(id: string, to: { laneId: string; parent?: string | null; centre?: boolean; index: number }): { index: number; total: number } | null {
     const data = this.data;
     const cur = data?.notes.get(id);
     if (!data || !cur || !data.lanes.get(to.laneId)) return null;
     const parent = to.parent ?? null;
     const from = columnTree(data, cur.laneId);
-    if (parent !== null && (parent === id || (to.laneId === cur.laneId && from.below(noteKey(id)).includes(noteKey(parent))))) return null;
+    // A line from it to its new parent is turned round, unless that parent hangs by it.
+    const back = parent === null || from.parent.get(noteKey(parent)) === noteKey(id) ? [] : [...data.links.values()].filter((l) => l.deletedAt === null && l.origin === 'manual' && l.from.kind === 'note' && l.from.id === id && l.to.kind === 'note' && l.to.id === parent);
+    const below = (p: string) => (back.length ? reaches(linksByLane(data).get(cur.laneId) ?? [], noteKey(id), noteKey(p), new Set(back.map((l) => l.id))) : from.below(noteKey(id)).includes(noteKey(p)));
+    if (parent !== null && (parent === id || (to.laneId === cur.laneId && below(parent)))) return null;
     const host = parent === null ? null : data.notes.get(parent);
     if (parent !== null && (!host || host.laneId !== to.laneId || host.deletedAt !== null)) return null;
 
@@ -248,13 +252,13 @@ export class Actions {
     const ins = [...data.links.values()].filter((l) => l.deletedAt === null && l.to.kind === 'note' && l.to.id === id && into(l.from)).sort((a, b) => (a.id < b.id ? -1 : 1));
     // In its own column the tree says where it hangs (a loop is cut at the top).
     const now = to.laneId === cur.laneId ? noteOf(from.parent.get(noteKey(id))) : ins[0]?.from.kind === 'note' ? ins[0].from.id : null;
-    const regroup = now !== parent;
+    const centre = parent === null && !!to.centre;
+    const regroup = now !== parent || (centre && !ins.some((l) => l.from.kind === 'lane'));
     if (regroup && new Set(ins.map((l) => `${l.from.kind}:${l.from.id}`)).size > 1) {
       const title = cur.title || cur.excerpt;
       this.store.notify({ tone: 'info', key: 'moveBlocked', values: { title } });
       return null;
     }
-    if (regroup && parent !== null && [...data.links.values()].some((l) => l.deletedAt === null && l.from.kind === 'note' && l.from.id === id && l.to.kind === 'note' && l.to.id === parent)) return null;
 
     const list = notesByLane(data.notes, [to.laneId]).get(to.laneId) ?? [];
     const tree = to.laneId === cur.laneId ? from : columnTree(data, to.laneId);
@@ -276,14 +280,14 @@ export class Actions {
     }
     const redo = [...ops];
     if (regroup) {
-      for (const l of ins) {
+      for (const l of [...ins, ...back]) {
         ops.push({ type: 'link.delete', id: l.id });
         redo.push({ type: 'link.delete', id: l.id });
         undo.unshift({ type: 'link.restore', id: l.id });
       }
-      if (parent !== null) {
+      if (parent !== null || centre) {
         const link = newId();
-        ops.push({ type: 'link.create', id: link, from: { kind: 'note', id: parent }, to: { kind: 'note', id } });
+        ops.push({ type: 'link.create', id: link, from: parent !== null ? { kind: 'note', id: parent } : { kind: 'lane', id: to.laneId }, to: { kind: 'note', id } });
         redo.push({ type: 'link.restore', id: link });
         undo.unshift({ type: 'link.delete', id: link });
       }

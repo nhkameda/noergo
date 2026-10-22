@@ -41,10 +41,19 @@ can use a personal token as the `authorization` of that tool.
 Read: `search`, `fetch` (the pair ChatGPT's deep research expects), `list_boards`,
 `get_thought`, `get_open_thought`, `get_recent_activity`. Write: `create_board`,
 `create_thought`, `update_thought`, `add_notes`, `update_note`, `append_to_note`,
-`edit_note_text`, `connect_notes`, `disconnect_notes`, `move_note`, `archive_note`. Every tool
+`edit_note_text`, `connect_notes`, `disconnect_notes`, `move_note`, `place_ideas`,
+`organize_map`, `archive_note`. Every tool
 has `readOnlyHint`, `destructiveHint` and `openWorldHint`, so clients can ask before a
 change.
 
 For a mind map spoken aloud, the agent calls `get_open_thought` (the thought the person
 has on screen) and then `add_notes` with a few ideas at a time, each hanging from the
 thought or from an earlier idea. They appear on the open map as they are written.
+
+The map lays itself out from that tree (on both sides of the centre, to one side, or
+downward), each main branch in a colour of its own, so the agent never places ideas by
+position. `organize_map` picks the layout, clears per-idea colours so each branch keeps
+one, and folds what is deeper than the levels that matter; `place_ideas` moves ideas under
+another parent or among their siblings, with what hangs from them. `get_thought` tells
+each idea's parent and level. A map someone arranged by hand is free: it keeps their
+places until a layout is picked again.

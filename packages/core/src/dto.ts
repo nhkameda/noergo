@@ -1,5 +1,5 @@
 import type { Board, CoverFrame, Lane, Link, LinkStyle, NodeLayout, Note } from './db/types';
-import { LIMITS } from './limits';
+import { LIMITS, type MapLayout } from './limits';
 
 /**
  * Public shapes. The same objects travel in snapshots, live events and MCP results;
@@ -35,6 +35,8 @@ export interface LaneDto {
   url: string | null;
   /** A line or a paragraph under the title; '' when there is none. */
   description: string;
+  /** How its mind map is laid out: from its tree, or as placed ('free'). */
+  mapLayout: MapLayout;
   position: string;
   version: number;
   updatedAt: string;
@@ -121,6 +123,7 @@ export const laneDto = (l: Lane): LaneDto => ({
   cover: l.cover_id && l.cover ? { fileId: l.cover_id, ...l.cover } : null,
   url: l.url,
   description: l.description,
+  mapLayout: l.map_layout,
   position: l.position,
   version: l.version,
   updatedAt: isoReq(l.updated_at),

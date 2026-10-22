@@ -1,4 +1,5 @@
 import type { LaneDto, LayoutDto, LinkDto, NoteDto } from '@noergo/core/dto';
+import { branchColor, type MapLayout } from '@noergo/core/limits';
 import { layoutKey, notesByLane, type Data } from './model';
 
 /**
@@ -234,102 +235,197 @@ export function childSpot(boxes: readonly Box[], from: Box, isRoot: boolean, roo
   return { x: Math.round(x0), y: Math.round(y0) };
 }
 
+// ───────────────────────────── layouts from the tree
+
+/** A map laid out from its tree rather than as placed. */
+export type TreeMode = Exclude<MapLayout, 'free'>;
+export const TREE_MODES: readonly TreeMode[] = ['balanced', 'right', 'down', 'left'];
+
 /**
- * "Organise": a tree from the centre along the links, half to each side. Nodes that hang
- * from nothing go in a ring when nothing is linked, else in rows below the tree.
+ * A node of the tree a layout reads: `parent` is the idea it hangs from, the centre for a
+ * main branch, or null for an idea linked from nothing above it (it starts a tree of its own).
+ * Listed parents first, siblings in column order.
  */
-export function autoLayout(rootKey: NodeKey, keys: readonly NodeKey[], edges: readonly { from: NodeKey; to: NodeKey }[], pos: ReadonlyMap<NodeKey, XY>, size: (k: NodeKey) => WH): Map<NodeKey, XY> {
-  const at = (k: NodeKey) => pos.get(k) ?? { x: 0, y: 0 };
-  const adj = new Map<NodeKey, NodeKey[]>(keys.map((k) => [k, []]));
-  for (const e of edges) {
-    if (adj.has(e.from) && adj.has(e.to)) {
-      adj.get(e.from)!.push(e.to);
-      adj.get(e.to)!.push(e.from);
-    }
-  }
+export interface Branch {
+  key: NodeKey;
+  parent: NodeKey | null;
+}
+
+/** From a node's edge to its children's: at the centre, and further out. */
+const GAP_ROOT = 84;
+const GAP_OUT = 52;
+/** Between sibling branches: main ones, ideas, and more when either holds ideas of its own. */
+const GAP_MAIN = 30;
+const GAP_SIB = 12;
+const GAP_GROUP = 12;
+/** Downward, between levels and between siblings side by side. */
+const GAP_DOWN = 56;
+const GAP_SIDE = 22;
+/** Trees linked from nothing above, in rows under the map. */
+const LOOSE_TOP = 96;
+const LOOSE_GAP = 44;
+const LOOSE_ROW = 960;
+
+/**
+ * Where every node goes when the map is laid out from its tree: each idea beside the one it
+ * hangs from (or under it, downward), its own ideas stacked beside it in column order, and
+ * no branch over another. Balanced splits the main branches between the sides by the room
+ * they take, clockwise from the top right. Ideas hidden by a fold are left out of the room,
+ * so the map closes up around a fold; they still get a spot, around the idea that hides
+ * them, as if it were open (where they start if the map turns free). Trees that hang from
+ * nothing above go in rows under the map. The centre stays where it is.
+ */
+export function treeLayout(mode: TreeMode, rootKey: NodeKey, root: XY, branches: readonly Branch[], hidden: ReadonlySet<NodeKey>, size: (k: NodeKey) => WH): Map<NodeKey, XY> {
   const kids = new Map<NodeKey, NodeKey[]>();
-  const seen = new Set([rootKey]);
-  const queue = [rootKey];
-  while (queue.length) {
-    const k = queue.shift()!;
-    const list = adj.get(k)!.filter((nb) => !seen.has(nb));
-    for (const nb of list) {
-      seen.add(nb);
-      queue.push(nb);
-    }
-    list.sort((a, b) => at(a).y - at(b).y);
-    kids.set(k, list);
+  const loose: NodeKey[] = [];
+  for (const b of branches) {
+    if (b.parent === null) loose.push(b.key);
+    else kids.set(b.parent, [...(kids.get(b.parent) ?? []), b.key]);
   }
-  const GAP_X = 90;
-  const GAP_Y = 22;
-  const memo = new Map<NodeKey, number>();
-  const subH = (k: NodeKey): number => {
-    const hit = memo.get(k);
-    if (hit !== undefined) return hit;
-    const sum = (kids.get(k) ?? []).reduce((t, c) => t + subH(c), 0);
-    const v = Math.max(size(k).h + GAP_Y, sum);
-    memo.set(k, v);
+  const down = mode === 'down';
+  const along = (k: NodeKey) => (down ? size(k).w : size(k).h);
+  const listOf = (k: NodeKey, full: boolean) => (kids.get(k) ?? []).filter((c) => full || !hidden.has(c));
+  const gap = (parent: NodeKey, a: NodeKey, b: NodeKey, full: boolean) =>
+    down ? GAP_SIDE + (listOf(a, full).length || listOf(b, full).length ? GAP_SIDE : 0) : (parent === rootKey ? GAP_MAIN : GAP_SIB) + (listOf(a, full).length || listOf(b, full).length ? GAP_GROUP : 0);
+  // The room a branch takes across its parent's direction, before and after its own centre:
+  // its own size, or its ideas stacked with it halfway between the first and the last.
+  interface Room {
+    before: number;
+    after: number;
+  }
+  interface Stack {
+    centres: number[];
+    mid: number;
+    length: number;
+  }
+  const memo = [new Map<NodeKey, Room>(), new Map<NodeKey, Room>()];
+  const room = (k: NodeKey, full: boolean): Room => {
+    const m = memo[full ? 1 : 0]!;
+    const hit = m.get(k);
+    if (hit) return hit;
+    const half = along(k) / 2;
+    m.set(k, { before: half, after: half });
+    const s = stack(k, listOf(k, full), full);
+    const v = s ? { before: Math.max(half, s.mid), after: Math.max(half, s.length - s.mid) } : { before: half, after: half };
+    m.set(k, v);
     return v;
   };
-  const R = at(rootKey);
-  const target = new Map<NodeKey, XY>([[rootKey, { x: R.x, y: R.y }]]);
-  const place = (parent: NodeKey, list: readonly NodeKey[], dir: 1 | -1, extra = 0) => {
-    const p = target.get(parent)!;
-    let y = p.y - list.reduce((t, c) => t + subH(c), 0) / 2;
-    for (const c of list) {
-      const hh = subH(c);
-      target.set(c, { x: Math.round(p.x + dir * (size(parent).w / 2 + GAP_X + extra + size(c).w / 2)), y: Math.round(y + hh / 2) });
-      place(c, kids.get(c) ?? [], dir);
-      y += hh;
+  const stack = (parent: NodeKey, list: readonly NodeKey[], full: boolean): Stack | null => {
+    if (!list.length) return null;
+    const centres: number[] = [];
+    let cursor = 0;
+    for (const [i, c] of list.entries()) {
+      if (i) cursor += gap(parent, list[i - 1]!, c, full);
+      const r = room(c, full);
+      centres.push(cursor + r.before);
+      cursor += r.before + r.after;
+    }
+    return { centres, mid: (centres[0]! + centres.at(-1)!) / 2, length: cursor };
+  };
+
+  const out = new Map<NodeKey, XY>();
+  const placeKids = (k: NodeKey, at: XY, dir: 1 | -1, list: readonly NodeKey[], full: boolean, into: Map<NodeKey, XY>, seen: Set<NodeKey>) => {
+    const s = stack(k, list, full);
+    if (!s) return;
+    for (const [i, c] of list.entries()) {
+      const across = (down ? at.x : at.y) + s.centres[i]! - s.mid;
+      const p = down
+        ? { x: across, y: at.y + size(k).h / 2 + (k === rootKey ? GAP_ROOT : GAP_DOWN) + size(c).h / 2 }
+        : { x: at.x + dir * (size(k).w / 2 + (k === rootKey ? GAP_ROOT : GAP_OUT) + size(c).w / 2), y: across };
+      place(c, p, dir, full, into, seen);
     }
   };
-  const first = kids.get(rootKey) ?? [];
-  let right = first.filter((c) => at(c).x >= R.x);
-  let left = first.filter((c) => at(c).x < R.x);
-  if (first.length > 3 && (!left.length || !right.length)) {
-    const half = Math.ceil(first.length / 2);
-    right = first.slice(0, half);
-    left = first.slice(half);
-  }
-  place(rootKey, right, 1, 30);
-  place(rootKey, left, -1, 30);
-
-  const loose = keys.filter((k) => !target.has(k)).sort((a, b) => at(a).y - at(b).y || at(a).x - at(b).x);
-  if (loose.length && target.size === 1) {
-    const placed: (XY & WH)[] = [{ ...R, ...size(rootKey) }];
-    for (const k of loose) {
-      const [x, y] = ringSpot(R, size(k), placed);
-      target.set(k, { x, y });
-      placed.push({ x, y, ...size(k) });
+  const place = (k: NodeKey, at: XY, dir: 1 | -1, full: boolean, into: Map<NodeKey, XY>, seen: Set<NodeKey>) => {
+    if (seen.has(k)) return;
+    seen.add(k);
+    into.set(k, at);
+    const list = listOf(k, full);
+    placeKids(k, at, dir, list, full, into, seen);
+    // What a fold hides, laid out as if open, around the idea that hides it.
+    if (!full && list.length < (kids.get(k)?.length ?? 0)) {
+      const all = new Map<NodeKey, XY>();
+      placeKids(k, at, dir, listOf(k, true), true, all, new Set([k]));
+      for (const [h, p] of all) if (!into.has(h) && !seen.has(h)) into.set(h, p);
     }
-  } else if (loose.length) {
-    let y = -Infinity;
-    for (const [k, p] of target) y = Math.max(y, p.y + size(k).h / 2);
-    y += 110;
-    const GAP = 28;
-    const ROW_MAX = 1000;
-    const rows: NodeKey[][] = [[]];
+  };
+
+  // The main branches, around the centre.
+  const R = { x: root.x, y: root.y };
+  out.set(rootKey, R);
+  const seen = new Set<NodeKey>([rootKey]);
+  const main = listOf(rootKey, false);
+  if (mode === 'balanced' && main.length > 1) {
+    // The split that leaves the two sides closest in height, the right one first on a tie.
+    const rooms = main.map((c) => room(c, false)).map((r) => r.before + r.after);
+    const total = rooms.reduce((t, r) => t + r, 0);
+    let best = main.length;
+    let bestD = Infinity;
+    for (let i = 1, sum = 0; i <= main.length; i++) {
+      sum += rooms[i - 1]!;
+      const d = Math.abs(total - 2 * sum);
+      if (d < bestD - 0.5) [best, bestD] = [i, d];
+    }
+    placeKids(rootKey, R, 1, main.slice(0, best), false, out, seen);
+    // Clockwise: the left side reads from the bottom up.
+    placeKids(rootKey, R, -1, main.slice(best).reverse(), false, out, seen);
+  } else placeKids(rootKey, R, mode === 'left' ? -1 : 1, main, false, out, seen);
+
+  // Trees from nothing above, each laid out on its own, in rows under the map.
+  if (loose.length) {
+    const shown = (m: ReadonlyMap<NodeKey, XY>) => [...m].filter(([k]) => !hidden.has(k)).map(([k, p]) => ({ ...p, ...size(k) }));
+    const top = bounds(shown(out));
+    const trees = loose.map((k) => {
+      const into = new Map<NodeKey, XY>();
+      place(k, { x: 0, y: 0 }, mode === 'left' ? -1 : 1, false, into, seen);
+      return { into, b: bounds(shown(into)) };
+    });
+    const max = Math.max(LOOSE_ROW, top.x1 - top.x0);
+    const rows: (typeof trees)[] = [[]];
     let w = 0;
-    for (const k of loose) {
-      if (rows.at(-1)!.length && w + size(k).w > ROW_MAX) {
+    for (const t of trees) {
+      const tw = t.b.x1 - t.b.x0;
+      if (rows.at(-1)!.length && w + tw > max) {
         rows.push([]);
         w = 0;
       }
-      rows.at(-1)!.push(k);
-      w += size(k).w + GAP;
+      rows.at(-1)!.push(t);
+      w += tw + LOOSE_GAP;
     }
+    let y = top.y1 + LOOSE_TOP;
     for (const row of rows) {
-      const total = row.reduce((t, k) => t + size(k).w, 0) + GAP * (row.length - 1);
-      const rh = Math.max(...row.map((k) => size(k).h));
-      let x = R.x - total / 2;
-      for (const k of row) {
-        target.set(k, { x: Math.round(x + size(k).w / 2), y: Math.round(y + rh / 2) });
-        x += size(k).w + GAP;
+      const rw = row.reduce((t, x) => t + x.b.x1 - x.b.x0, 0) + LOOSE_GAP * (row.length - 1);
+      const rh = Math.max(...row.map((x) => x.b.y1 - x.b.y0));
+      let x = R.x - rw / 2;
+      for (const t of row) {
+        const dx = x - t.b.x0;
+        const dy = y - t.b.y0;
+        for (const [k, p] of t.into) out.set(k, { x: p.x + dx, y: p.y + dy });
+        x += t.b.x1 - t.b.x0 + LOOSE_GAP;
       }
-      y += rh + 36;
+      y += rh + LOOSE_GAP;
     }
   }
-  return target;
+  for (const [k, p] of out) out.set(k, { x: Math.round(p.x), y: Math.round(p.y) });
+  return out;
+}
+
+/**
+ * The colour each node shows: its own; else the nearest one up its branch; else, for a main
+ * branch and what hangs from it, that branch's turn in the branch colours (by its place among
+ * the main branches, so a colour never moves to a neighbour); else (the centre, and trees
+ * hanging from nothing) the thought's.
+ */
+export function branchColors(rootKey: NodeKey, branches: readonly Branch[], own: (k: NodeKey) => string | null, thought: string | null): Map<NodeKey, string | null> {
+  const out = new Map<NodeKey, string | null>([[rootKey, thought]]);
+  let main = 0;
+  for (const b of branches) {
+    const mine = own(b.key);
+    if (b.parent === rootKey) {
+      const turn = branchColor(main++, thought);
+      out.set(b.key, mine ?? turn);
+    } else out.set(b.key, mine ?? (b.parent === null ? thought : (out.get(b.parent) ?? thought)));
+  }
+  return out;
 }
 
 // ───────────────────────────── edges
@@ -364,11 +460,12 @@ export interface Geometry {
 }
 
 /** Where an edge runs: side to side along the wider gap, straight centre to centre, or elbowed. */
-export function geometry(A: Box, B: Box, route: Route): Geometry {
+/** `axis` pins the way the line leaves and arrives (a tree's own direction); else the wider gap decides. */
+export function geometry(A: Box, B: Box, route: Route, axis?: 'x' | 'y'): Geometry {
   if (route === 'straight') return { type: 'line', pts: [boundary(A, B.x - A.x, B.y - A.y), boundary(B, A.x - B.x, A.y - B.y)] };
   const gapX = Math.abs(B.x - A.x) - (A.w + B.w) / 2;
   const gapY = Math.abs(B.y - A.y) - (A.h + B.h) / 2;
-  const horiz = gapX >= gapY;
+  const horiz = axis ? axis === 'x' : gapX >= gapY;
   // "Text only" joins along its underline.
   const sideY = (b: Box) => (b.shape === 'plain' ? b.y + b.h / 2 - 1.5 : b.y);
   let p1: Point;

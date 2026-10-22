@@ -257,7 +257,8 @@
       "coverBusy": "Muitas imagens de uma vez. Tente de novo em um minuto.",
       "coverFailed": "Não foi possível salvar a imagem. Tente de novo.",
       "foldBlocked": "“{title}” está ligada a mais de uma ideia acima dela, por isso este ramo não recolhe.",
-      "moveBlocked": "“{title}” está ligado a mais de uma ideia acima dele, então só muda de lugar entre os itens ao lado."
+      "moveBlocked": "“{title}” está ligado a mais de uma ideia acima dele, então só muda de lugar entre os itens ao lado.",
+      "mapFreed": "Você posicionou uma ideia à mão, então este mapa ficou livre. Organizar arruma de novo."
     },
     "map": {
       "open": "Mapa",
@@ -265,6 +266,14 @@
       "kicker": "Mapa do pensamento",
       "back": "Voltar ao quadro",
       "organize": "Organizar",
+      "layout": {
+        "title": "Layout",
+        "balanced": "Dos dois lados",
+        "right": "Para a direita",
+        "down": "Para baixo",
+        "left": "Para a esquerda",
+        "free": "Livre, onde você pôs"
+      },
       "fit": "Ajustar à tela",
       "zoomIn": "Aproximar",
       "zoomOut": "Afastar",
@@ -336,6 +345,7 @@
         "create": "Clique duplo: nova ideia",
         "connect": "Arraste um ponto: conectar",
         "child": "Tab: ideia ligada",
+        "hang": "Solte numa ideia: pendura nela",
         "fold": "Selecione e ⌘/Ctrl + .: recolher",
         "move": "Arraste ou Espaço: mover a tela",
         "zoom": "⌘/Ctrl + rolagem: zoom"
@@ -346,7 +356,13 @@
       "unfold": "Mostrar subitens",
       "foldBadge": "{count, plural, one {# item recolhido} other {# itens recolhidos}}. Mostrar",
       "foldAll": "Recolher tudo",
-      "unfoldAll": "Expandir tudo"
+      "unfoldAll": "Expandir tudo",
+      "levels": {
+        "title": "Níveis à mostra",
+        "count": "{count, plural, one {Mostrar # nível} other {Mostrar # níveis}}",
+        "all": "Mostrar todos os níveis",
+        "allShort": "Todos"
+      }
     },
     "agentWriting": "{name} está escrevendo…"
   },

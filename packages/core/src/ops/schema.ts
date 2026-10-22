@@ -1,6 +1,6 @@
 import { z } from 'zod';
 import { isBoardIcon } from '../board-icons';
-import { LIMITS } from '../limits';
+import { LIMITS, MAP_LAYOUTS } from '../limits';
 import { isPosition } from '../position';
 
 /**
@@ -101,8 +101,8 @@ export const opSchema = z.discriminatedUnion('type', [
   z.object({ type: z.literal('board.delete'), id }),
   z.object({ type: z.literal('board.restore'), id }),
 
-  z.object({ type: z.literal('lane.create'), id, boardId: id, title: trimmed(LIMITS.laneTitle).pipe(z.string().min(1)), color: color.optional(), url: webUrl.nullable().optional(), description: trimmed(LIMITS.laneDescription).optional(), place: placement.optional() }),
-  z.object({ type: z.literal('lane.update'), id, title: trimmed(LIMITS.laneTitle).pipe(z.string().min(1)).optional(), color: color.optional(), cover: cover.optional(), url: webUrl.nullable().optional(), description: trimmed(LIMITS.laneDescription).optional() }),
+  z.object({ type: z.literal('lane.create'), id, boardId: id, title: trimmed(LIMITS.laneTitle).pipe(z.string().min(1)), color: color.optional(), url: webUrl.nullable().optional(), description: trimmed(LIMITS.laneDescription).optional(), mapLayout: z.enum(MAP_LAYOUTS).optional(), place: placement.optional() }),
+  z.object({ type: z.literal('lane.update'), id, title: trimmed(LIMITS.laneTitle).pipe(z.string().min(1)).optional(), color: color.optional(), cover: cover.optional(), url: webUrl.nullable().optional(), description: trimmed(LIMITS.laneDescription).optional(), mapLayout: z.enum(MAP_LAYOUTS).optional() }),
   z.object({ type: z.literal('lane.move'), id, boardId: id.optional(), place: placement }),
   z.object({ type: z.literal('lane.delete'), id }),
   z.object({ type: z.literal('lane.restore'), id }),

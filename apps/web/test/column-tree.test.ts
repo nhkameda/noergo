@@ -43,7 +43,7 @@ function wow(over: { notes?: Partial<Record<string, Partial<NoteDto>>>; links?: 
     seq: 1,
     inboxLaneId: null,
     boards: [{ id: 'b1', title: 'Clients', color: null, icon: null, background: null, position: 'a0', version: 1, updatedAt: T, deletedAt: null }],
-    lanes: ['l1', 'l2'].map((id, i) => ({ id, boardId: 'b1', title: id, color: null, cover: null, url: null, description: '', position: `a${i}`, version: 1, updatedAt: T, deletedAt: null })),
+    lanes: ['l1', 'l2'].map((id, i) => ({ id, boardId: 'b1', title: id, color: null, cover: null, url: null, description: '', mapLayout: 'balanced', position: `a${i}`, version: 1, updatedAt: T, deletedAt: null })),
     notes: notes.map((n) => ({ ...n, ...over.notes?.[n.id] })),
     links: [link('k1', 'g', 'e'), link('k2', 'g', 'c'), link('k3', 'g', 'n'), ...(over.links ?? [])],
     layouts: [],
@@ -126,6 +126,31 @@ describe('moving in a column as a tree', () => {
     expect(r.sent).toEqual([]);
     // Among its siblings it moves.
     expect(r.actions.moveNoteNear('c', 'e', 'top')).toEqual({ index: 0, total: 3 });
+  });
+
+  it('dropped on the centre of the map, an idea becomes a main branch: linked from the thought', () => {
+    const r = recorder(wow());
+    expect(r.actions.moveNote('e', { laneId: 'l1', parent: null, centre: true, index: Number.MAX_SAFE_INTEGER })).toEqual({ index: 3, total: 4 });
+    expect(rows(r.now())).toEqual(['w', 'g', '  c', '  n', 'q', 'e']);
+    const links = r.sent[0]!.ops.filter((o) => o.type.startsWith('link.'));
+    expect(links).toEqual([{ type: 'link.delete', id: 'k1' }, expect.objectContaining({ type: 'link.create', from: { kind: 'lane', id: 'l1' }, to: { kind: 'note', id: 'e' } })]);
+    // A loose idea at the top gains the link and keeps its place; one linked already is left be.
+    r.actions.moveNote('w', { laneId: 'l1', parent: null, centre: true, index: 0 });
+    expect(r.sent[1]!.ops.map((o) => o.type)).toEqual(['note.move', 'link.create']);
+    expect(r.actions.moveNote('w', { laneId: 'l1', parent: null, centre: true, index: 0 })).toBeNull();
+  });
+
+  it('turns round a line drawn from an idea to its new parent, which then folds it', () => {
+    // The case hangs from the centre; the quote was linked to it the wrong way, from below.
+    const centre: LinkDto = { ...link('k0', 'l1', 'g'), from: { kind: 'lane', id: 'l1' } };
+    const r = recorder(wow({ links: [centre, link('k4', 'q', 'g')] }));
+    expect(rows(r.now())).toEqual(['w', 'g', '  e', '  c', '  n', 'q']);
+    expect(r.actions.moveNote('q', { laneId: 'l1', parent: 'g', index: Number.MAX_SAFE_INTEGER })).toEqual({ index: 3, total: 4 });
+    expect(rows(r.now())).toEqual(['w', 'g', '  e', '  c', '  n', '  q']);
+    const sent = r.sent[0]!;
+    expect(sent.ops.filter((o) => o.type.startsWith('link.'))).toEqual([{ type: 'link.delete', id: 'k4' }, expect.objectContaining({ type: 'link.create', from: { kind: 'note', id: 'g' }, to: { kind: 'note', id: 'q' } })]);
+    expect(sent.undo).toContainEqual({ type: 'link.restore', id: 'k4' });
+    expect(columnTree(r.now(), 'l1').blocker('note:g')).toBeNull();
   });
 
   it('takes the whole branch to another column, in its order, and brings it back', () => {

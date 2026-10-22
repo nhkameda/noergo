@@ -148,7 +148,8 @@ agents the user connects (`apps/mcp/src/mcp/tools.ts`). Read: `search`, `fetch`,
 from `user_focus`, kept 10 minutes), `get_recent_activity`. Write: `create_board`,
 `create_thought`, `update_thought`, `add_notes` (up to 50 ideas and their links in one
 transaction), `update_note`, `append_to_note`, `edit_note_text`, `connect_notes`,
-`disconnect_notes`, `move_note`, `archive_note`. Autonomy is the agent's; noergo bounds
+`disconnect_notes`, `move_note`, `place_ideas`, `organize_map` (a layout, colours and
+folds; nothing deleted), `archive_note`. Autonomy is the agent's; noergo bounds
 it with consent per connection, scopes, read-only connections, rate limits,
 reversibility and attribution. The development process uses AI coding assistants;
 their output is reviewed and tested like any other contribution.

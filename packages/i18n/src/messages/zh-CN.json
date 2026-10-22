@@ -257,7 +257,8 @@
       "coverBusy": "同时上传的图片太多，请一分钟后再试。",
       "coverFailed": "图片未能保存，请重试。",
       "foldBlocked": "“{title}”连着不止一个上级点子，所以这一支不能折叠。",
-      "moveBlocked": "“{title}”连着上面不止一个点子，只能在同级点子之间换位置。"
+      "moveBlocked": "“{title}”连着上面不止一个点子，只能在同级点子之间换位置。",
+      "mapFreed": "你手动摆放了一个点子，这张图现在是自由布局。“整理”可以重新排布。"
     },
     "map": {
       "open": "导图",
@@ -265,6 +266,14 @@
       "kicker": "想法导图",
       "back": "返回看板",
       "organize": "整理",
+      "layout": {
+        "title": "布局",
+        "balanced": "两侧展开",
+        "right": "向右",
+        "down": "向下",
+        "left": "向左",
+        "free": "自由，保持摆放位置"
+      },
       "fit": "适应屏幕",
       "zoomIn": "放大",
       "zoomOut": "缩小",
@@ -336,6 +345,7 @@
         "create": "双击：新点子",
         "connect": "拖动圆点：连接",
         "child": "Tab：相连的点子",
+        "hang": "拖到点子上：挂在它下面",
         "fold": "选中后 ⌘/Ctrl + .：折叠",
         "move": "拖动或空格：移动画布",
         "zoom": "⌘/Ctrl + 滚轮：缩放"
@@ -346,7 +356,13 @@
       "unfold": "展开下级点子",
       "foldBadge": "折叠了 {count} 个点子。展开",
       "foldAll": "全部折叠",
-      "unfoldAll": "全部展开"
+      "unfoldAll": "全部展开",
+      "levels": {
+        "title": "显示层级",
+        "count": "{count, plural, other {显示 # 层}}",
+        "all": "显示全部层级",
+        "allShort": "全部"
+      }
     },
     "agentWriting": "{name} 正在写…"
   },

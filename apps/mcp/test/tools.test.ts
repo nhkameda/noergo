@@ -1,7 +1,7 @@
 import { Client } from '@modelcontextprotocol/sdk/client/index.js';
 import { InMemoryTransport } from '@modelcontextprotocol/sdk/inMemory.js';
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
-import { COLORS, createApiToken, principalFromToken, setFocus, type AgentPrincipal } from '@noergo/core';
+import { branchColor, COLORS, createApiToken, principalFromToken, setFocus, type AgentPrincipal } from '@noergo/core';
 import { afterAll, describe, expect, it } from 'vitest';
 import { closePools, newAccount, pools, testDb } from '../../../packages/core/test/fixtures';
 import type {} from '../../../packages/core/test/global-setup';
@@ -24,6 +24,15 @@ async function connect(principal: AgentPrincipal, allowed = true) {
 }
 
 const errorCode = (r: Result) => (r.isError ? (JSON.parse(r.content[0]!.text!) as { error: { code: string } }).error.code : null);
+
+type Placed = { id: string; title: string; parent: string | null; level: number; color: string | null; collapsed: boolean };
+type Thought = { thought: { color: string | null; map_layout: string }; ideas: Placed[] };
+/** A thought as get_thought tells it, and its tree drawn as an outline of titles. */
+async function readThought(call: Awaited<ReturnType<typeof connect>>['call'], id: string) {
+  const t = (await call('get_thought', { thought_id: id })).structuredContent as Thought;
+  return { ...t, outline: t.ideas.map((i) => `${'  '.repeat(i.level - 1)}${i.title}`) };
+}
+const idsOf = (r: Result) => (r.structuredContent as { ideas: Array<{ id: string }> }).ideas.map((i) => i.id);
 
 async function agentFor(readOnly = false) {
   const acct = await newAccount();
@@ -61,6 +70,8 @@ describe.skipIf(!testDb)('MCP tools', () => {
         "get_thought",
         "list_boards",
         "move_note",
+        "organize_map",
+        "place_ideas",
         "search",
         "update_board",
         "update_note",
@@ -231,6 +242,89 @@ describe.skipIf(!testDb)('MCP tools', () => {
     const refused = await call('update_note', { note_id: kase!.id, collapsed: true });
     expect(errorCode(refused)).toBe('invalid');
     expect(JSON.stringify(refused.content)).toContain('CNC');
+    await close();
+  });
+
+  it('lays a map out from its tree, one colour per main branch, and shows the levels asked for', async () => {
+    const a = await agentFor();
+    const { call, close } = await connect(a.principal);
+    const laneId = ((await call('create_thought', { title: 'Trip', color: 'red' })).structuredContent as { thought_id: string }).thought_id;
+    const [coast, paraty] = idsOf(await call('add_notes', { thought_id: laneId, ideas: [{ ref: 'c', title: 'Coast' }, { ref: 'p', title: 'Paraty', parent: 'c' }, { title: 'Dock', parent: 'p' }, { ref: 'b', title: 'Budget', color: 'teal' }, { title: 'Fuel', parent: 'b', color: 'red' }] }));
+
+    let t = await readThought(call, laneId);
+    expect(t.thought.map_layout).toBe('balanced');
+    expect(t.outline).toEqual(['Coast', '  Paraty', '    Dock', 'Budget', '  Fuel']);
+    expect(t.ideas.map((i) => i.parent)).toEqual(['root', coast, paraty, 'root', t.ideas[3]!.id]);
+
+    const r = await call('organize_map', { thought_id: laneId, layout: 'down', colors: 'by_branch', show_levels: 1 });
+    expect(r.structuredContent).toEqual({ thought_id: laneId, map_layout: 'down', recoloured: 3, folded: 2, opened: 0 });
+    t = await readThought(call, laneId);
+    expect(t.thought.map_layout).toBe('down');
+    // Each main branch its own colour, never the thought's; the ideas below follow theirs.
+    const red = t.thought.color;
+    expect(t.ideas.map((i) => i.color)).toEqual([branchColor(0, red), null, null, branchColor(1, red), null]);
+    expect(t.ideas.map((i) => i.collapsed)).toEqual([true, false, false, true, false]);
+
+    expect((await call('organize_map', { thought_id: laneId, show_levels: null })).structuredContent).toMatchObject({ folded: 0, opened: 2 });
+    expect(errorCode(await call('organize_map', { thought_id: laneId }))).toBe('invalid');
+    // Free is a person's hand on the map; an agent lays it out from its tree.
+    expect((await call('organize_map', { thought_id: laneId, layout: 'free' })).isError).toBe(true);
+    await close();
+  });
+
+  it('rearranges ideas in their tree all at once or not at all, and what hangs from one goes along', async () => {
+    const a = await agentFor();
+    const { call, close } = await connect(a.principal);
+    const laneId = ((await call('create_thought', { title: 'Launch' })).structuredContent as { thought_id: string }).thought_id;
+    const [press, , blog, , shop, stock] = idsOf(await call('add_notes', { thought_id: laneId, ideas: [{ ref: 'p', title: 'Press' }, { ref: 'k', title: 'Kit', parent: 'p' }, { ref: 'g', title: 'Blog', parent: 'p' }, { title: 'Draft', parent: 'g' }, { ref: 's', title: 'Shop' }, { title: 'Stock', parent: 's' }] }));
+    const outline = async () => (await readThought(call, laneId)).outline;
+    expect(await outline()).toEqual(['Press', '  Kit', '  Blog', '    Draft', 'Shop', '  Stock']);
+
+    const r = await call('place_ideas', {
+      moves: [
+        { note_id: blog, before_id: (await readThought(call, laneId)).ideas[1]!.id },
+        { note_id: blog, parent: shop, after_id: stock },
+        { note_id: shop, parent: 'root', before_id: press },
+      ],
+    });
+    expect(r.structuredContent).toEqual({ thought_id: laneId, moved: 3 });
+    expect(await outline()).toEqual(['Shop', '  Stock', '  Blog', '    Draft', 'Press', '  Kit']);
+
+    // Under an idea below itself: the whole batch is refused, the first move too.
+    const loop = await call('place_ideas', { moves: [{ note_id: press, before_id: shop }, { note_id: shop, parent: blog }] });
+    expect(errorCode(loop)).toBe('invalid');
+    expect(await outline()).toEqual(['Shop', '  Stock', '  Blog', '    Draft', 'Press', '  Kit']);
+    expect(errorCode(await call('place_ideas', { moves: [{ note_id: stock, before_id: press }] }))).toBe('invalid');
+
+    // Linked from two ideas above it, it changes order but not parent.
+    expect((await call('connect_notes', { from_id: press, to_id: blog })).isError).toBeFalsy();
+    const twice = await call('place_ideas', { moves: [{ note_id: blog, parent: press }] });
+    expect(errorCode(twice)).toBe('invalid');
+    expect(JSON.stringify(twice.content)).toContain('Blog');
+    expect((await call('place_ideas', { moves: [{ note_id: blog, before_id: stock }] })).isError).toBeFalsy();
+    expect(await outline()).toEqual(['Shop', '  Blog', '    Draft', '  Stock', 'Press', '  Kit']);
+
+    // An idea of another thought is not in this one.
+    const [elsewhere] = idsOf(await call('add_notes', { thought_id: (await lanesOf(a.workspaceId))[0]!.id, ideas: [{ title: 'Elsewhere' }] }));
+    expect(errorCode(await call('place_ideas', { moves: [{ note_id: press, before_id: shop }, { note_id: elsewhere, parent: shop }] }))).toBe('not_found');
+    expect(await outline()).toEqual(['Shop', '  Blog', '    Draft', '  Stock', 'Press', '  Kit']);
+    await close();
+  });
+
+  it('hangs an idea linked the wrong way under its parent by turning that link round, and the parent then folds', async () => {
+    const a = await agentFor();
+    const { call, close } = await connect(a.principal);
+    const laneId = ((await call('create_thought', { title: 'Shop' })).structuredContent as { thought_id: string }).thought_id;
+    const [stock, bins] = idsOf(await call('add_notes', { thought_id: laneId, ideas: [{ title: 'Stock' }, { title: 'Bins', parent: 'root' }] }));
+    // Drawn from the sub-idea to its parent: a line, no branch.
+    expect((await call('connect_notes', { from_id: bins, to_id: stock })).isError).toBeFalsy();
+    expect(errorCode(await call('update_note', { note_id: stock, collapsed: true }))).toBe('invalid');
+
+    expect((await call('place_ideas', { moves: [{ note_id: bins, parent: stock }] })).isError).toBeFalsy();
+    const t = await readThought(call, laneId);
+    expect(t.outline).toEqual(['Stock', '  Bins']);
+    expect(t.ideas[1]!.parent).toBe(stock);
+    expect((await call('update_note', { note_id: stock, collapsed: true })).isError).toBeFalsy();
     await close();
   });
 

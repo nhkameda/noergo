@@ -1,4 +1,5 @@
 import type { ColumnType, Generated, Insertable, Selectable, Updateable } from 'kysely';
+import type { MapLayout } from '../limits';
 
 /**
  * Kysely table types. Hand-written to mirror migrations/*.sql — the SQL is the source
@@ -162,6 +163,8 @@ export interface LanesTable extends Versioned {
   url: Defaulted<string | null>;
   /** A line or a paragraph under the title; '' when there is none. */
   description: Defaulted<string>;
+  /** How its mind map is laid out. */
+  map_layout: Defaulted<MapLayout>;
 }
 
 /** How a column's cover image sits in its 3:1 frame (lanes.cover). */

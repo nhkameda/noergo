@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { laneTree, type TreeEdge, type TreeItem } from '../src/tree';
+import { laneTree, levelFolds, type TreeEdge, type TreeItem } from '../src/tree';
 
 const R = 'lane:r';
 const items = (keys: string, folded = ''): TreeItem[] => keys.split(' ').map((k) => ({ key: k, collapsed: folded.split(' ').includes(k) }));
@@ -64,5 +64,24 @@ describe('the tree of a thought', () => {
     const t = laneTree(R, items(keys, 'cnc'), edges);
     expect(t.hidden.size).toBe(0);
     expect(t.folded.size).toBe(0);
+  });
+});
+
+describe('levels on show', () => {
+  // R > a > a1 > a11; R > b > b1; R > c (a leaf); and a1 also hangs from c.
+  const keys = 'a a1 a11 b b1 c';
+  const edges = links('R>a a>a1 a1>a11 R>b b>b1 R>c');
+
+  it('folds the last level where it can and opens the rest', () => {
+    const t = laneTree(R, items(keys, 'a1'), edges);
+    expect(Object.fromEntries(levelFolds(t, 1))).toEqual({ a: true, a1: false, a11: false, b: true, b1: false, c: false });
+    expect(Object.fromEntries(levelFolds(t, 2))).toEqual({ a: false, a1: true, a11: false, b: false, b1: false, c: false });
+    expect([...levelFolds(t, null).values()].every((v) => !v)).toBe(true);
+  });
+
+  it('leaves open an idea that cannot fold', () => {
+    const t = laneTree(R, items(keys), [...edges, ...links('c>a1')]);
+    expect(levelFolds(t, 1).get('a')).toBe(false);
+    expect(levelFolds(t, 1).get('b')).toBe(true);
   });
 });
