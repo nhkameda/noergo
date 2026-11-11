@@ -110,6 +110,12 @@ export function createProvider(): Provider {
         ack: 'draft-02',
         allowFetch: async (_ctx, clientId) => CIMD_HOSTS.has(new URL(clientId).hostname.toLowerCase()),
       },
+      // ChatGPT's metadata document prefers private_key_jwt and also lists `none` in
+      // token_endpoint_auth_methods_supported (MCP SEP-3149). Without the choices the
+      // singular field is binding and ChatGPT is refused at /oauth/authorize; with them the
+      // client gets the first method listed that this server accepts. ChatGPT picks from the
+      // same intersection against our discovery, so both ends land on `none` (PKCE).
+      rpMetadataChoices: { enabled: true },
     },
     clientBasedCORS: () => false,
     async renderError(ctx, out) {

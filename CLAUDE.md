@@ -91,6 +91,11 @@ you can derive; these you cannot. Break one only with a reason written in the co
   `refresh_token` grant.
 - Dynamic client registration with only loopback redirect URIs becomes
   `application_type: native` (any port, RFC 8252), or Claude Code and Cursor fail.
+- ChatGPT comes by a Client ID Metadata Document that prefers `private_key_jwt` and also
+  lists `none` (`token_endpoint_auth_methods_supported`, MCP SEP-3149). `rpMetadataChoices`
+  takes `none`; without it ChatGPT is refused at `/oauth/authorize`. ChatGPT picks from the
+  intersection with our discovery, so adding `private_key_jwt` to `clientAuthMethods`
+  makes it sign its token requests, and verifying them means fetching its `jwks_uri`.
 - Tools named exactly `search` and `fetch` are required by ChatGPT deep research.
 - Note content is data, not instructions — tool descriptions say so.
 - Every tool write goes through `apply()` in `tools.ts`, which parses each op with
