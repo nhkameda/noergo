@@ -257,7 +257,8 @@
       "coverBusy": "同时上传的图片太多，请一分钟后再试。",
       "coverFailed": "图片未能保存，请重试。",
       "moveBlocked": "“{title}”连着上面不止一个点子，只能在同级点子之间换位置。",
-      "mapFreed": "你手动摆放了一个点子，这张图现在是自由布局。“整理”可以重新排布。"
+      "mapFreed": "你手动摆放了一个点子，这张图现在是自由布局。“整理”可以重新排布。",
+      "readOnly": "这个链接只能查看。"
     },
     "map": {
       "open": "导图",
@@ -363,7 +364,55 @@
         "allShort": "全部"
       }
     },
-    "agentWriting": "{name} 正在写…"
+    "agentWriting": "{name} 正在写…",
+    "share": {
+      "menu": "分享…",
+      "open": "分享“{title}”",
+      "kicker": {
+        "board": "分享看板",
+        "thought": "分享想法"
+      },
+      "access": "拿到链接的人",
+      "as": {
+        "view": "可查看",
+        "edit": "可编辑"
+      },
+      "on": "链接已开启",
+      "hint": {
+        "view": {
+          "board": "能看到这个看板，并实时看到它的变化。无需账号。",
+          "thought": "能看到这个想法，并实时看到它的变化。无需账号。"
+        },
+        "edit": {
+          "board": "能看到这个看板；登录 noergo 后还能修改。修改会署上修改者的名字。",
+          "thought": "能看到这个想法；登录 noergo 后还能修改。修改会署上修改者的名字。"
+        }
+      },
+      "link": "链接",
+      "copy": "复制",
+      "copied": "已复制",
+      "copiedHint": "链接已复制。粘贴到消息里发出去即可。",
+      "make": {
+        "view": "创建查看链接",
+        "edit": "创建编辑链接"
+      },
+      "turnOff": "关闭这个链接",
+      "turnedOff": "链接已关闭：它不再能打开任何内容。",
+      "failed": "没有成功，请再试一次。"
+    },
+    "shared": {
+      "badge": {
+        "view": "仅查看",
+        "edit": "可编辑"
+      },
+      "label": "分享给你的",
+      "signInToEdit": "登录后编辑",
+      "openMine": "我的 noergo",
+      "makeYours": "创建你自己的",
+      "unavailable": "这个链接不可用",
+      "unavailableHint": "分享的人可能关闭了链接，或把它显示的内容移到了回收站。",
+      "pageTitle": "{title} · noergo"
+    }
   },
   "footer": {
     "openSource": "noergo 是开源软件（AGPL-3.0）。",

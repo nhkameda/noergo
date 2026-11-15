@@ -19,6 +19,11 @@ export interface OpCtx {
   workspaceId: string;
   actorId: string;
   actorKind: ActorKind;
+  /**
+   * Writes through a shared link: [[wikilinks]] see and touch only notes in these thoughts.
+   * Unset, they reach the whole workspace.
+   */
+  wikiLanes?: ReadonlySet<string>;
 }
 
 /** One entity change with the state before it, so a later revert can restore it. */

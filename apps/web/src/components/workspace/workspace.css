@@ -11,6 +11,12 @@
   overflow: hidden;
   background: var(--nr-canvas);
 }
+/* Each part keeps its row: a shared link that only shows has no capture bar, and the main
+   area must still take the free height. */
+.w-app > .w-top { grid-row: 1; }
+.w-app > .w-capture { grid-row: 2; }
+.w-app > .w-main { grid-row: 3; }
+.w-app > .w-foot { grid-row: 4; }
 /* A board's background: a wash of its colour over the canvas, so what sits on the canvas
    keeps its contrast in light and in dark. */
 .w-app[data-backdrop] { background: color-mix(in oklab, var(--backdrop) 22%, var(--nr-canvas)); }
@@ -1048,3 +1054,38 @@ select.w-input { width: 100%; }
   .w-lane__busy { animation: none; background: color-mix(in srgb, var(--nr-surface) 35%, transparent); }
   .w-tile, .w-tile:hover { transform: none; }
 }
+
+/* ───────────────────────────── sharing by link */
+
+.w-share__title { margin: 0; font: var(--nr-weight-bold) var(--nr-text-lg) / 1.2 var(--nr-font-display); overflow-wrap: anywhere; }
+.w-share__access { justify-self: start; }
+.w-share__on { display: inline-block; width: 7px; height: 7px; margin-left: 6px; border-radius: 50%; background: var(--nr-success); vertical-align: middle; }
+.w-share__row { display: flex; gap: var(--nr-space-2); }
+.w-share__url { flex: 1; min-width: 0; font: var(--nr-text-xs) / 1.4 var(--nr-font-mono); }
+.w-share__copy, .w-share__make { gap: var(--nr-space-1-5); }
+.w-share__copy svg, .w-share__make svg { width: 16px; height: 16px; }
+.w-share__make { justify-self: start; }
+.w-share__off { justify-self: start; }
+
+/* The visitor's corner of the header, where the account menu would be. */
+.w-shared { display: flex; flex-shrink: 0; align-items: center; gap: var(--nr-space-2); }
+.w-shared__badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 10px;
+  border-radius: var(--nr-radius-full);
+  background: var(--nr-fill-hover);
+  color: var(--nr-text-muted);
+  font: var(--nr-weight-medium) var(--nr-text-xs) / 1 var(--nr-font-ui);
+  white-space: nowrap;
+}
+.w-shared__badge svg { width: 14px; height: 14px; }
+
+/* A note opened through a link that only shows: its fields read, nothing invites a change. */
+.w-fieldset { min-width: 0; margin: 0; padding: 0; border: 0; }
+.w-fieldset:disabled .w-tags__input,
+.w-fieldset:disabled .w-tag__x,
+.w-fieldset:disabled .w-field__row > .nr-btn:not(a) { display: none; }
+.w-map__canvas[data-readonly] .w-map__handle { display: none; }
+.w-map__canvas[data-readonly] .w-map__fold { cursor: default; }

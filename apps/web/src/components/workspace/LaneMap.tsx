@@ -10,7 +10,7 @@ import { useTranslations } from 'next-intl';
 import { memo, useCallback, useEffect, useEffectEvent, useLayoutEffect, useMemo, useRef, useState, type CSSProperties, type MouseEvent as ReactMouseEvent, type PointerEvent as ReactPointerEvent, type ReactNode, type RefObject } from 'react';
 import { agentProps, useAgentMarks, useAgentSeen } from './agent-marks';
 import { isComposing, isEditable, useWorkspace } from './context';
-import { ARROW_ICONS, DASH_ICONS, FILL_ICONS, IconBrush, IconCheck, IconClose, IconEdit, IconImage, IconFit, IconFold, IconFollow, IconGlobe, IconLink, IconMinus, IconNote, IconOrganize, IconPlus, IconSwap, IconTrash, IconUnfold, LAYOUT_ICONS, ROUTE_ICONS, SHAPE_ICONS, WidthIcon } from './icons';
+import { ARROW_ICONS, DASH_ICONS, FILL_ICONS, IconBrush, IconCheck, IconClose, IconEdit, IconImage, IconFit, IconFold, IconFollow, IconGlobe, IconLink, IconMinus, IconNote, IconOrganize, IconPlus, IconShare, IconSwap, IconTrash, IconUnfold, LAYOUT_ICONS, ROUTE_ICONS, SHAPE_ICONS, WidthIcon } from './icons';
 import { splitText } from './import-ideario';
 import {
   ARROWS,
@@ -98,7 +98,7 @@ interface Ghost extends XY {
   style: NodeStyle;
 }
 type Gesture =
-  | { kind: 'pan'; id: number; sx: number; sy: number; v0: View; moved: boolean }
+  | { kind: 'pan'; id: number; sx: number; sy: number; v0: View; moved: boolean; tap?: NodeKey }
   | { kind: 'move'; id: number; sx: number; sy: number; origin: ReadonlyMap<NodeKey, XY>; moved: boolean; hit: NodeKey; toggle: boolean; only: boolean }
   | { kind: 'connect'; id: number; sx: number; sy: number; from: NodeKey; side: Side; moved: boolean }
   | { kind: 'marquee'; id: number; sx: number; sy: number; base: readonly NodeKey[]; moved: boolean }
@@ -151,7 +151,7 @@ function frozen(nodes: readonly MapNode[]): LayoutNode[] {
 
 export function LaneMap({ data, laneId, blocked, onClose }: { data: Data; laneId: string; blocked: boolean; onClose: () => void }) {
   const t = useTranslations('app');
-  const { store, actions, openNote, dismissNote, customize } = useWorkspace();
+  const { store, actions, openNote, dismissNote, customize, can, share } = useWorkspace();
   const { lanes, notes, links, layouts } = data;
   const rootKey = keyOf({ kind: 'lane', id: laneId });
   const full = useMemo(() => laneMap({ lanes, notes, links, layouts }, laneId), [lanes, notes, links, layouts, laneId]);
@@ -864,6 +864,9 @@ export function LaneMap({ data, laneId, blocked, onClose }: { data: Data; laneId
     const edge = (target.closest('[data-edge]') as HTMLElement | SVGElement | null)?.dataset.edge;
     if (e.button === 1 || space) {
       gesture.current = { kind: 'pan', ...base, v0: view.current };
+    } else if (!can.edit) {
+      // A link that only shows: the map pans under any press; a tap on an idea opens it.
+      gesture.current = { kind: 'pan', ...base, v0: view.current, ...(key && key !== GHOST ? { tap: key } : {}) };
     } else if (handle && key && key !== GHOST) {
       gesture.current = { kind: 'connect', ...base, from: key, side: handle.dataset.handle as Side };
     } else if (key && key !== GHOST) {
@@ -942,9 +945,11 @@ export function LaneMap({ data, laneId, blocked, onClose }: { data: Data; laneId
       case 'pan':
         setPanning(false);
         if (!g.moved && !cancelled) {
-          setSel(NONE);
+          const tapped = g.tap ? byKey.get(g.tap)?.note : undefined;
+          setSel(g.tap ? { nodes: [g.tap], edge: null } : NONE);
           setLabelEdit(null);
-          dismissNote();
+          if (tapped) openNote(tapped.id);
+          else dismissNote();
         }
         return;
       case 'move':
@@ -1038,12 +1043,14 @@ export function LaneMap({ data, laneId, blocked, onClose }: { data: Data; laneId
 
   /** The fold button and the count beside an idea: buttons inside the canvas, so their clicks land here. */
   const onClick = (e: ReactMouseEvent<HTMLDivElement>) => {
+    if (!can.edit) return;
     const b = (e.target as Element).closest<HTMLElement>('[data-fold]');
     const key = b?.closest<HTMLElement>('[data-key]')?.dataset.key;
     if (key) toggleFold([key]);
   };
 
   const onDoubleClick = (e: ReactMouseEvent<HTMLDivElement>) => {
+    if (!can.edit) return;
     // Under pointer capture the event lands on the canvas: look at what is really there.
     const under = document.elementFromPoint(e.clientX, e.clientY);
     if (!under || under.closest('[contenteditable], [data-chip]')) return;
@@ -1085,7 +1092,7 @@ export function LaneMap({ data, laneId, blocked, onClose }: { data: Data; laneId
       else if (k === '=' || k === '+') zoomBy(1.25);
       else if (k === '-') zoomBy(0.8);
       else if (k === '0') zoomBy(1 / view.current.z);
-      else if (k === '.' && sel.nodes.length) toggleFold(sel.nodes);
+      else if (k === '.' && sel.nodes.length && can.edit) toggleFold(sel.nodes);
       else return;
       e.preventDefault();
       return;
@@ -1101,7 +1108,11 @@ export function LaneMap({ data, laneId, blocked, onClose }: { data: Data; laneId
     }
     if (!onCanvas) return;
     const one = sel.nodes.length === 1 ? sel.nodes[0]! : null;
-    if (k === 'Delete' || k === 'Backspace') {
+    if (!can.edit) {
+      // Looking only: the space bar pans, and nothing else changes the map.
+      if (k === ' ' && !e.repeat) setSpace(true);
+      else return;
+    } else if (k === 'Delete' || k === 'Backspace') {
       if (!sel.nodes.length && !sel.edge) return;
       deleteSelection();
     } else if (k === 'Tab') {
@@ -1125,7 +1136,7 @@ export function LaneMap({ data, laneId, blocked, onClose }: { data: Data; laneId
   });
 
   const onPaste = useEffectEvent((e: ClipboardEvent) => {
-    if (!map || !forMap(e.target)) return;
+    if (!map || !can.edit || !forMap(e.target)) return;
     const text = e.clipboardData?.getData('text/plain').trim();
     if (!text) return;
     e.preventDefault();
@@ -1230,16 +1241,23 @@ export function LaneMap({ data, laneId, blocked, onClose }: { data: Data; laneId
 
   return (
     <section ref={root} className="w-map" aria-labelledby={`map-${laneId}`} {...laneStyle(look.color)}>
-      <header ref={bar} className="w-map__bar" {...drop.props} data-over={drop.over || undefined}>
+      <header ref={bar} className="w-map__bar" {...(can.own ? drop.props : {})} data-over={(can.own && drop.over) || undefined}>
         <button type="button" className="w-icon-btn" onClick={onClose} aria-label={t('map.back')} title={t('map.back')}>
           <IconClose />
         </button>
         {look.cover ? (
-          <button type="button" className="w-map__cover" onClick={(e) => personalize(undefined, e.currentTarget)} aria-label={t('customize.open', { title: map.lane.title })} title={t('customize.openShort')}>
-            <CoverArt look={look.cover} />
-          </button>
+          can.own ? (
+            <button type="button" className="w-map__cover" onClick={(e) => personalize(undefined, e.currentTarget)} aria-label={t('customize.open', { title: map.lane.title })} title={t('customize.openShort')}>
+              <CoverArt look={look.cover} />
+            </button>
+          ) : (
+            <span className="w-map__cover">
+              <CoverArt look={look.cover} />
+            </span>
+          )
         ) : (
-          files && (
+          files &&
+          can.own && (
             <span className="w-map__cover w-map__cover--slot" aria-hidden="true">
               <IconImage />
             </span>
@@ -1258,10 +1276,13 @@ export function LaneMap({ data, laneId, blocked, onClose }: { data: Data; laneId
               <span className="w-hide-sm">{siteHost(map.lane.url)}</span>
             </a>
           )}
+          {can.edit && (
           <button type="button" className="nr-btn nr-btn--sm nr-btn--fantasma" onClick={newThought} aria-label={t('newNote')}>
             <IconPlus />
             <span className="w-hide-sm">{t('newNote')}</span>
           </button>
+          )}
+          {can.edit && (
           <Menu
             label={t('map.organize')}
             className="nr-btn nr-btn--sm nr-btn--fantasma"
@@ -1317,7 +1338,8 @@ export function LaneMap({ data, laneId, blocked, onClose }: { data: Data; laneId
               </>
             )}
           </Menu>
-          {tree?.hidden.size ? (
+          )}
+          {!can.edit ? null : tree?.hidden.size ? (
             <button type="button" className="nr-btn nr-btn--sm nr-btn--fantasma" onClick={() => foldAll(false)} aria-label={t('map.unfoldAll')}>
               <IconUnfold />
               <span className="w-hide-sm">{t('map.unfoldAll')}</span>
@@ -1330,10 +1352,18 @@ export function LaneMap({ data, laneId, blocked, onClose }: { data: Data; laneId
               </button>
             )
           )}
-          <button type="button" className="nr-btn nr-btn--sm nr-btn--fantasma" onClick={(e) => personalize(undefined, e.currentTarget)} aria-label={t('customize.open', { title: map.lane.title })}>
-            <IconBrush />
-            <span className="w-hide-sm">{t('customize.openShort')}</span>
-          </button>
+          {can.own && (
+            <button type="button" className="nr-btn nr-btn--sm nr-btn--fantasma" onClick={(e) => share({ kind: 'lane', id: laneId, title: map.lane.title }, e.currentTarget.getBoundingClientRect())} aria-label={t('share.open', { title: map.lane.title })}>
+              <IconShare />
+              <span className="w-hide-sm">{t('share.menu')}</span>
+            </button>
+          )}
+          {can.own && (
+            <button type="button" className="nr-btn nr-btn--sm nr-btn--fantasma" onClick={(e) => personalize(undefined, e.currentTarget)} aria-label={t('customize.open', { title: map.lane.title })}>
+              <IconBrush />
+              <span className="w-hide-sm">{t('customize.openShort')}</span>
+            </button>
+          )}
         </div>
       </header>
 
@@ -1342,6 +1372,7 @@ export function LaneMap({ data, laneId, blocked, onClose }: { data: Data; laneId
           <div
             ref={canvas}
             className={`w-map__canvas nr-tela${panning ? ' is-panning' : ''}${space ? ' is-space' : ''}`}
+            data-readonly={can.edit ? undefined : ''}
             tabIndex={0}
             role="application"
             aria-label={t('map.canvas', { title: map.lane.title })}
@@ -1408,11 +1439,13 @@ export function LaneMap({ data, laneId, blocked, onClose }: { data: Data; laneId
           </div>
 
           {peekNode && peekText && <MapPeek peek={peek!} title={peekNode.title} text={peekText} />}
+          {can.edit && (
           <ul className="w-map__hints" aria-hidden="true">
             {(['create', 'connect', 'child', ...(laidOut ? (['hang'] as const) : []), 'fold', 'move', 'zoom'] as const).map((h) => (
               <li key={h}>{t(`map.hints.${h}`)}</li>
             ))}
           </ul>
+          )}
           <div className="w-map__zoom" role="group" aria-label={t('zoom.map')}>
             <button type="button" className="w-icon-btn" onClick={() => zoomBy(0.8)} aria-label={t('map.zoomOut')} title={t('map.zoomOut')}>
               <IconMinus />
@@ -1445,7 +1478,7 @@ export function LaneMap({ data, laneId, blocked, onClose }: { data: Data; laneId
           </div>
         </div>
 
-        {(selNodes.length > 0 || selEdge) && (
+        {can.edit && (selNodes.length > 0 || selEdge) && (
           <MapPanel
             panelRef={panel}
             nodes={selNodes}

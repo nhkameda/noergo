@@ -257,7 +257,8 @@
       "coverBusy": "Muitas imagens de uma vez. Tente de novo em um minuto.",
       "coverFailed": "Não foi possível salvar a imagem. Tente de novo.",
       "moveBlocked": "“{title}” está ligado a mais de uma ideia acima dele, então só muda de lugar entre os itens ao lado.",
-      "mapFreed": "Você posicionou uma ideia à mão, então este mapa ficou livre. Organizar arruma de novo."
+      "mapFreed": "Você posicionou uma ideia à mão, então este mapa ficou livre. Organizar arruma de novo.",
+      "readOnly": "Este link só deixa ver."
     },
     "map": {
       "open": "Mapa",
@@ -363,7 +364,55 @@
         "allShort": "Todos"
       }
     },
-    "agentWriting": "{name} está escrevendo…"
+    "agentWriting": "{name} está escrevendo…",
+    "share": {
+      "menu": "Compartilhar…",
+      "open": "Compartilhar “{title}”",
+      "kicker": {
+        "board": "Compartilhar quadro",
+        "thought": "Compartilhar pensamento"
+      },
+      "access": "Quem tiver o link",
+      "as": {
+        "view": "Pode ver",
+        "edit": "Pode editar"
+      },
+      "on": "Link ativo",
+      "hint": {
+        "view": {
+          "board": "Vê este quadro e acompanha as mudanças ao vivo. Não precisa de conta.",
+          "thought": "Vê este pensamento e acompanha as mudanças ao vivo. Não precisa de conta."
+        },
+        "edit": {
+          "board": "Vê este quadro e, entrando no noergo, também muda. As mudanças levam o nome de quem fez.",
+          "thought": "Vê este pensamento e, entrando no noergo, também muda. As mudanças levam o nome de quem fez."
+        }
+      },
+      "link": "Link",
+      "copy": "Copiar",
+      "copied": "Copiado",
+      "copiedHint": "Link copiado. Cole numa mensagem para enviar.",
+      "make": {
+        "view": "Criar link para ver",
+        "edit": "Criar link para editar"
+      },
+      "turnOff": "Desativar este link",
+      "turnedOff": "Link desativado: ele não abre mais nada.",
+      "failed": "Não deu certo. Tente de novo."
+    },
+    "shared": {
+      "badge": {
+        "view": "Só visualizar",
+        "edit": "Pode editar"
+      },
+      "label": "Compartilhado com você",
+      "signInToEdit": "Entrar para editar",
+      "openMine": "Meu noergo",
+      "makeYours": "Crie o seu",
+      "unavailable": "Este link não está disponível",
+      "unavailableHint": "Quem compartilhou pode ter desativado o link ou mandado o que ele mostrava para a lixeira.",
+      "pageTitle": "{title} · noergo"
+    }
   },
   "footer": {
     "openSource": "O noergo é open source (AGPL-3.0).",

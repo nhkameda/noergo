@@ -38,11 +38,13 @@ function replaceText(el: HTMLTextAreaElement, before: string, after: string) {
  */
 export function BodyEditor({ note, onWikilink }: { note: NoteDto; onWikilink: (target: string) => void }) {
   const t = useTranslations('app');
-  const { store } = useWorkspace();
+  const { store, can } = useWorkspace();
   const ta = useRef<HTMLTextAreaElement>(null);
   const sync = useRef<BodySync | null>(null);
   const loaded = note.body !== undefined;
-  const [mode, setMode] = useState<'edit' | 'preview'>(note.body ? 'preview' : 'edit');
+  const [chosen, setMode] = useState<'edit' | 'preview'>(note.body ? 'preview' : 'edit');
+  // A link that only shows reads the text, rendered.
+  const mode = can.edit ? chosen : 'preview';
   // While unsaved text is shown in preview, the snapshot of it; null shows the note's body.
   const [previewText, setPreviewText] = useState<string | null>(null);
 
@@ -157,6 +159,7 @@ export function BodyEditor({ note, onWikilink }: { note: NoteDto; onWikilink: (t
 
   return (
     <div className="w-body">
+      {can.edit && (
       <div className="nr-visoes w-body__tabs" role="group" aria-label={t('note.body')}>
         <button type="button" aria-pressed={mode === 'edit'} onClick={toEdit}>
           {t('note.edit')}
@@ -165,6 +168,7 @@ export function BodyEditor({ note, onWikilink }: { note: NoteDto; onWikilink: (t
           {t('note.preview')}
         </button>
       </div>
+      )}
       <textarea
         ref={ta}
         className="w-body__input"
@@ -187,7 +191,7 @@ export function BodyEditor({ note, onWikilink }: { note: NoteDto; onWikilink: (t
         <div
           className="w-body__preview"
           onClick={(e) => {
-            if (!(e.target as HTMLElement).closest('a, button')) toEdit();
+            if (can.edit && !(e.target as HTMLElement).closest('a, button')) toEdit();
           }}
         >
           {loaded ? (
@@ -312,7 +316,7 @@ export function useOpenByTitle() {
 /** Done, and the title as a field: Enter or leaving saves, Esc gives up. */
 export function NoteTitle({ note, onEscape }: { note: NoteDto; onEscape: () => void }) {
   const t = useTranslations('app');
-  const { actions } = useWorkspace();
+  const { actions, can } = useWorkspace();
   const [titleDraft, setTitleDraft] = useState<string | null>(null);
   const done = note.doneAt !== null;
   const commitTitle = () => {
@@ -327,12 +331,14 @@ export function NoteTitle({ note, onEscape }: { note: NoteDto; onEscape: () => v
         aria-pressed={done}
         aria-label={done ? t('note.markOpen') : t('note.markDone')}
         title={done ? t('note.markOpen') : t('note.markDone')}
+        disabled={!can.edit}
         onClick={() => actions.toggleDone(note)}
       >
         {done && <IconCheck />}
       </button>
       <textarea
         className="w-drawer__title"
+        readOnly={!can.edit}
         aria-label={t('note.title')}
         placeholder={t('note.untitled')}
         rows={1}
@@ -460,7 +466,7 @@ export function NoteDrawer({ data, noteId, onClose }: { data: Data; noteId: stri
   const format = useFormatter();
   // "Updated 3 minutes ago" moves on while the note stays open.
   const now = useNow({ updateInterval: 60_000 });
-  const { actions } = useWorkspace();
+  const { actions, can } = useWorkspace();
   const where = locate(data, noteId);
   const panel = useRef<HTMLElement>(null);
   const { boards, lanes } = data;
@@ -504,9 +510,12 @@ export function NoteDrawer({ data, noteId, onClose }: { data: Data; noteId: stri
 
       <BodyEditor key={note.id} note={note} onWikilink={openByTitle} />
 
+      {/* A link that only shows: every field is there to read, none to change. */}
+      <fieldset className="w-fieldset" disabled={!can.edit}>
       <dl className="w-fields">
-        <TagsField note={note} />
-        <DueField note={note} />
+        {/* Looking only: what is empty has nothing to show. */}
+        {(can.edit || note.tags.length > 0) && <TagsField note={note} />}
+        {(can.edit || note.dueAt) && <DueField note={note} />}
         <div className="w-field">
           <dt>
             <label htmlFor={colId}>{t('note.column')}</label>
@@ -525,14 +534,17 @@ export function NoteDrawer({ data, noteId, onClose }: { data: Data; noteId: stri
             </select>
           </dd>
         </div>
-        <LinkField note={note} />
+        {(can.edit || note.url) && <LinkField note={note} />}
+        {(can.edit || note.color) && (
         <div className="w-field">
           <dt>{t('color')}</dt>
           <dd>
             <Swatches value={note.color} label={t('color')} onChange={(color) => actions.updateNote(note.id, { color })} />
           </dd>
         </div>
+        )}
       </dl>
+      </fieldset>
 
       <Below data={data} note={note} />
 
@@ -573,16 +585,18 @@ export function NoteDrawer({ data, noteId, onClose }: { data: Data; noteId: stri
             when: format.relativeTime(new Date(note.updatedAt), now),
           })}
         </span>
-        <button
-          type="button"
-          className="nr-btn nr-btn--sm nr-btn--fantasma w-danger-text"
-          onClick={() => {
-            onClose();
-            actions.deleteNote(note.id);
-          }}
-        >
-          {t('note.deleteNote')}
-        </button>
+        {can.edit && (
+          <button
+            type="button"
+            className="nr-btn nr-btn--sm nr-btn--fantasma w-danger-text"
+            onClick={() => {
+              onClose();
+              actions.deleteNote(note.id);
+            }}
+          >
+            {t('note.deleteNote')}
+          </button>
+        )}
       </footer>
     </aside>
   );
@@ -594,7 +608,7 @@ export function NoteDrawer({ data, noteId, onClose }: { data: Data; noteId: stri
  */
 function Below({ data, note }: { data: Data; note: NoteDto }) {
   const t = useTranslations('app');
-  const { actions } = useWorkspace();
+  const { actions, can } = useWorkspace();
   const [draft, setDraft] = useState('');
   const id = useId();
   const tree = useMemo(() => columnTree(data, note.laneId), [data, note.laneId]);
@@ -604,6 +618,7 @@ function Below({ data, note }: { data: Data; note: NoteDto }) {
   const add = () => {
     if (actions.createChild(note.id, draft)) setDraft('');
   };
+  if (!can.edit && count === 0) return null;
   return (
     <section className="w-below" aria-labelledby={id}>
       <h3 id={id} className="w-related__title">
@@ -611,13 +626,14 @@ function Below({ data, note }: { data: Data; note: NoteDto }) {
       </h3>
       {count > 0 && (
         <div className="w-below__fold">
-          <button type="button" className="nr-btn nr-btn--sm nr-btn--fantasma" onClick={() => actions.setCollapsed([note.id], !(folded > 0 || note.collapsed))}>
+          <button type="button" className="nr-btn nr-btn--sm nr-btn--fantasma" disabled={!can.edit} onClick={() => actions.setCollapsed([note.id], !(folded > 0 || note.collapsed))}>
             {folded ? <IconUnfold /> : <IconFold />}
             {folded ? t('map.unfold') : t('map.fold')}
             <span className="w-map__fold-count">{count}</span>
           </button>
         </div>
       )}
+      {can.edit && (
       <input
         className="w-input"
         aria-label={t('note.addBelow')}
@@ -632,6 +648,7 @@ function Below({ data, note }: { data: Data; note: NoteDto }) {
           }
         }}
       />
+      )}
     </section>
   );
 }

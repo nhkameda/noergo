@@ -341,6 +341,21 @@ export interface UserFocusTable {
   at: Defaulted<Date>;
 }
 
+export type ShareTargetKind = 'board' | 'lane';
+export type ShareAccess = 'view' | 'edit';
+
+/** A link to one board or thought (0011). The link itself is derived, never stored. */
+export interface SharesTable {
+  id: Generated<string>;
+  workspace_id: string;
+  target_kind: ShareTargetKind;
+  target_id: string;
+  access: ShareAccess;
+  created_by: string | null;
+  created_at: CreatedAt;
+  revoked_at: Timestamp | null;
+}
+
 export interface Database {
   users: UsersTable;
   accounts: AccountsTable;
@@ -365,6 +380,7 @@ export interface Database {
   audit_log: AuditLogTable;
   security_events: SecurityEventsTable;
   user_focus: UserFocusTable;
+  shares: SharesTable;
 }
 
 export type User = Selectable<UsersTable>;

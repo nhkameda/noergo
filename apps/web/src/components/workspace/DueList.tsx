@@ -13,7 +13,7 @@ const GROUPS = ['overdue', 'today', 'upcoming'] as const;
 export function DueList({ data }: { data: Data }) {
   const t = useTranslations('app');
   const format = useFormatter();
-  const { actions, openNote } = useWorkspace();
+  const { actions, openNote, can } = useWorkspace();
   const items = useMemo(() => dueNotes(data), [data]);
   const groups = GROUPS.map((g) => ({ g, items: items.filter((i) => i.group === g) })).filter((x) => x.items.length);
 
@@ -28,7 +28,7 @@ export function DueList({ data }: { data: Data }) {
 
   const row = ({ note, lane, board, group }: DueItem) => (
     <li key={note.id} className="w-due-row">
-      <button type="button" className="w-check" aria-pressed={false} aria-label={t('note.markDone')} title={t('note.markDone')} onClick={() => actions.toggleDone(note)}>
+      <button type="button" className="w-check" aria-pressed={false} aria-label={t('note.markDone')} title={t('note.markDone')} disabled={!can.edit} onClick={() => actions.toggleDone(note)}>
         {note.doneAt && <IconCheck />}
       </button>
       <button type="button" className="w-due-row__main" {...corProps(note.color)} onClick={() => openNote(note.id)}>

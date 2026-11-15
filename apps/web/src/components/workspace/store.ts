@@ -74,6 +74,18 @@ const CACHE_VERSION = 1;
 
 const jitter = (ms: number) => ms / 2 + Math.random() * (ms / 2);
 
+/** Where the workspace comes from: one's own, or what a shared link opens. */
+export interface StoreSource {
+  /** '/api', or '/api/shared/<token>' for a link. */
+  api: string;
+  /** Kept in IndexedDB: one's own workspace only. A shared one is someone else's. */
+  cache: boolean;
+  /** A link that only shows: no write leaves this page. */
+  readOnly: boolean;
+}
+
+const OWN: StoreSource = { api: '/api', cache: true, readOnly: false };
+
 export class WorkspaceStore {
   private confirmed: Data | null = null;
   private pending: Pending[] = [];
@@ -91,11 +103,27 @@ export class WorkspaceStore {
   private idb: UseStore | null = null;
   private running = false;
   private noticeSeq = 0;
+  /** A link's stream resumes only from a place the server signed: the snapshot's, then each event's id. */
+  private cursor: string | null = null;
 
   constructor(
     private readonly userId: string,
     private readonly onSignedOut: () => void,
+    private readonly source: StoreSource = OWN,
   ) {}
+
+  /** The prefix of every request this workspace makes ('/api' for one's own). */
+  get api(): string {
+    return this.source.api;
+  }
+
+  get readOnly(): boolean {
+    return this.source.readOnly;
+  }
+
+  private get shared(): boolean {
+    return this.source.api !== OWN.api;
+  }
 
   // ───────────────────────────── React binding
 
@@ -151,7 +179,7 @@ export class WorkspaceStore {
   }
 
   private async boot() {
-    this.idb = openCache();
+    this.idb = this.source.cache ? openCache() : null;
     if (this.idb) {
       try {
         // One person's notes must not linger for the next person on this browser.
@@ -178,20 +206,23 @@ export class WorkspaceStore {
     this.emit({ connection: this.confirmed ? 'connecting' : 'loading' });
     let res: Response;
     try {
-      res = await fetch('/api/snapshot', { credentials: 'same-origin', cache: 'no-store' });
+      res = await fetch(`${this.api}/snapshot`, { credentials: 'same-origin', cache: 'no-store' });
     } catch {
       this.emit({ connection: 'offline' });
       this.later(() => void this.reload(), jitter(Math.min(30_000, 2000 * 2 ** this.streamAttempt++)));
       return;
     }
     if (!this.running) return;
-    if (res.status === 401) return this.signedOut();
+    // A shared link turned off, or its board in the trash, answers 404: the page says so.
+    if (res.status === 401 || (this.shared && res.status === 404)) return this.signedOut();
     if (!res.ok) {
       this.emit({ connection: 'connecting' });
       this.later(() => void this.reload(), jitter(Math.min(60_000, 2000 * 2 ** this.streamAttempt++)));
       return;
     }
-    this.confirmed = fromSnapshot((await res.json()) as Snapshot);
+    const snap = (await res.json()) as Snapshot & { cursor?: string };
+    this.cursor = snap.cursor ?? null;
+    this.confirmed = fromSnapshot(snap);
     this.recompute();
     this.saveCacheSoon();
     this.openStream();
@@ -218,6 +249,7 @@ export class WorkspaceStore {
   }
 
   async clearCache() {
+    if (!this.source.cache) return;
     const idb = this.idb ?? openCache();
     if (!idb) return;
     try {
@@ -231,7 +263,8 @@ export class WorkspaceStore {
 
   private openStream() {
     if (this.es || !this.confirmed || !this.running) return;
-    const es = new EventSource(`/api/stream?since=${this.confirmed.seq}`);
+    const since = this.shared ? encodeURIComponent(this.cursor ?? '') : String(this.confirmed.seq);
+    const es = new EventSource(`${this.api}/stream?since=${since}`);
     this.es = es;
     es.addEventListener('open', () => {
       this.streamAttempt = 0;
@@ -246,6 +279,7 @@ export class WorkspaceStore {
         return;
       }
       this.confirmed = applyEffects(this.confirmed, row.effects, row.seq);
+      if (this.shared) this.cursor = (e as MessageEvent<string>).lastEventId || this.cursor;
       this.recompute();
       if (row.actor?.kind === 'agent' || row.actor?.kind === 'token') this.agentChanged(row, row.actor.label);
       this.saveCacheSoon();
@@ -303,6 +337,8 @@ export class WorkspaceStore {
 
   /** After the stream failed for good: signed out, or just retry from where it stopped. */
   private async recheck() {
+    // A link has no session to ask about: a fresh snapshot tells whether it still opens.
+    if (this.shared) return void this.reload();
     try {
       const res = await fetch('/api/auth/session', { credentials: 'same-origin', cache: 'no-store' });
       const session = res.ok ? ((await res.json()) as { user?: unknown } | null) : null;
@@ -322,6 +358,11 @@ export class WorkspaceStore {
    */
   dispatch(ops: Op | Op[], opts: { local?: Pending['local']; quiet?: boolean; undo?: Op[]; redo?: Op[] } = {}): Promise<Outcome>[] {
     const list = Array.isArray(ops) ? ops : [ops];
+    if (this.readOnly) {
+      // The screen offers no way to change a view-only link; a key or a gesture missed is refused here.
+      if (!this.state.notices.some((n) => n.key === 'readOnly')) this.notify({ tone: 'info', key: 'readOnly' });
+      return list.map(() => Promise.resolve<Outcome>({ opId: newId(), status: 'dropped' }));
+    }
     const accepted: Pending[] = [];
     const outcomes = list.map((op) => {
       const opId = newId();
@@ -384,7 +425,7 @@ export class WorkspaceStore {
     this.sending = true;
     let res: Response;
     try {
-      res = await fetch('/api/ops', {
+      res = await fetch(`${this.api}/ops`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ ops: batch.map((p) => ({ opId: p.opId, op: p.op })) }),
@@ -443,7 +484,7 @@ export class WorkspaceStore {
 
   /** The whole note with its links; fills in a long body that travelled as an excerpt. */
   async fetchNote(id: string, signal?: AbortSignal): Promise<NoteDetail | null> {
-    const res = await fetch(`/api/notes/${encodeURIComponent(id)}`, { credentials: 'same-origin', cache: 'no-store', signal });
+    const res = await fetch(`${this.api}/notes/${encodeURIComponent(id)}`, { credentials: 'same-origin', cache: 'no-store', signal });
     if (res.status === 401) {
       this.signedOut();
       return null;
@@ -458,6 +499,8 @@ export class WorkspaceStore {
   }
 
   async search(q: string, signal?: AbortSignal): Promise<SearchHit[]> {
+    // The server's search reads the whole workspace; a link has only what the browser holds.
+    if (this.shared) return [];
     const res = await fetch(`/api/search?q=${encodeURIComponent(q)}`, { credentials: 'same-origin', cache: 'no-store', signal });
     if (!res.ok) return [];
     return ((await res.json()) as { hits: SearchHit[] }).hits;

@@ -1,8 +1,9 @@
 'use client';
 
 import type { LaneDto } from '@noergo/core/dto';
-import { useState, useSyncExternalStore, type DragEvent } from 'react';
+import { useContext, useState, useSyncExternalStore, type DragEvent } from 'react';
 import type { Actions } from './actions';
+import { WorkspaceContext } from './context';
 import { autoBackground, dominantColors, edgeColor, FRAME_DEFAULT, type Framed } from './cover';
 import type { WorkspaceStore } from './store';
 
@@ -12,7 +13,8 @@ import type { WorkspaceStore } from './store';
  * change is saved.
  */
 
-export const fileUrl = (id: string) => `/api/files/${id}`;
+/** A stored file, through the workspace's API: one's own, or a shared link's. */
+export const fileUrl = (id: string, api = '/api') => `${api}/files/${id}`;
 
 export interface CoverLook extends Framed {
   src: string;
@@ -61,7 +63,8 @@ export function useLaneLook(lane: LaneDto | undefined): { cover: CoverLook | nul
     () => (lane ? previews.get(lane.id) : undefined),
     () => undefined,
   );
-  const saved = lane?.cover ? { ...lane.cover, src: fileUrl(lane.cover.fileId) } : null;
+  const api = useContext(WorkspaceContext)?.store.api;
+  const saved = lane?.cover ? { ...lane.cover, src: fileUrl(lane.cover.fileId, api) } : null;
   return {
     cover: p && p.cover !== undefined ? p.cover : saved,
     color: p && p.color !== undefined ? p.color : (lane?.color ?? null),

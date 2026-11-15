@@ -66,6 +66,30 @@ the streams of its workspace up; each stream then reads the change log from its 
 reconnect wakes every stream up. Mutations under `/api` must come from this site's origin
 (`apps/web/src/lib/request-origin.ts`).
 
+## Sharing by link
+
+A board or one thought can be shared by link (`shares`, `packages/core/src/shares.ts`), to
+look at it or also to change it; each has its own link and its owner turns either off. The
+link is `/s/<token>`, where the token is the share id and an HMAC of it under a key derived
+from `AUTH_SECRET`: nothing secret is stored, the owner copies it again whenever they want,
+and a new `AUTH_SECRET` turns every link off.
+
+Anyone with a link sees what it opens, without an account; an edit link changes it only
+for a signed-in person, whose changes carry their name in the owner's change log. The page
+is the same workspace screen, fed by its own endpoints, which serve only what the link
+opens:
+
+| Endpoint | |
+|---|---|
+| `GET /api/shared/<token>/snapshot` | The board (or the thought, under a stand-in board of its own) at one `seq`. |
+| `GET /api/shared/<token>/stream?since=<cursor>` | As `/api/stream`, cut to the link, from a cursor the server signed (in the snapshot, then each event's id): every `seq` arrives, empty when the change is outside; something leaving arrives as a tombstone that tells nothing; a thought that came in asks for a new snapshot (`reset`); a link turned off ends with `signed-out`. |
+| `POST /api/shared/<token>/ops` | As `/api/ops`, for edit links and a signed-in person. Each op is checked against the link inside its transaction; ids outside answer `not_found`; `[[wikilinks]]` resolve and rename only inside the link. |
+| `GET /api/shared/<token>/notes/<id>`, `/files/<id>` | A note (only links whose other end is inside) and a cover. |
+| `GET/POST /api/shares`, `DELETE /api/shares/<id>` | The owner's links of a board or thought: list, create, turn off. |
+
+A link closes while its board or thought (or the thought's board) is in the trash, and while
+its owner is blocked. Nothing of a link is kept in the visitor's browser storage.
+
 Conflicts: simple fields are last-writer-wins; tags are add/remove; a note body is edited
 by patch against a base version, and a replacement with a stale version is refused with the
 current one attached, so the client (or the agent) can merge and retry.

@@ -13,6 +13,7 @@ export * from './rate-limit';
 export * from './read';
 export * from './redact';
 export * from './settings';
+export * from './shares';
 export * from './workspace';
 export { applyOp, type Applied, type ChangeEffect, type OpCtx } from './ops/apply';
 export { CHANGES_CHANNEL, executeAtomic, executeOps, type AppliedOutcome, type ExecCtx, type OpOutcome, type RefusedOutcome } from './ops/execute';

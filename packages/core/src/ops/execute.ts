@@ -2,11 +2,17 @@ import { sql, withWorkspace, type Db, type Tx, getDb } from '../db';
 import type { Effect } from '../dto';
 import { DomainError, isDomainError, type DomainErrorCode } from '../errors';
 import { applyOp, type OpCtx } from './apply';
-import type { Envelope } from './schema';
+import type { Envelope, Op } from './schema';
 
 export interface ExecCtx extends OpCtx {
   /** Read-only agent connections and tokens may read but never write. */
   readOnly?: boolean;
+  /**
+   * Runs before each op, in its transaction and after the workspace lock (before a stored
+   * receipt is replayed, too), and throws to refuse it: a shared link lets its holder touch
+   * only what it opens (shares.ts). What it returns narrows the op's context.
+   */
+  guard?: (tx: Tx, op: Op) => Promise<Pick<OpCtx, 'wikiLanes'>>;
 }
 
 export type AppliedOutcome = { opId: string; status: 'applied'; seq: number | null; result: Record<string, unknown>; effects: Effect[] };
@@ -107,10 +113,11 @@ async function lockWorkspace(tx: Tx, ctx: ExecCtx): Promise<{ seq: number }> {
 }
 
 async function runOne(tx: Tx, ctx: ExecCtx, ws: { seq: number }, { opId, op }: Envelope): Promise<OpOutcome> {
+  const narrowed = ctx.guard ? { ...ctx, ...(await ctx.guard(tx, op)) } : ctx;
   const receipt = await tx.selectFrom('op_receipts').select('result').where('workspace_id', '=', ctx.workspaceId).where('op_id', '=', opId).executeTakeFirst();
   if (receipt) return receipt.result as OpOutcome;
 
-  const applied = await applyOp(tx, ctx, op);
+  const applied = await applyOp(tx, narrowed, op);
   let seq: number | null = null;
   if (applied.effects.length) {
     seq = ws.seq + 1;

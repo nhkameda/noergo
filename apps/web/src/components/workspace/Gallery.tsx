@@ -31,7 +31,7 @@ import { CARDS, CARDS_PER_ROW, cardsThatFit, perRow } from './view-prefs';
  */
 export function Gallery({ data, boardId, hideDone, onOpen }: { data: Data; boardId: string; hideDone: boolean; onOpen: (laneId: string) => void }) {
   const t = useTranslations('app');
-  const { actions } = useWorkspace();
+  const { actions, can } = useWorkspace();
   const scroller = useRef<HTMLDivElement>(null);
   const grid = useRef<HTMLOListElement>(null);
   const [adding, setAdding] = useState(false);
@@ -96,6 +96,7 @@ export function Gallery({ data, boardId, hideDone, onOpen }: { data: Data; board
           {lanes.map((lane, i) => (
             <Tile key={lane.id} lane={lane} count={counts.get(lane.id) ?? 0} index={i} total={lanes.length} onOpen={onOpen} />
           ))}
+          {can.columns && (
           <li className="w-tile-slot w-tile-slot--new">
             {adding ? (
               <InlineEdit
@@ -116,6 +117,7 @@ export function Gallery({ data, boardId, hideDone, onOpen }: { data: Data; board
               </button>
             )}
           </li>
+          )}
         </ol>
         {lanes.length === 0 && !adding && (
           <div className="nr-vazio w-board__empty">
@@ -146,7 +148,7 @@ const fitIn = (grid: HTMLElement) => cardsThatFit(grid.clientWidth, parseFloat(g
 
 const Tile = memo(function Tile({ lane, count, index, total, onOpen }: { lane: LaneDto; count: number; index: number; total: number; onOpen: (laneId: string) => void }) {
   const t = useTranslations('app');
-  const { actions, announce, customize, openMap, store } = useWorkspace();
+  const { actions, announce, customize, openMap, store, can, share } = useWorkspace();
   const look = useLaneLook(lane);
   const agent = useAgentMark(lane.id);
   const files = useFileDrag();
@@ -161,7 +163,7 @@ const Tile = memo(function Tile({ lane, count, index, total, onOpen }: { lane: L
 
   useEffect(() => {
     const el = ref.current;
-    if (!el) return;
+    if (!el || !can.columns) return;
     return combine(
       draggable({
         element: el,
@@ -178,11 +180,11 @@ const Tile = memo(function Tile({ lane, count, index, total, onOpen }: { lane: L
         onDrop: () => setEdge(null),
       }),
     );
-  }, [lane.id]);
+  }, [lane.id, can.columns]);
 
   // Alt + arrows move the card, like a column's "move left / right".
   const onKeyDown = (e: KeyboardEvent<HTMLButtonElement>) => {
-    if (!e.altKey || (e.key !== 'ArrowLeft' && e.key !== 'ArrowRight')) return;
+    if (!can.columns || !e.altKey || (e.key !== 'ArrowLeft' && e.key !== 'ArrowRight')) return;
     e.preventDefault();
     const moved = actions.moveLane(lane.id, index + (e.key === 'ArrowLeft' ? -1 : 1));
     if (!moved) return;
@@ -192,7 +194,7 @@ const Tile = memo(function Tile({ lane, count, index, total, onOpen }: { lane: L
 
   return (
     <li className="w-tile-slot" data-edge={edge ?? undefined}>
-      <div ref={ref} className={`w-tile${dragging ? ' w-tile--dragging' : ''}`} {...laneStyle(look.color)} {...agentProps(agent)} data-lane-tile={lane.id} {...drop.props} data-over={drop.over || undefined}>
+      <div ref={ref} className={`w-tile${dragging ? ' w-tile--dragging' : ''}`} {...laneStyle(look.color)} {...agentProps(agent)} data-lane-tile={lane.id} {...(can.own ? drop.props : {})} data-over={(can.own && drop.over) || undefined}>
         <button type="button" className="w-tile__open" onClick={() => onOpen(lane.id)} onKeyDown={onKeyDown} aria-label={t('cards.open', { title: lane.title, count, position: index + 1, total })}>
           {look.cover ? (
             <CoverArt look={look.cover} className="w-tile__cover" />
@@ -222,30 +224,41 @@ const Tile = memo(function Tile({ lane, count, index, total, onOpen }: { lane: L
           <button type="button" className="w-icon-btn w-tile__tool w-tile__map" onClick={() => openMap(lane.id)} aria-label={t('map.openColumn', { title: lane.title })} title={t('map.open')}>
             <IconMap />
           </button>
-          <button
-            type="button"
-            className="w-icon-btn w-tile__tool w-tile__brush"
-            onClick={() => customize(lane.id, anchor())}
-            aria-label={t('customize.open', { title: lane.title })}
-            title={t('customize.openShort')}
-          >
-            <IconBrush />
-          </button>
-          <Menu label={t('columnMenu', { title: lane.title })} className="w-icon-btn w-tile__tool w-tile__more">
-            {(close) => (
-              <>
-                <button type="button" className="w-menu__item" onClick={() => { close(); customize(lane.id, anchor()); }}>
-                  {t('customize.menu')}
-                </button>
-                <MoveToBoard lane={lane} close={close} />
-                <button type="button" className="w-menu__item w-menu__item--danger" onClick={() => { close(); actions.deleteLane(lane.id); }}>
-                  {t('deleteColumn')}
-                </button>
-              </>
-            )}
-          </Menu>
+          {can.own && (
+            <button
+              type="button"
+              className="w-icon-btn w-tile__tool w-tile__brush"
+              onClick={() => customize(lane.id, anchor())}
+              aria-label={t('customize.open', { title: lane.title })}
+              title={t('customize.openShort')}
+            >
+              <IconBrush />
+            </button>
+          )}
+          {can.columns && (
+            <Menu label={t('columnMenu', { title: lane.title })} className="w-icon-btn w-tile__tool w-tile__more">
+              {(close) => (
+                <>
+                  {can.own && (
+                    <button type="button" className="w-menu__item" onClick={() => { close(); share({ kind: 'lane', id: lane.id, title: lane.title }, anchor()); }}>
+                      {t('share.menu')}
+                    </button>
+                  )}
+                  {can.own && (
+                    <button type="button" className="w-menu__item" onClick={() => { close(); customize(lane.id, anchor()); }}>
+                      {t('customize.menu')}
+                    </button>
+                  )}
+                  {can.own && <MoveToBoard lane={lane} close={close} />}
+                  <button type="button" className="w-menu__item w-menu__item--danger" onClick={() => { close(); actions.deleteLane(lane.id); }}>
+                    {t('deleteColumn')}
+                  </button>
+                </>
+              )}
+            </Menu>
+          )}
         </div>
-        {files && (
+        {files && can.own && (
           <span className="w-drop-hint" aria-hidden="true">
             <IconImage />
             {t('customize.dropShort')}

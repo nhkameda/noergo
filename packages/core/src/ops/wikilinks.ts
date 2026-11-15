@@ -58,28 +58,36 @@ export function renameInBody(body: string, oldTitle: string, newTitle: string): 
     .join('');
 }
 
+/**
+ * The thoughts a write through a shared link may reach, as a filter on notes.lane_id. Such a
+ * write must neither learn that a private title exists (a link would or would not appear)
+ * nor rewrite a private note's body.
+ */
+const lanesOf = (ctx: OpCtx): string[] | null => (ctx.wikiLanes ? [...ctx.wikiLanes] : null);
+
 async function resolve(tx: Tx, ctx: OpCtx, targets: WikiTarget[], selfId: string): Promise<{ ids: string[]; missing: string[] }> {
   const ids = targets.flatMap((t) => (t.id ? [t.id] : []));
   const titles = [...new Set(targets.flatMap((t) => (t.title ? [t.title.toLowerCase()] : [])))];
   const found = new Set<string>();
   const matched = new Set<string>();
+  const lanes = lanesOf(ctx);
+  if (lanes && !lanes.length) return { ids: [], missing: titles };
   if (ids.length) {
-    const rows = await tx.selectFrom('notes').select('id').where('workspace_id', '=', ctx.workspaceId).where('deleted_at', 'is', null).where('id', 'in', ids).execute();
-    for (const r of rows) found.add(r.id);
+    let q = tx.selectFrom('notes').select('id').where('workspace_id', '=', ctx.workspaceId).where('deleted_at', 'is', null).where('id', 'in', ids);
+    if (lanes) q = q.where('lane_id', 'in', lanes);
+    for (const r of await q.execute()) found.add(r.id);
   }
   if (titles.length) {
     // Several notes may share a title: the oldest one wins, so the choice is stable.
-    const rows = await tx
+    let q = tx
       .selectFrom('notes')
       .select(['id', sql<string>`lower(title)`.as('t')])
       .distinctOn(sql`lower(title)`)
       .where('workspace_id', '=', ctx.workspaceId)
       .where('deleted_at', 'is', null)
-      .where(sql<boolean>`lower(title) = ANY(${titles}::text[])`)
-      .orderBy(sql`lower(title)`)
-      .orderBy('created_at', 'asc')
-      .orderBy('id', 'asc')
-      .execute();
+      .where(sql<boolean>`lower(title) = ANY(${titles}::text[])`);
+    if (lanes) q = q.where('lane_id', 'in', lanes);
+    const rows = await q.orderBy(sql`lower(title)`).orderBy('created_at', 'asc').orderBy('id', 'asc').execute();
     for (const r of rows) {
       found.add(r.id);
       matched.add(r.t);
@@ -104,7 +112,7 @@ export async function syncWikilinks(tx: Tx, ctx: OpCtx, note: Note): Promise<Cha
       .execute();
   }
 
-  const current = await tx
+  let current = await tx
     .selectFrom('links')
     .selectAll()
     .where('workspace_id', '=', ws)
@@ -114,6 +122,15 @@ export async function syncWikilinks(tx: Tx, ctx: OpCtx, note: Note): Promise<Cha
     .where('deleted_at', 'is', null)
     .forUpdate()
     .execute();
+  const lanes = lanesOf(ctx);
+  if (lanes) {
+    // Through a link, the links to notes outside it stay as they are: unseen, untouched.
+    const targets = current.filter((l) => l.to_kind === 'note').map((l) => l.to_id);
+    const inside = new Set(
+      targets.length && lanes.length ? (await tx.selectFrom('notes').select('id').where('workspace_id', '=', ws).where('id', 'in', targets).where('lane_id', 'in', lanes).execute()).map((r) => r.id) : [],
+    );
+    current = current.filter((l) => l.to_kind === 'note' && inside.has(l.to_id));
+  }
 
   const effects: ChangeEffect[] = [];
   const have = new Set<string>();
@@ -146,17 +163,17 @@ export async function syncWikilinks(tx: Tx, ctx: OpCtx, note: Note): Promise<Cha
 /** A note titled `title` now exists: link the notes that were waiting for it. */
 export async function resolvePending(tx: Tx, ctx: OpCtx, title: string): Promise<ChangeEffect[]> {
   const key = title.trim().toLowerCase();
-  if (!key) return [];
-  const waiting = await tx
+  const lanes = lanesOf(ctx);
+  if (!key || (lanes && !lanes.length)) return [];
+  let q = tx
     .selectFrom('unresolved_wikilinks')
     .innerJoin('notes', (j) => j.onRef('notes.id', '=', 'unresolved_wikilinks.note_id').onRef('notes.workspace_id', '=', 'unresolved_wikilinks.workspace_id'))
     .selectAll('notes')
     .where('unresolved_wikilinks.workspace_id', '=', ctx.workspaceId)
     .where('unresolved_wikilinks.title_lower', '=', key)
-    .where('notes.deleted_at', 'is', null)
-    .limit(MAX_PER_NOTE)
-    .forUpdate('notes')
-    .execute();
+    .where('notes.deleted_at', 'is', null);
+  if (lanes) q = q.where('notes.lane_id', 'in', lanes);
+  const waiting = await q.limit(MAX_PER_NOTE).forUpdate('notes').execute();
   const effects: ChangeEffect[] = [];
   for (const src of waiting) effects.push(...(await syncWikilinks(tx, ctx, src)));
   return effects;
@@ -168,8 +185,9 @@ export async function resolvePending(tx: Tx, ctx: OpCtx, title: string): Promise
  */
 export async function propagateRename(tx: Tx, ctx: OpCtx, note: Note, oldTitle: string): Promise<ChangeEffect[]> {
   const ws = ctx.workspaceId;
-  if (!oldTitle.trim() || !note.title.trim() || /[[\]|]/.test(note.title)) return [];
-  const sources = await tx
+  const lanes = lanesOf(ctx);
+  if (!oldTitle.trim() || !note.title.trim() || /[[\]|]/.test(note.title) || (lanes && !lanes.length)) return [];
+  let q = tx
     .selectFrom('links')
     .innerJoin('notes', (j) => j.onRef('notes.id', '=', 'links.from_id').onRef('notes.workspace_id', '=', 'links.workspace_id'))
     .selectAll('notes')
@@ -179,10 +197,10 @@ export async function propagateRename(tx: Tx, ctx: OpCtx, note: Note, oldTitle: 
     .where('links.to_id', '=', note.id)
     .where('links.deleted_at', 'is', null)
     .where('notes.deleted_at', 'is', null)
-    .where('notes.id', '!=', note.id)
-    .limit(MAX_PER_NOTE)
-    .forUpdate('notes')
-    .execute();
+    .where('notes.id', '!=', note.id);
+  // Through a link, only notes inside it follow the rename; a private note keeps its text.
+  if (lanes) q = q.where('notes.lane_id', 'in', lanes);
+  const sources = await q.limit(MAX_PER_NOTE).forUpdate('notes').execute();
 
   const effects: ChangeEffect[] = [];
   for (const src of sources) {

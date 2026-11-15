@@ -51,7 +51,7 @@ type Branch = Pick<ColumnRow, 'depth' | 'open' | 'folded' | 'branch'> & {
 export const NoteCard = memo(function NoteCard({ note, depth = 0, open = false, folded = 0, branch = 'leaf', carried = false, agentInside = false }: { note: NoteDto } & Partial<Branch>) {
   const t = useTranslations('app');
   const format = useFormatter();
-  const { actions, openNote, announce, store } = useWorkspace();
+  const { actions, openNote, announce, store, can } = useWorkspace();
   const ref = useRef<HTMLElement>(null);
   const [dragging, setDragging] = useState(false);
   const [edge, setEdge] = useState<Edge | null>(null);
@@ -59,7 +59,7 @@ export const NoteCard = memo(function NoteCard({ note, depth = 0, open = false, 
 
   useEffect(() => {
     const el = ref.current;
-    if (!el) return;
+    if (!el || !can.edit) return;
     return combine(
       draggable({
         element: el,
@@ -81,13 +81,14 @@ export const NoteCard = memo(function NoteCard({ note, depth = 0, open = false, 
         onDrop: () => setEdge(null),
       }),
     );
-  }, [note.id, note.laneId, open, store]);
+  }, [note.id, note.laneId, open, store, can.edit]);
 
   const toggleFold = () => actions.setCollapsed([note.id], !(folded > 0 || note.collapsed));
 
   const onKeyDown = (e: KeyboardEvent<HTMLElement>) => {
     if (e.target !== e.currentTarget || isEditable(e.target)) return;
     const dir = ARROWS[e.key];
+    if (!can.edit && (e.altKey || e.key === 'Delete' || e.key === 'Backspace' || ((e.metaKey || e.ctrlKey) && e.key === '.'))) return;
     if ((e.metaKey || e.ctrlKey) && e.key === '.') {
       e.preventDefault();
       if (branch !== 'leaf' || folded > 0) toggleFold();
@@ -141,18 +142,19 @@ export const NoteCard = memo(function NoteCard({ note, depth = 0, open = false, 
             aria-pressed={done}
             aria-label={done ? t('note.markOpen') : t('note.markDone')}
             title={done ? t('note.markOpen') : t('note.markDone')}
+            disabled={!can.edit}
             onClick={() => actions.toggleDone(note)}
           >
             {done && <IconCheck />}
           </button>
           <span className="nr-card__titulo w-card__title">{title}</span>
           {folded > 0 ? (
-            <button type="button" className="w-card__fold" data-folded data-agent-inside={agentInside || undefined} aria-expanded={false} aria-label={t('map.foldBadge', { count: folded })} title={t('map.foldBadge', { count: folded })} onClick={toggleFold}>
+            <button type="button" className="w-card__fold" data-folded data-agent-inside={agentInside || undefined} aria-expanded={false} aria-label={t('map.foldBadge', { count: folded })} title={t('map.foldBadge', { count: folded })} disabled={!can.edit} onClick={toggleFold}>
               {folded > 99 ? '99+' : folded}
             </button>
           ) : (
             branch !== 'leaf' && (
-              <button type="button" className="w-card__fold" aria-expanded={true} aria-label={t('map.fold')} title={t('map.fold')} onClick={toggleFold}>
+              <button type="button" className="w-card__fold" aria-expanded={true} aria-label={t('map.fold')} title={t('map.fold')} disabled={!can.edit} onClick={toggleFold}>
                 <IconMinus />
               </button>
             )

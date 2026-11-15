@@ -257,7 +257,8 @@
       "coverBusy": "Too many images at once. Try again in a minute.",
       "coverFailed": "The image could not be saved. Try again.",
       "moveBlocked": "“{title}” hangs from more than one idea above it, so it only changes place among the ideas beside it.",
-      "mapFreed": "You placed an idea by hand, so this map is free now. Organise lays it out again."
+      "mapFreed": "You placed an idea by hand, so this map is free now. Organise lays it out again.",
+      "readOnly": "This link only lets you look."
     },
     "map": {
       "open": "Map",
@@ -363,7 +364,55 @@
         "allShort": "All"
       }
     },
-    "agentWriting": "{name} is writing…"
+    "agentWriting": "{name} is writing…",
+    "share": {
+      "menu": "Share…",
+      "open": "Share “{title}”",
+      "kicker": {
+        "board": "Share board",
+        "thought": "Share thought"
+      },
+      "access": "Whoever has the link",
+      "as": {
+        "view": "Can view",
+        "edit": "Can edit"
+      },
+      "on": "Link on",
+      "hint": {
+        "view": {
+          "board": "Sees this board and follows its changes live. No account needed.",
+          "thought": "Sees this thought and follows its changes live. No account needed."
+        },
+        "edit": {
+          "board": "Sees this board and, signed in to noergo, changes it too. Their changes carry their name.",
+          "thought": "Sees this thought and, signed in to noergo, changes it too. Their changes carry their name."
+        }
+      },
+      "link": "Link",
+      "copy": "Copy",
+      "copied": "Copied",
+      "copiedHint": "Link copied. Paste it in a message to send it.",
+      "make": {
+        "view": "Create a link to view",
+        "edit": "Create a link to edit"
+      },
+      "turnOff": "Turn this link off",
+      "turnedOff": "Link turned off: it no longer opens anything.",
+      "failed": "That did not work. Try again."
+    },
+    "shared": {
+      "badge": {
+        "view": "View only",
+        "edit": "Can edit"
+      },
+      "label": "Shared with you",
+      "signInToEdit": "Sign in to edit",
+      "openMine": "My noergo",
+      "makeYours": "Create yours",
+      "unavailable": "This link is not available",
+      "unavailableHint": "Whoever shared it may have turned it off, or moved what it showed to the trash.",
+      "pageTitle": "{title} · noergo"
+    }
   },
   "footer": {
     "openSource": "noergo is open source (AGPL-3.0).",

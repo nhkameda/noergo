@@ -37,6 +37,8 @@ export const LIMITS = {
   changesResumeDays: 7,
   changesRetentionDays: 90,
   trashDays: 30,
+  /** Live share links of one workspace (two per board or thought at most). */
+  sharesPerWorkspace: 500,
   /** A new revision is cut when the actor changes or this much time has passed. */
   revisionCoalesceMs: 10 * 60 * 1000,
 } as const;

@@ -2,10 +2,32 @@ import { createContext, useContext } from 'react';
 import type { Actions } from './actions';
 import type { WorkspaceStore } from './store';
 
+/** What this page may change. */
+export interface Abilities {
+  /** Ideas, thoughts, links and the map. False on a link that only shows. */
+  edit: boolean;
+  /** Add, delete and reorder thoughts: one's own boards, and a shared board's editors. */
+  columns: boolean;
+  /** One's own workspace only: boards themselves, covers, moving between boards, sharing. */
+  own: boolean;
+}
+
+export const OWNER: Abilities = { edit: true, columns: true, own: true };
+
+/** What a share link shares, for the panel that hands it out. */
+export interface ShareTarget {
+  kind: 'board' | 'lane';
+  id: string;
+  title: string;
+}
+
 /** What every part of the workspace may call. Stable for the life of the page. */
 export interface WorkspaceApi {
   store: WorkspaceStore;
   actions: Actions;
+  can: Abilities;
+  /** The panel that shares a board or thought by link, next to `anchor`. */
+  share: (target: ShareTarget, anchor: DOMRect) => void;
   openNote: (id: string) => void;
   /** Closes the open note without taking the focus anywhere: a click elsewhere did it. */
   dismissNote: () => void;

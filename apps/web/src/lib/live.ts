@@ -35,12 +35,15 @@ function hub(): Hub {
 /** Streams one person may hold open at once (tabs share one through leader election). */
 export const MAX_STREAMS_PER_USER = 8;
 
-/** Registers a stream; null when the user already holds too many. */
-export function subscribe(userId: string, workspaceId: string, wake: Wake): (() => void) | null {
+/**
+ * Registers a stream; null when one of its holders already has as many as it may. A person
+ * is one holder; a shared link counts its visitor and the link itself.
+ */
+export function subscribe(holder: string | ReadonlyArray<readonly [key: string, max: number]>, workspaceId: string, wake: Wake): (() => void) | null {
   const h = hub();
-  const held = h.byUser.get(userId) ?? 0;
-  if (held >= MAX_STREAMS_PER_USER) return null;
-  h.byUser.set(userId, held + 1);
+  const holders = typeof holder === 'string' ? ([[holder, MAX_STREAMS_PER_USER]] as const) : holder;
+  if (holders.some(([key, max]) => (h.byUser.get(key) ?? 0) >= max)) return null;
+  for (const [key] of holders) h.byUser.set(key, (h.byUser.get(key) ?? 0) + 1);
   let set = h.byWorkspace.get(workspaceId);
   if (!set) h.byWorkspace.set(workspaceId, (set = new Set()));
   set.add(wake);
@@ -50,9 +53,11 @@ export function subscribe(userId: string, workspaceId: string, wake: Wake): (() 
     done = true;
     set.delete(wake);
     if (set.size === 0) h.byWorkspace.delete(workspaceId);
-    const n = (h.byUser.get(userId) ?? 1) - 1;
-    if (n <= 0) h.byUser.delete(userId);
-    else h.byUser.set(userId, n);
+    for (const [key] of holders) {
+      const n = (h.byUser.get(key) ?? 1) - 1;
+      if (n <= 0) h.byUser.delete(key);
+      else h.byUser.set(key, n);
+    }
   };
 }
 

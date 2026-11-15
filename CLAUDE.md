@@ -119,6 +119,33 @@ you can derive; these you cannot. Break one only with a reason written in the co
 - An idea with no layout is placed next to its parent (`map.ts`), deterministically on
   every device: same input, same spot. Do not use randomness or arrival order there.
 
+## Sharing by link (packages/core/src/shares.ts, /api/shared, /[locale]/s/[token])
+- The link is never stored: the token is the share id plus an HMAC under a key derived from
+  AUTH_SECRET. Rotating AUTH_SECRET turns every shared link off. Do not add a token column.
+- Everything a link reaches goes through shares.ts, cut to what it opens: snapshot, stream,
+  a note's links (a backlink from a private note must not show its title), files, and the
+  effects in the answer to its ops (a rename rewrites [[wikilinks]] in notes outside it).
+  Ids outside the link answer not_found. Writes are checked by `ExecCtx.guard`, inside the
+  op's transaction, after the workspace lock.
+- The shared stream resumes only from a cursor the server signed (`shareCursor`: in the
+  snapshot, then as each event's id). A seq the visitor picks would replay history from
+  before the link: old texts, notes since trashed. It sends every seq after it: a change
+  outside goes as an empty row, because the client reloads on a gap, and people's names
+  are blanked (agents' stay). Something leaving the link is a tombstone with its content
+  blanked; a thought that entered it after the cursor (moved onto the board, restored)
+  is a `reset`, because its notes are judged by where they are now.
+- Writes through a link run with `OpCtx.wikiLanes`: [[wikilinks]] resolve, wait and
+  rename only inside it. Otherwise a link that appears or not tells whether a private title
+  exists, and a rename rewrites private bodies. The guard runs before a receipt replays.
+- Anonymous rate limits count by X-Real-IP, so the reverse proxy must set it, never pass
+  the client's on (docker/Caddyfile does).
+- A shared thought travels under a stand-in board whose id is the thought's own, with its
+  title: never the real board's id or name. Its lanes carry that boardId.
+- View links need no account. Edit links write only for a signed-in, unblocked person, as
+  their own `user` actor in the owner's workspace. A blocked owner's links close.
+- The store of a shared page never opens IndexedDB: `boot()` deletes every other person's
+  cache, which would wipe the visitor's own workspace.
+
 ## Administration (apps/web/src/app/[locale]/admin, packages/core/src/admin.ts)
 - noergo has no plans and no payments. What an account may do is decided by the
   instance's administrators (settings and per-account switches), never by a plan.

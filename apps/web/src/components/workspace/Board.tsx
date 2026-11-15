@@ -21,7 +21,7 @@ import { anchoredScroll, COLUMNS, COLUMNS_ZOOM, columnsZoom } from './view-prefs
  */
 export function Board({ data, boardId, hideDone }: { data: Data; boardId: string; hideDone: boolean }) {
   const t = useTranslations('app');
-  const { actions } = useWorkspace();
+  const { actions, can } = useWorkspace();
   const scroller = useRef<HTMLDivElement>(null);
   const [adding, setAdding] = useState(false);
   const { lanes: laneMap, notes: noteMap, links } = data;
@@ -108,6 +108,7 @@ export function Board({ data, boardId, hideDone }: { data: Data; boardId: string
         {lanes.map((lane, i) => (
           <Lane key={lane.id} lane={lane} notes={byLane.get(lane.id) ?? []} tree={trees.get(lane.id)!} hideDone={hideDone} index={i} total={lanes.length} />
         ))}
+        {can.columns && (
         <div className="w-lane w-lane--new">
           {adding ? (
             <InlineEdit
@@ -134,6 +135,7 @@ export function Board({ data, boardId, hideDone }: { data: Data; boardId: string
             </button>
           )}
         </div>
+        )}
         {lanes.length === 0 && !adding && (
           <div className="nr-vazio w-board__empty">
             <strong>{t('emptyBoard')}</strong>

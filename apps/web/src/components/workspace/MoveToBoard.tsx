@@ -31,7 +31,7 @@ const isBoard = (source: ElementDragPayload) => source.data.type === 'board' && 
  */
 export function BoardTab({ board, index, current, onSelect, onRename }: { board: BoardDto; index: number; current: boolean; onSelect: () => void; onRename: () => void }) {
   const t = useTranslations('app');
-  const { store, actions, announce } = useWorkspace();
+  const { store, actions, announce, can } = useWorkspace();
   const look = useBoardLook(board)!;
   const ref = useRef<HTMLButtonElement>(null);
   const [ready, setReady] = useState(false);
@@ -41,7 +41,7 @@ export function BoardTab({ board, index, current, onSelect, onRename }: { board:
 
   useEffect(() => {
     const el = ref.current;
-    if (!el) return;
+    if (!el || !can.own) return;
     const takesLane = (source: ElementDragPayload) => {
       const lane = draggedLane(store, source);
       return !!lane && lane.boardId !== board.id;
@@ -89,11 +89,11 @@ export function BoardTab({ board, index, current, onSelect, onRename }: { board:
         onDrop: () => setReady(false),
       }),
     );
-  }, [store, actions, announce, t, board.id]);
+  }, [store, actions, announce, t, board.id, can.own]);
 
   // Alt + arrows move the tab, like a thought's card.
   const onKeyDown = (e: KeyboardEvent<HTMLButtonElement>) => {
-    if (!e.altKey || (e.key !== 'ArrowLeft' && e.key !== 'ArrowRight')) return;
+    if (!can.own || !e.altKey || (e.key !== 'ArrowLeft' && e.key !== 'ArrowRight')) return;
     e.preventDefault();
     const result = actions.moveBoard(board.id, index + (e.key === 'ArrowLeft' ? -1 : 1));
     if (!result) return;

@@ -9,14 +9,19 @@
 		path /oauth/*
 		not path /oauth/interaction/*
 	}
+	# X-Real-IP is set here, never passed on from the client: rate limits of agents and of
+	# shared links count by it, and a forged one would dodge them.
 	handle @mcp {
-		reverse_proxy mcp:3042
+		reverse_proxy mcp:3042 {
+			header_up X-Real-IP {remote_host}
+		}
 	}
 
 	handle {
 		# The live stream must not be buffered.
 		reverse_proxy web:3041 {
 			flush_interval -1
+			header_up X-Real-IP {remote_host}
 		}
 	}
 

@@ -24,7 +24,7 @@ import { InlineEdit, Menu } from './ui';
 
 export const Lane = memo(function Lane({ lane, notes, tree, hideDone, index, total }: { lane: LaneDto; notes: NoteDto[]; tree: LaneTree; hideDone: boolean; index: number; total: number }) {
   const t = useTranslations('app');
-  const { actions, announce, openMap, customize, store } = useWorkspace();
+  const { actions, announce, openMap, customize, store, can, share } = useWorkspace();
   const look = useLaneLook(lane);
   const files = useFileDrag();
   const section = useRef<HTMLElement>(null);
@@ -45,15 +45,18 @@ export const Lane = memo(function Lane({ lane, notes, tree, hideDone, index, tot
     const el = section.current;
     const grip = handle.current;
     const ol = list.current;
-    if (!el || !grip || !ol) return;
+    // Nothing moves on a link that only shows; a shared thought keeps its place on its owner's board.
+    if (!el || !grip || !ol || !can.edit) return;
     return combine(
-      draggable({
-        element: el,
-        dragHandle: grip,
-        getInitialData: () => ({ type: 'lane', id: lane.id }),
-        onDragStart: () => setDragging(true),
-        onDrop: () => setDragging(false),
-      }),
+      can.columns
+        ? draggable({
+            element: el,
+            dragHandle: grip,
+            getInitialData: () => ({ type: 'lane', id: lane.id }),
+            onDragStart: () => setDragging(true),
+            onDrop: () => setDragging(false),
+          })
+        : () => {},
       dropTargetForElements({
         element: el,
         canDrop: ({ source }) => source.data.type === 'lane' || source.data.type === 'note',
@@ -78,7 +81,7 @@ export const Lane = memo(function Lane({ lane, notes, tree, hideDone, index, tot
         onDrop: () => setCarrying(null),
       }),
     );
-  }, [lane.id, renaming]);
+  }, [lane.id, renaming, can.edit, can.columns]);
 
   const count = hideDone ? notes.filter((n) => n.doneAt === null).length : notes.length;
   const rows = useMemo(() => columnRows(notes, tree, hideDone), [notes, tree, hideDone]);
@@ -120,31 +123,38 @@ export const Lane = memo(function Lane({ lane, notes, tree, hideDone, index, tot
       aria-labelledby={`lane-${lane.id}`}
       tabIndex={-1}
     >
-      <div ref={top} className="w-lane__top" {...drop.props} data-over={drop.over || undefined}>
-        {look.cover && (
-          <button type="button" className="w-lane__cover" onClick={() => personalize()} aria-label={t('customize.open', { title: lane.title })} title={t('customize.openShort')}>
-            <CoverArt look={look.cover} />
-            {look.uploading && <span className="w-lane__busy" aria-hidden="true" />}
-          </button>
-        )}
+      <div ref={top} className="w-lane__top" {...(can.own ? drop.props : {})} data-over={(can.own && drop.over) || undefined}>
+        {look.cover &&
+          (can.own ? (
+            <button type="button" className="w-lane__cover" onClick={() => personalize()} aria-label={t('customize.open', { title: lane.title })} title={t('customize.openShort')}>
+              <CoverArt look={look.cover} />
+              {look.uploading && <span className="w-lane__busy" aria-hidden="true" />}
+            </button>
+          ) : (
+            <div className="w-lane__cover">
+              <CoverArt look={look.cover} />
+            </div>
+          ))}
         {/* Three rows: the title, the description, the tools. The title keeps the whole width. */}
         <header className="w-lane__head">
           {renaming ? (
             <InlineEdit value={lane.title} label={t('columnName')} maxLength={LIMITS.laneTitle} onSave={(title) => { actions.updateLane(lane.id, { title }); setRenaming(false); }} onCancel={() => setRenaming(false)} />
           ) : (
-            <h2 ref={handle} id={`lane-${lane.id}`} className="w-lane__title" title={t('a11y.dragHandle')} onDoubleClick={() => setRenaming(true)}>
+            <h2 ref={handle} id={`lane-${lane.id}`} className="w-lane__title" title={can.columns ? t('a11y.dragHandle') : undefined} onDoubleClick={() => can.edit && setRenaming(true)}>
               {lane.title}
             </h2>
           )}
           {lane.description && (
-            <p className="w-lane__desc" onDoubleClick={() => personalize()}>
+            <p className="w-lane__desc" onDoubleClick={() => can.own && personalize()}>
               {lane.description}
             </p>
           )}
           <div className="w-lane__tools">
-            <button type="button" className="w-lane__paint" data-lane-customize={lane.id} aria-label={t('customize.open', { title: lane.title })} title={t('customize.openShort')} onClick={() => personalize()}>
-              <IconBrush />
-            </button>
+            {can.own && (
+              <button type="button" className="w-lane__paint" data-lane-customize={lane.id} aria-label={t('customize.open', { title: lane.title })} title={t('customize.openShort')} onClick={() => personalize()}>
+                <IconBrush />
+              </button>
+            )}
             <span className="nr-coluna__conta w-lane__count" aria-label={t('notesCount', { count })}>
               {count}
             </span>
@@ -156,24 +166,38 @@ export const Lane = memo(function Lane({ lane, notes, tree, hideDone, index, tot
             <button type="button" className="w-icon-btn" data-lane-map={lane.id} aria-label={t('map.openColumn', { title: lane.title })} title={t('map.open')} onClick={() => openMap(lane.id)}>
               <IconMap />
             </button>
-            <button type="button" className="w-icon-btn" data-lane-add aria-label={t('newNote')} title={t('newNote')} onClick={() => setAdding(true)}>
-              <IconPlus />
-            </button>
+            {can.edit && (
+              <button type="button" className="w-icon-btn" data-lane-add aria-label={t('newNote')} title={t('newNote')} onClick={() => setAdding(true)}>
+                <IconPlus />
+              </button>
+            )}
+            {can.edit && (
             <Menu label={t('columnMenu', { title: lane.title })}>
               {(close) => (
                 <>
+                  {can.own && (
+                    <button type="button" className="w-menu__item" onClick={() => { close(); share({ kind: 'lane', id: lane.id, title: lane.title }, top.current!.getBoundingClientRect()); }}>
+                      {t('share.menu')}
+                    </button>
+                  )}
                   <button type="button" className="w-menu__item" onClick={() => { close(); setRenaming(true); }}>
                     {t('rename')}
                   </button>
-                  <button type="button" className="w-menu__item" onClick={() => { close(); personalize(); }}>
-                    {t('customize.menu')}
-                  </button>
-                  <button type="button" className="w-menu__item" disabled={index === 0} onClick={() => move(index - 1)}>
-                    {t('moveLeft')}
-                  </button>
-                  <button type="button" className="w-menu__item" disabled={index === total - 1} onClick={() => move(index + 1)}>
-                    {t('moveRight')}
-                  </button>
+                  {can.own && (
+                    <button type="button" className="w-menu__item" onClick={() => { close(); personalize(); }}>
+                      {t('customize.menu')}
+                    </button>
+                  )}
+                  {can.columns && (
+                    <>
+                      <button type="button" className="w-menu__item" disabled={index === 0} onClick={() => move(index - 1)}>
+                        {t('moveLeft')}
+                      </button>
+                      <button type="button" className="w-menu__item" disabled={index === total - 1} onClick={() => move(index + 1)}>
+                        {t('moveRight')}
+                      </button>
+                    </>
+                  )}
                   {tree.hidden.size > 0 && (
                     <button type="button" className="w-menu__item" onClick={() => { close(); actions.setCollapsed(notes.filter((n) => n.collapsed).map((n) => n.id), false); }}>
                       {t('map.unfoldAll')}
@@ -184,16 +208,19 @@ export const Lane = memo(function Lane({ lane, notes, tree, hideDone, index, tot
                       {t('map.foldAll')}
                     </button>
                   )}
-                  <MoveToBoard lane={lane} close={close} />
-                  <button type="button" className="w-menu__item w-menu__item--danger" onClick={() => { close(); actions.deleteLane(lane.id); }}>
-                    {t('deleteColumn')}
-                  </button>
+                  {can.own && <MoveToBoard lane={lane} close={close} />}
+                  {can.columns && (
+                    <button type="button" className="w-menu__item w-menu__item--danger" onClick={() => { close(); actions.deleteLane(lane.id); }}>
+                      {t('deleteColumn')}
+                    </button>
+                  )}
                 </>
               )}
             </Menu>
+            )}
           </div>
         </header>
-        {files && (
+        {files && can.own && (
           <div className="w-drop-hint" aria-hidden="true">
             <IconImage />
             {t('customize.dropShort')}

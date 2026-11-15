@@ -13,16 +13,17 @@ import { CommandPalette } from './CommandPalette';
 import { takePicture } from './cover-client';
 import { CustomizePanel, type CustomizeTarget } from './Customize';
 import { Gallery } from './Gallery';
-import { isComposing, isEditable, useWorkspace, WorkspaceContext, type WorkspaceApi } from './context';
+import { isComposing, isEditable, OWNER, useWorkspace, WorkspaceContext, type Abilities, type ShareTarget, type WorkspaceApi } from './context';
 import { DueList } from './DueList';
 import { useFocusHeartbeat } from './focus';
-import { IconCards, IconCheck, IconChevronDown, IconClock, IconColumns, IconPlus, IconRedo, IconSearch, IconUndo, IconUser } from './icons';
+import { IconCards, IconCheck, IconChevronDown, IconClock, IconColumns, IconEye, IconPencil, IconPlus, IconRedo, IconSearch, IconUndo, IconUser } from './icons';
 import { LaneMap } from './LaneMap';
 import { isIdeario, planIdeario } from './import-ideario';
 import { boardsOf, captureLane, locate, type Data } from './model';
 import { BoardItem, BoardTab } from './MoveToBoard';
 import { NoteDrawer } from './NoteDrawer';
 import { focusNote } from './NoteCard';
+import { SharePanel, type ShareTargetAt } from './SharePanel';
 import { WorkspaceStore, type WorkspaceState } from './store';
 import { InlineEdit, Menu } from './ui';
 import { LAYOUT } from './view-prefs';
@@ -53,11 +54,61 @@ function readStoredBoard(userId: string): string | null {
   }
 }
 
-/** The signed-in workspace: boards, the capture bar, the open note and search. */
-export function Workspace({ userId, signInHref, homeHref, agentsHref, adminHref, sourceUrl, signOut }: { userId: string; signInHref: string; homeHref: string; agentsHref: string; adminHref?: string; sourceUrl: string; signOut: () => Promise<void> }) {
+/** A board or thought opened by link (app/[locale]/s/[token]). */
+export interface SharedView {
+  token: string;
+  kind: 'board' | 'lane';
+  /** The board on screen: the board's id, or for a thought its own (core shares.ts, laneBoard). */
+  boardId: string;
+  access: 'view' | 'edit';
+  /** Signed in on an edit link: what it opens may be changed. */
+  canEdit: boolean;
+  signedIn: boolean;
+  /** Back here once signed in, to edit. */
+  signInHref: string;
+  /** The visitor's own workspace, or where to start one. */
+  appHref: string;
+}
+
+/**
+ * The signed-in workspace: boards, the capture bar, the open note and search. With
+ * `shared`, the same screen shows what a link opens, and only lets change what it allows.
+ */
+export function Workspace({
+  userId,
+  signInHref,
+  homeHref,
+  agentsHref,
+  adminHref,
+  sourceUrl,
+  signOut,
+  shared,
+}: {
+  userId: string;
+  signInHref: string;
+  homeHref: string;
+  agentsHref: string;
+  adminHref?: string;
+  sourceUrl: string;
+  signOut?: () => Promise<void>;
+  shared?: SharedView;
+}) {
   const t = useTranslations('app');
-  const [store] = useState(() => new WorkspaceStore(userId, () => window.location.assign(signInHref)));
+  const [store] = useState(
+    () =>
+      new WorkspaceStore(
+        userId,
+        // A link turned off, or a session gone while editing: the page itself tells what is left.
+        () => (shared ? window.location.reload() : window.location.assign(signInHref)),
+        shared ? { api: `/api/shared/${shared.token}`, cache: false, readOnly: !shared.canEdit } : undefined,
+      ),
+  );
   const [actions] = useState(() => new Actions(store));
+  const sharedKind = shared?.kind;
+  const sharedEdit = shared?.canEdit;
+  const can = useMemo<Abilities>(() => (sharedKind ? { edit: !!sharedEdit, columns: !!sharedEdit && sharedKind === 'board', own: false } : OWNER), [sharedKind, sharedEdit]);
+  const [sharing, setSharing] = useState<ShareTargetAt | null>(null);
+  const share = useCallback((target: ShareTarget, anchor: DOMRect) => setSharing({ ...target, anchor }), []);
   const state: WorkspaceState = useSyncExternalStore(store.subscribe, store.getState, store.getState);
   const { data } = state;
 
@@ -69,7 +120,8 @@ export function Workspace({ userId, signInHref, homeHref, agentsHref, adminHref,
   const [creatingBoard, setCreatingBoard] = useState(false);
   const [renamingBoard, setRenamingBoard] = useState(false);
   const [announcement, setAnnouncement] = useState('');
-  const [mapLane, setMapLane] = useState<string | null>(mapInUrl);
+  // A shared thought opens on its map.
+  const [mapLane, setMapLane] = useState<string | null>(() => mapInUrl() ?? (shared?.kind === 'lane' ? shared.boardId : null));
   const [customizing, setCustomizing] = useState<CustomizeTarget | null>(null);
   const [lookingAt, setLookingAt] = useState<BoardLookTarget | null>(null);
   const tabs = useRef<HTMLElement>(null);
@@ -97,7 +149,7 @@ export function Workspace({ userId, signInHref, homeHref, agentsHref, adminHref,
   const backdrop = view === 'board' && !map ? (look?.background ?? null) : null;
   // "Here", for an agent: the thought whose map or note is open, else the board on screen.
   const openLane = map?.id ?? (openId ? (data?.notes.get(openId)?.laneId ?? null) : null);
-  useFocusHeartbeat(!!data, view === 'due' ? 'dates' : map ? 'map' : layout === 'cards' ? 'cards' : 'board', boardId, openLane);
+  useFocusHeartbeat(!!data && !shared, view === 'due' ? 'dates' : map ? 'map' : layout === 'cards' ? 'cards' : 'board', boardId, openLane);
 
   const showBoard = useCallback(
     (id: string) => {
@@ -238,8 +290,8 @@ export function Workspace({ userId, signInHref, homeHref, agentsHref, adminHref,
     showBoard(id);
   };
   const api = useMemo<WorkspaceApi>(
-    () => ({ store, actions, openNote, dismissNote, showBoard, openMap, announce, customize, revealLane, foot }),
-    [store, actions, openNote, dismissNote, showBoard, openMap, announce, customize, revealLane, foot],
+    () => ({ store, actions, can, share, openNote, dismissNote, showBoard, openMap, announce, customize, revealLane, foot }),
+    [store, actions, can, share, openNote, dismissNote, showBoard, openMap, announce, customize, revealLane, foot],
   );
 
   /** Cards, columns or dates: from a map too, which the choice closes. */
@@ -339,7 +391,7 @@ export function Workspace({ userId, signInHref, homeHref, agentsHref, adminHref,
                         }}
                       />
                     ))}
-                    {data && (
+                    {data && can.own && (
                       <button type="button" className="w-menu__item w-tabs__item w-tabs__add" onClick={() => { close(); setCreatingBoard(true); }}>
                         <IconPlus />
                         {t('newBoard')}
@@ -365,16 +417,28 @@ export function Workspace({ userId, signInHref, homeHref, agentsHref, adminHref,
                     onCancel={() => setCreatingBoard(false)}
                   />
                 ) : (
-                  data && (
+                  data &&
+                  can.own && (
                     <button type="button" className="w-icon-btn w-tabs__new" aria-label={t('newBoard')} title={t('newBoard')} onClick={() => setCreatingBoard(true)}>
                       <IconPlus />
                     </button>
                   )
                 )}
-                {board && (
+                {board && can.own && (
                   <Menu label={t('boardMenu', { title: board.title })}>
                     {(close) => (
                       <>
+                        <button
+                          type="button"
+                          className="w-menu__item"
+                          onClick={() => {
+                            close();
+                            const anchor = tabOf(board.id)?.getBoundingClientRect() ?? tabs.current?.getBoundingClientRect();
+                            if (anchor) share({ kind: 'board', id: board.id, title: board.title }, anchor);
+                          }}
+                        >
+                          {t('share.menu')}
+                        </button>
                         <button type="button" className="w-menu__item" onClick={() => { close(); setRenamingBoard(true); }}>
                           {t('rename')}
                         </button>
@@ -411,14 +475,14 @@ export function Workspace({ userId, signInHref, homeHref, agentsHref, adminHref,
                   onCancel={() => setRenamingBoard(false)}
                 />
               ) : (
-                <BoardTab key={b.id} board={b} index={i} current={b.id === boardId && view === 'board'} onSelect={() => selectBoard(b.id)} onRename={() => b.id === boardId && setRenamingBoard(true)} />
+                <BoardTab key={b.id} board={b} index={i} current={b.id === boardId && view === 'board'} onSelect={() => selectBoard(b.id)} onRename={() => can.own && b.id === boardId && setRenamingBoard(true)} />
               ),
             )}
           </BoardStrip>
-          <AccountMenu store={store} data={data} agentsHref={agentsHref} adminHref={adminHref} sourceUrl={sourceUrl} signOut={signOut} onImported={showBoard} />
+          {shared ? <SharedBar shared={shared} /> : <AccountMenu store={store} data={data} agentsHref={agentsHref} adminHref={adminHref} sourceUrl={sourceUrl} signOut={signOut!} onImported={showBoard} />}
         </header>
 
-        {data && <Capture data={data} boardId={boardId} inputRef={capture} />}
+        {data && can.edit && <Capture data={data} boardId={boardId} inputRef={capture} />}
 
         <main className="w-main" id="main">
           {!data ? (
@@ -437,10 +501,12 @@ export function Workspace({ userId, signInHref, homeHref, agentsHref, adminHref,
             <div className="nr-vazio">
               <strong>{t('emptyBoards')}</strong>
               <span>{t('emptyBoardsHint')}</span>
-              <button type="button" className="nr-btn nr-btn--primario" onClick={() => setCreatingBoard(true)}>
-                <IconPlus />
-                {t('newBoard')}
-              </button>
+              {can.own && (
+                <button type="button" className="nr-btn nr-btn--primario" onClick={() => setCreatingBoard(true)}>
+                  <IconPlus />
+                  {t('newBoard')}
+                </button>
+              )}
             </div>
           )}
         </main>
@@ -467,12 +533,16 @@ export function Workspace({ userId, signInHref, homeHref, agentsHref, adminHref,
                 {!hideDone && <IconCheck />}
               </span>
             </button>
-            <button type="button" className="w-icon-btn w-hide-sm" aria-label={t('undo')} title={`${t('undo')} (⌘Z)`} disabled={!state.canUndo} onClick={() => store.undo()}>
-              <IconUndo />
-            </button>
-            <button type="button" className="w-icon-btn w-hide-sm" aria-label={t('redo')} title={`${t('redo')} (⇧⌘Z)`} disabled={!state.canRedo} onClick={() => store.redo()}>
-              <IconRedo />
-            </button>
+            {can.edit && (
+              <>
+                <button type="button" className="w-icon-btn w-hide-sm" aria-label={t('undo')} title={`${t('undo')} (⌘Z)`} disabled={!state.canUndo} onClick={() => store.undo()}>
+                  <IconUndo />
+                </button>
+                <button type="button" className="w-icon-btn w-hide-sm" aria-label={t('redo')} title={`${t('redo')} (⇧⌘Z)`} disabled={!state.canRedo} onClick={() => store.redo()}>
+                  <IconRedo />
+                </button>
+              </>
+            )}
             <button type="button" className="nr-btn nr-btn--sm nr-btn--fantasma w-search-btn" onClick={() => setPalette(true)} aria-label={t('search')} aria-keyshortcuts="Meta+K Control+K">
               <IconSearch />
               <span className="w-hide-sm">{t('search')}</span>
@@ -488,6 +558,7 @@ export function Workspace({ userId, signInHref, homeHref, agentsHref, adminHref,
         {palette && data && <CommandPalette data={data} onClose={() => setPalette(false)} />}
         {customizing && data?.lanes.get(customizing.laneId) && <CustomizePanel key={customizing.laneId} data={data} target={customizing} onClose={() => setCustomizing(null)} />}
         {lookingAt && data?.boards.get(lookingAt.boardId) && <BoardLookPanel key={lookingAt.boardId} board={data.boards.get(lookingAt.boardId)!} anchor={lookingAt.anchor} onClose={closeLook} />}
+        {sharing && <SharePanel key={`${sharing.kind}:${sharing.id}`} target={sharing} onClose={() => setSharing(null)} />}
         <Notices state={state} store={store} />
 
         <p id="w-card-help" className="w-sr">
@@ -498,6 +569,32 @@ export function Workspace({ userId, signInHref, homeHref, agentsHref, adminHref,
         </div>
       </div>
     </WorkspaceContext.Provider>
+  );
+}
+
+/**
+ * Where the account menu sits, on a shared link: what the link allows, and the way to the
+ * visitor's own noergo (or to sign in, on an edit link opened without a session).
+ */
+function SharedBar({ shared }: { shared: SharedView }) {
+  const t = useTranslations('app.shared');
+  const editing = shared.canEdit;
+  return (
+    <div className="w-shared">
+      <span className="w-shared__badge" data-access={editing ? 'edit' : 'view'} title={t('label')}>
+        {editing ? <IconPencil /> : <IconEye />}
+        <span className="w-hide-sm">{t(`badge.${editing ? 'edit' : 'view'}`)}</span>
+      </span>
+      {shared.access === 'edit' && !shared.signedIn ? (
+        <a className="nr-btn nr-btn--sm nr-btn--primario" href={shared.signInHref}>
+          {t('signInToEdit')}
+        </a>
+      ) : (
+        <a className="nr-btn nr-btn--sm nr-btn--fantasma" href={shared.appHref}>
+          {shared.signedIn ? t('openMine') : t('makeYours')}
+        </a>
+      )}
+    </div>
   );
 }
 
