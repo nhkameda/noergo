@@ -1043,7 +1043,6 @@ export function LaneMap({ data, laneId, blocked, onClose }: { data: Data; laneId
 
   /** The fold button and the count beside an idea: buttons inside the canvas, so their clicks land here. */
   const onClick = (e: ReactMouseEvent<HTMLDivElement>) => {
-    if (!can.edit) return;
     const b = (e.target as Element).closest<HTMLElement>('[data-fold]');
     const key = b?.closest<HTMLElement>('[data-key]')?.dataset.key;
     if (key) toggleFold([key]);
@@ -1092,7 +1091,7 @@ export function LaneMap({ data, laneId, blocked, onClose }: { data: Data; laneId
       else if (k === '=' || k === '+') zoomBy(1.25);
       else if (k === '-') zoomBy(0.8);
       else if (k === '0') zoomBy(1 / view.current.z);
-      else if (k === '.' && sel.nodes.length && can.edit) toggleFold(sel.nodes);
+      else if (k === '.' && sel.nodes.length) toggleFold(sel.nodes);
       else return;
       e.preventDefault();
       return;
@@ -1224,6 +1223,7 @@ export function LaneMap({ data, laneId, blocked, onClose }: { data: Data; laneId
     return { count: hid?.length ?? 0, side, agent: !!hid?.some((k) => byKey.get(k)?.note && agentMarks.get(refOf(k).id)?.fresh) };
   };
   const canFoldAll = !!tree && !!full && full.nodes.some((n) => n.note && !n.note.collapsed && tree.below(n.key).length > 0);
+  const hasLevels = !!tree && tree.order.some((k) => (tree.depth.get(k) ?? 0) > 0);
   const autoCor = ((): string | undefined => {
     if (selEdge) return colors.get(selEdge.to);
     const k = selNodes.length === 1 ? selNodes[0]!.key : null;
@@ -1282,22 +1282,23 @@ export function LaneMap({ data, laneId, blocked, onClose }: { data: Data; laneId
             <span className="w-hide-sm">{t('newNote')}</span>
           </button>
           )}
-          {can.edit && (
+          {/* A link that only shows keeps the levels: folding stays on the visitor's screen. */}
+          {(can.edit || hasLevels) && (
           <Menu
-            label={t('map.organize')}
+            label={can.edit ? t('map.organize') : t('map.levels.title')}
             className="nr-btn nr-btn--sm nr-btn--fantasma"
             panelClassName="w-map__layouts"
             icon={
               <>
                 <IconOrganize />
-                <span className="w-hide-sm">{t('map.organize')}</span>
+                <span className="w-hide-sm">{can.edit ? t('map.organize') : t('map.levels.title')}</span>
               </>
             }
           >
             {(close) => (
               <>
-                <div className="w-menu__label">{t('map.layout.title')}</div>
-                {[...TREE_MODES, 'free' as const].map((m) => (
+                {can.edit && <div className="w-menu__label">{t('map.layout.title')}</div>}
+                {can.edit && [...TREE_MODES, 'free' as const].map((m) => (
                   <button
                     key={m}
                     type="button"
@@ -1339,7 +1340,7 @@ export function LaneMap({ data, laneId, blocked, onClose }: { data: Data; laneId
             )}
           </Menu>
           )}
-          {!can.edit ? null : tree?.hidden.size ? (
+          {tree?.hidden.size ? (
             <button type="button" className="nr-btn nr-btn--sm nr-btn--fantasma" onClick={() => foldAll(false)} aria-label={t('map.unfoldAll')}>
               <IconUnfold />
               <span className="w-hide-sm">{t('map.unfoldAll')}</span>

@@ -88,7 +88,7 @@ export const NoteCard = memo(function NoteCard({ note, depth = 0, open = false, 
   const onKeyDown = (e: KeyboardEvent<HTMLElement>) => {
     if (e.target !== e.currentTarget || isEditable(e.target)) return;
     const dir = ARROWS[e.key];
-    if (!can.edit && (e.altKey || e.key === 'Delete' || e.key === 'Backspace' || ((e.metaKey || e.ctrlKey) && e.key === '.'))) return;
+    if (!can.edit && (e.altKey || e.key === 'Delete' || e.key === 'Backspace')) return;
     if ((e.metaKey || e.ctrlKey) && e.key === '.') {
       e.preventDefault();
       if (branch !== 'leaf' || folded > 0) toggleFold();
@@ -149,12 +149,12 @@ export const NoteCard = memo(function NoteCard({ note, depth = 0, open = false, 
           </button>
           <span className="nr-card__titulo w-card__title">{title}</span>
           {folded > 0 ? (
-            <button type="button" className="w-card__fold" data-folded data-agent-inside={agentInside || undefined} aria-expanded={false} aria-label={t('map.foldBadge', { count: folded })} title={t('map.foldBadge', { count: folded })} disabled={!can.edit} onClick={toggleFold}>
+            <button type="button" className="w-card__fold" data-folded data-agent-inside={agentInside || undefined} aria-expanded={false} aria-label={t('map.foldBadge', { count: folded })} title={t('map.foldBadge', { count: folded })} onClick={toggleFold}>
               {folded > 99 ? '99+' : folded}
             </button>
           ) : (
             branch !== 'leaf' && (
-              <button type="button" className="w-card__fold" aria-expanded={true} aria-label={t('map.fold')} title={t('map.fold')} disabled={!can.edit} onClick={toggleFold}>
+              <button type="button" className="w-card__fold" aria-expanded={true} aria-label={t('map.fold')} title={t('map.fold')} onClick={toggleFold}>
                 <IconMinus />
               </button>
             )

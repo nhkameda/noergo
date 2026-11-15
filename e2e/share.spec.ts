@@ -116,3 +116,44 @@ test('an edit link lets a signed-in person change the thought, and asks the othe
   await expect(lane(page, 'Inbox').locator('.w-card', { hasText: 'Written by a guest' })).toBeVisible();
   await other.close();
 });
+
+test('on a view link the visitor folds and opens for themselves: the red counts, fold all, levels', async ({ page, browser }) => {
+  await signIn(page, freshUser('folder'));
+  const welcome = page.locator('.w-card', { hasText: 'Welcome to noergo' });
+  await welcome.click();
+  const drawer = page.locator('.w-drawer');
+  await drawer.getByRole('textbox', { name: 'New idea below' }).fill('Packing list');
+  await page.keyboard.press('Enter');
+  await drawer.getByRole('button', { name: /^Fold the ideas below/ }).click();
+  await expect(welcome.getByRole('button', { name: '1 idea folded inside. Show' })).toBeVisible();
+  await settled(page);
+  await lane(page, 'Inbox').getByRole('button', { name: 'Thought “Inbox”: more actions' }).click();
+  await page.getByRole('button', { name: 'Share…' }).click();
+  const url = await makeLink(page, 'Can view');
+  await page.keyboard.press('Escape');
+
+  const guest = await browser.newContext({ locale: 'en-US' });
+  const visitor = await guest.newPage();
+  await visitor.goto(url);
+  const node = (text: string) => visitor.locator('.w-map__node', { hasText: text });
+  await expect(node('Welcome to noergo')).toBeVisible();
+  await expect(node('Packing list')).toHaveCount(0);
+
+  // The red count opens the branch, on this screen.
+  await node('Welcome to noergo').getByRole('button', { name: '1 idea folded inside. Show' }).click();
+  await expect(node('Packing list')).toBeVisible();
+  // Fold all and the levels are there too.
+  const bar = visitor.locator('.w-map__bar');
+  await bar.getByRole('button', { name: 'Fold all' }).click();
+  await expect(node('Packing list')).toHaveCount(0);
+  await bar.getByRole('button', { name: 'Show all' }).click();
+  await expect(node('Packing list')).toBeVisible();
+  await bar.getByRole('button', { name: 'Levels on show' }).click();
+  await visitor.getByRole('button', { name: 'Show 1 level' }).click();
+  await expect(node('Packing list')).toHaveCount(0);
+  // Nothing was sent: no "only lets you look" notice, and the owner's branch is still folded.
+  await expect(visitor.locator('.w-notice')).toHaveCount(0);
+  await page.reload();
+  await expect(lane(page, 'Inbox').locator('.w-card', { hasText: 'Welcome to noergo' }).getByRole('button', { name: '1 idea folded inside. Show' })).toBeVisible();
+  await guest.close();
+});

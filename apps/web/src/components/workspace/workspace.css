@@ -1088,4 +1088,3 @@ select.w-input { width: 100%; }
 .w-fieldset:disabled .w-tag__x,
 .w-fieldset:disabled .w-field__row > .nr-btn:not(a) { display: none; }
 .w-map__canvas[data-readonly] .w-map__handle { display: none; }
-.w-map__canvas[data-readonly] .w-map__fold { cursor: default; }

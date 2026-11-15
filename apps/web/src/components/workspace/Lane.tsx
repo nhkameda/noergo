@@ -84,6 +84,9 @@ export const Lane = memo(function Lane({ lane, notes, tree, hideDone, index, tot
   }, [lane.id, renaming, can.edit, can.columns]);
 
   const count = hideDone ? notes.filter((n) => n.doneAt === null).length : notes.length;
+  // Folding is open to everyone, a link that only shows too (it stays on the visitor's screen).
+  const canUnfold = tree.hidden.size > 0;
+  const foldable = notes.filter((n) => !n.collapsed && tree.below(noteKey(n.id)).length > 0);
   const rows = useMemo(() => columnRows(notes, tree, hideDone), [notes, tree, hideDone]);
   const carried = new Set<string>();
   const from = rows.findIndex((r) => r.note.id === carrying);
@@ -171,7 +174,7 @@ export const Lane = memo(function Lane({ lane, notes, tree, hideDone, index, tot
                 <IconPlus />
               </button>
             )}
-            {can.edit && (
+            {(can.edit || canUnfold || foldable.length > 0) && (
             <Menu label={t('columnMenu', { title: lane.title })}>
               {(close) => (
                 <>
@@ -180,9 +183,11 @@ export const Lane = memo(function Lane({ lane, notes, tree, hideDone, index, tot
                       {t('share.menu')}
                     </button>
                   )}
-                  <button type="button" className="w-menu__item" onClick={() => { close(); setRenaming(true); }}>
-                    {t('rename')}
-                  </button>
+                  {can.edit && (
+                    <button type="button" className="w-menu__item" onClick={() => { close(); setRenaming(true); }}>
+                      {t('rename')}
+                    </button>
+                  )}
                   {can.own && (
                     <button type="button" className="w-menu__item" onClick={() => { close(); personalize(); }}>
                       {t('customize.menu')}
@@ -198,13 +203,13 @@ export const Lane = memo(function Lane({ lane, notes, tree, hideDone, index, tot
                       </button>
                     </>
                   )}
-                  {tree.hidden.size > 0 && (
+                  {canUnfold && (
                     <button type="button" className="w-menu__item" onClick={() => { close(); actions.setCollapsed(notes.filter((n) => n.collapsed).map((n) => n.id), false); }}>
                       {t('map.unfoldAll')}
                     </button>
                   )}
-                  {notes.some((n) => !n.collapsed && tree.below(noteKey(n.id)).length > 0) && (
-                    <button type="button" className="w-menu__item" onClick={() => { close(); actions.setCollapsed(notes.filter((n) => !n.collapsed && tree.below(noteKey(n.id)).length > 0).map((n) => n.id), true); }}>
+                  {foldable.length > 0 && (
+                    <button type="button" className="w-menu__item" onClick={() => { close(); actions.setCollapsed(foldable.map((n) => n.id), true); }}>
                       {t('map.foldAll')}
                     </button>
                   )}

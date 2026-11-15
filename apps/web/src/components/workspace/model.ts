@@ -337,6 +337,21 @@ export function withPending(data: Data, pending: readonly Pending[]): Data {
   return d.done();
 }
 
+/**
+ * Folds that live on this screen only: on a link that only shows, the visitor folds and
+ * unfolds for themselves, over what the owner left. Notes keep their identity when none differs.
+ */
+export function withFolds(data: Data, folds: ReadonlyMap<string, boolean>): Data {
+  let notes: Map<string, NoteDto> | null = null;
+  for (const [id, collapsed] of folds) {
+    const n = data.notes.get(id);
+    if (!n || n.collapsed === collapsed) continue;
+    notes ??= new Map(data.notes);
+    notes.set(id, { ...n, collapsed });
+  }
+  return notes ? { ...data, notes } : data;
+}
+
 // ───────────────────────────── selectors
 
 // They take the maps they read, so that React memos can depend on exactly those.

@@ -204,7 +204,10 @@ export class Actions {
    * the last change to the content, not the last look at it.
    */
   setCollapsed(ids: readonly string[], collapsed: boolean) {
-    const ops: Op[] = ids.filter((id) => this.data?.notes.get(id)?.collapsed === !collapsed).map((id) => ({ type: 'note.update', id, collapsed }));
+    const changing = ids.filter((id) => this.data?.notes.get(id)?.collapsed === !collapsed);
+    // A link that only shows: folding is the visitor's own look, and stays on their screen.
+    if (this.store.readOnly) return this.store.foldHere(changing, collapsed);
+    const ops: Op[] = changing.map((id) => ({ type: 'note.update', id, collapsed }));
     if (ops.length) this.store.dispatch(ops);
   }
 

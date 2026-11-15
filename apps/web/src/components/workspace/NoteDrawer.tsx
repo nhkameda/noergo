@@ -626,7 +626,7 @@ function Below({ data, note }: { data: Data; note: NoteDto }) {
       </h3>
       {count > 0 && (
         <div className="w-below__fold">
-          <button type="button" className="nr-btn nr-btn--sm nr-btn--fantasma" disabled={!can.edit} onClick={() => actions.setCollapsed([note.id], !(folded > 0 || note.collapsed))}>
+          <button type="button" className="nr-btn nr-btn--sm nr-btn--fantasma" onClick={() => actions.setCollapsed([note.id], !(folded > 0 || note.collapsed))}>
             {folded ? <IconUnfold /> : <IconFold />}
             {folded ? t('map.unfold') : t('map.fold')}
             <span className="w-map__fold-count">{count}</span>

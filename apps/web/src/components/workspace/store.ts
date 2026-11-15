@@ -4,7 +4,7 @@ import type { OpOutcome } from '@noergo/core/ops/execute';
 import { opSchema, type Op } from '@noergo/core/ops/schema';
 import type { ChangeRow, NoteDetail, SearchHit, Snapshot } from '@noergo/core/read';
 import { createStore, del, get, keys, set, type UseStore } from 'idb-keyval';
-import { applyEffects, fromSnapshot, toSnapshot, withFullNote, withPending, type Data, type Pending } from './model';
+import { applyEffects, fromSnapshot, toSnapshot, withFolds, withFullNote, withPending, type Data, type Pending } from './model';
 
 /**
  * The browser side of the sync protocol (docs/architecture.md, "Live sync"):
@@ -105,6 +105,8 @@ export class WorkspaceStore {
   private noticeSeq = 0;
   /** A link's stream resumes only from a place the server signed: the snapshot's, then each event's id. */
   private cursor: string | null = null;
+  /** On a link that only shows, what the visitor folded or opened: their own look, never sent. */
+  private folds = new Map<string, boolean>();
 
   constructor(
     private readonly userId: string,
@@ -140,8 +142,9 @@ export class WorkspaceStore {
   }
 
   private recompute() {
+    const data = this.confirmed ? withPending(this.confirmed, this.pending) : null;
     this.emit({
-      data: this.confirmed ? withPending(this.confirmed, this.pending) : null,
+      data: data && this.folds.size ? withFolds(data, this.folds) : data,
       unsynced: this.pending.length,
       canUndo: this.undoStack.length > 0,
       canRedo: this.redoStack.length > 0,
@@ -385,6 +388,13 @@ export class WorkspaceStore {
     this.saveQueue();
     void this.flush();
     return outcomes;
+  }
+
+  /** Folds or opens ideas on this screen only (a link that only shows). */
+  foldHere(ids: readonly string[], collapsed: boolean) {
+    if (!ids.length) return;
+    for (const id of ids) this.folds.set(id, collapsed);
+    this.recompute();
   }
 
   undo() {
