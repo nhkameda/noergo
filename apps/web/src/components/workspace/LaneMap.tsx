@@ -58,7 +58,8 @@ import { corProps, laneStyle } from './cover';
 import { useFileDrag, useImageDrop, useLaneLook } from './cover-client';
 import { Markdown } from './Markdown';
 import { colorName, notesByLane, PALETTE, type Data } from './model';
-import { BodyEditor, DueField, LinkField, NoteTitle, TagsField, useOpenByTitle } from './NoteDrawer';
+import { BodyEditor, DueField, LinkField, NoteTitle, PICTURE_TYPES, PictureField, TagsField, useOpenByTitle } from './NoteDrawer';
+import { pictureRatio, picturesIn, pictureSrc, pictureTitle, sendPicture } from './picture';
 import { siteHost } from './site';
 import type { AgentMark } from './store';
 import { hangingPair, mapBranches, mapTree } from './tree';
@@ -172,6 +173,7 @@ export function LaneMap({ data, laneId, blocked, onClose }: { data: Data; laneId
   const viewport = useRef<HTMLDivElement>(null);
   const panel = useRef<HTMLElement>(null);
   const canvas = useRef<HTMLDivElement>(null);
+  const pictureInput = useRef<HTMLInputElement>(null);
   const world = useRef<HTMLDivElement>(null);
   const zoomLabel = useRef<HTMLSpanElement>(null);
   const zoomRange = useRef<HTMLInputElement>(null);
@@ -533,17 +535,18 @@ export function LaneMap({ data, laneId, blocked, onClose }: { data: Data; laneId
   };
 
   /** A new note on the map, linked from `from` when given. */
-  const createNode = (at: XY, text: string, from: NodeKey | null, style: NodeStyle, url?: string): string | null => {
+  const createNode = (at: XY, text: string, from: NodeKey | null, style: NodeStyle, url?: string, picture?: string): string | null => {
     const d = store.getState().data;
     const m = d && laneMap(d, laneId);
     const { title, body } = splitText(text);
-    if (!d || !m || !title) return null;
+    // A picture is the idea: it needs no words.
+    if (!d || !m || (!title && !picture)) return null;
     const id = newId();
     // A loose idea opens the column; one hanging from another (the centre too) comes after its siblings, as typed.
     const list = notesByLane(d.notes, [laneId]).get(laneId) ?? [];
     const position = from ? between(list.at(-1)?.position ?? null, null) : between(null, list[0]?.position ?? null);
     // Its colour, taken from its parent, is the note's: the card shows it too.
-    const ops: Op[] = [{ type: 'note.create', id, laneId, title, ...(body ? { body } : {}), ...(url ? { url } : {}), ...(style.color ? { color: style.color } : {}), place: { position } }];
+    const ops: Op[] = [{ type: 'note.create', id, laneId, title, ...(body ? { body } : {}), ...(url ? { url } : {}), ...(picture ? { attachmentId: picture } : {}), ...(style.color ? { color: style.color } : {}), place: { position } }];
     // Laid out from the tree, it needs a row only for a look of its own.
     const own = style.shape !== NODE_DEFAULT.shape || style.fill !== NODE_DEFAULT.fill || style.size !== NODE_DEFAULT.size;
     const row: LayoutNode = { kind: 'note', id, x: Math.round(at.x), y: Math.round(at.y), ...style, color: null };
@@ -1134,22 +1137,43 @@ export function LaneMap({ data, laneId, blocked, onClose }: { data: Data; laneId
     if (e.key === ' ') setSpace(false);
   });
 
+  /** Where a new idea goes: beside the one it hangs from, or free near the middle of the view. */
+  const spotFor = (one: NodeKey | null): XY => {
+    const b = one ? boxes.get(one) : undefined;
+    const rootBox = boxes.get(rootKey)!;
+    if (one && b) return childSpot([...boxes.values()], b, one === rootKey, rootBox.x);
+    const { w, h } = size();
+    const v = view.current;
+    return freeNear([...boxes.values()], (w / 2 - v.x) / v.z, ((h - 70) / 2 - v.y) / v.z);
+  };
+
+  /**
+   * Pictures become ideas, one each, as they arrive: hanging from `under` (the selected
+   * idea, the one they were dropped on, else the centre of a laid-out map), or free at `at`.
+   */
+  const placePictures = async (files: readonly File[], under: NodeKey | null, at?: XY) => {
+    for (const file of files.slice(0, 20)) {
+      const picture = await sendPicture(file, store);
+      if (!picture) continue;
+      const parent = under ?? (laidOut ? rootKey : null);
+      const id = createNode(at ?? spotFor(parent), pictureTitle(file), parent, parent ? inherited(parent) : NODE_DEFAULT, undefined, picture);
+      if (id) setSel({ nodes: [keyOf({ kind: 'note', id })], edge: null });
+    }
+  };
+
   const onPaste = useEffectEvent((e: ClipboardEvent) => {
     if (!map || !can.edit || !forMap(e.target)) return;
+    const one = sel.nodes.length === 1 ? sel.nodes[0]! : laidOut ? rootKey : null;
+    const pictures = picturesIn(e.clipboardData);
+    if (pictures.length && can.own) {
+      e.preventDefault();
+      void placePictures(pictures, one);
+      return;
+    }
     const text = e.clipboardData?.getData('text/plain').trim();
     if (!text) return;
     e.preventDefault();
-    const one = sel.nodes.length === 1 ? sel.nodes[0]! : laidOut ? rootKey : null;
-    const b = one ? boxes.get(one) : undefined;
-    const rootBox = boxes.get(rootKey)!;
-    let at: XY;
-    if (one && b) at = childSpot([...boxes.values()], b, one === rootKey, rootBox.x);
-    else {
-      const { w, h } = size();
-      const v = view.current;
-      at = freeNear([...boxes.values()], (w / 2 - v.x) / v.z, ((h - 70) / 2 - v.y) / v.z);
-    }
-    const id = createNode(at, text, one, one ? inherited(one) : NODE_DEFAULT, isUrl(text) ? text : undefined);
+    const id = createNode(spotFor(one), text, one, one ? inherited(one) : NODE_DEFAULT, isUrl(text) ? text : undefined);
     if (id) setSel({ nodes: [keyOf({ kind: 'note', id })], edge: null });
   });
 
@@ -1354,6 +1378,26 @@ export function LaneMap({ data, laneId, blocked, onClose }: { data: Data; laneId
             )
           )}
           {can.own && (
+            <>
+              <button type="button" className="nr-btn nr-btn--sm nr-btn--fantasma" onClick={() => pictureInput.current?.click()} aria-label={t('picture.newIdea')} title={t('picture.newIdea')}>
+                <IconImage />
+                <span className="w-hide-sm">{t('picture.add')}</span>
+              </button>
+              <input
+                ref={pictureInput}
+                type="file"
+                accept={PICTURE_TYPES}
+                multiple
+                hidden
+                onChange={(e) => {
+                  const files = [...(e.target.files ?? [])];
+                  e.target.value = '';
+                  void placePictures(files, sel.nodes.length === 1 ? sel.nodes[0]! : null);
+                }}
+              />
+            </>
+          )}
+          {can.own && (
             <button type="button" className="nr-btn nr-btn--sm nr-btn--fantasma" onClick={(e) => share({ kind: 'lane', id: laneId, title: map.lane.title }, e.currentTarget.getBoundingClientRect())} aria-label={t('share.open', { title: map.lane.title })}>
               <IconShare />
               <span className="w-hide-sm">{t('share.menu')}</span>
@@ -1385,6 +1429,19 @@ export function LaneMap({ data, laneId, blocked, onClose }: { data: Data; laneId
             onPointerLeave={() => hover(null)}
             onClick={onClick}
             onDoubleClick={onDoubleClick}
+            onDragOver={(e) => {
+              if (!can.own || ![...e.dataTransfer.types].includes('Files')) return;
+              e.preventDefault();
+              e.dataTransfer.dropEffect = 'copy';
+            }}
+            onDrop={(e) => {
+              const pictures = picturesIn(e.dataTransfer);
+              if (!can.own || !pictures.length) return;
+              e.preventDefault();
+              // On an idea: they hang from it. On the canvas: where they fell (a laid-out map places them itself).
+              const on = keyAt(e.clientX, e.clientY);
+              void placePictures(pictures, on, on ? undefined : toWorld(toCanvas(e)));
+            }}
           >
             <div ref={world} className="w-map__world">
               <MapEdges edges={map.edges} axes={axes} boxes={boxes} colors={colors} selected={sel.edge} extra={extra} marks={agentMarks} />
@@ -1410,6 +1467,8 @@ export function LaneMap({ data, laneId, blocked, onClose }: { data: Data; laneId
                     foldSide={fold?.side}
                     foldAgent={fold?.agent}
                     foldLabel={fold ? (fold.count ? t('map.foldBadge', { count: fold.count }) : t('map.fold')) : undefined}
+                    picture={n.note && pictureRatio(n.note) ? pictureSrc(n.note, store.api) : undefined}
+                    ratio={pictureRatio(n.note) ?? undefined}
                     onEdited={editing === n.key ? (text, then) => finishEdit(n.key, text, then) : undefined}
                   />
                 );
@@ -1531,6 +1590,8 @@ const MapNodeView = memo(function MapNodeView({
   foldSide,
   foldAgent,
   foldLabel,
+  picture,
+  ratio,
   onEdited,
 }: {
   node: MapNode;
@@ -1552,6 +1613,9 @@ const MapNodeView = memo(function MapNodeView({
   /** An agent just added something inside the fold. */
   foldAgent?: boolean;
   foldLabel?: string;
+  /** An idea that is a picture: it fills the idea's shape, at these proportions. */
+  picture?: string;
+  ratio?: number;
   onEdited?: (text: string | null, then?: 'child') => void;
 }) {
   const ref = useRef<HTMLDivElement>(null);
@@ -1573,15 +1637,27 @@ const MapNodeView = memo(function MapNodeView({
       data-done={node.note?.doneAt ? true : undefined}
       data-editing={editing || undefined}
       data-folded={fold > 0 || undefined}
+      data-picture={picture ? '' : undefined}
       {...agentProps(agent)}
-      style={{ ...paint.style, left: x, top: y, ...(h ? ({ '--h': `${h}px` } as CSSProperties) : {}) }}
+      style={{ ...paint.style, left: x, top: y, ...(h ? ({ '--h': `${h}px` } as CSSProperties) : {}), ...(picture ? ({ '--ar': ratio } as CSSProperties) : {}) }}
     >
       {agent?.fresh && (
         <span className="w-map__agent" aria-hidden="true">
           {agent.label}
         </span>
       )}
-      {editing && onEdited ? <TitleEditor initial={node.title} label={label} onDone={onEdited} /> : <span className="w-map__text">{node.title}</span>}
+      {picture && <img className="w-map__pic" src={picture} alt={node.title} draggable={false} />}
+      {editing && onEdited ? (
+        picture ? (
+          <span className="w-map__caption">
+            <TitleEditor initial={node.title} label={label} onDone={onEdited} />
+          </span>
+        ) : (
+          <TitleEditor initial={node.title} label={label} onDone={onEdited} />
+        )
+      ) : (
+        !picture && <span className="w-map__text">{node.title}</span>
+      )}
       {url && !editing && (
         <a className="w-map__chip" href={url} target="_blank" rel="noopener noreferrer" data-chip aria-label={linkLabel} title={url}>
           <IconLink />
@@ -1798,6 +1874,7 @@ function MapPanel({ panelRef, ...props }: PanelProps & { panelRef: RefObject<HTM
       ) : note ? (
         <>
           <NoteTitle note={note} onEscape={() => {}} />
+          <PictureField note={note} />
           <BodyEditor key={note.id} note={note} onWikilink={openByTitle} />
           <section className="w-map__panel-section" aria-labelledby="w-map-panel-details">
             <h4 id="w-map-panel-details" className="w-map__panel-label">

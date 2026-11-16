@@ -167,6 +167,12 @@ export interface LanesTable extends Versioned {
   map_layout: Defaulted<MapLayout>;
 }
 
+/** The size of an idea's picture, in pixels, taken from its file (notes.image, 0012). */
+export interface NoteImage {
+  w: number;
+  h: number;
+}
+
 /** How a column's cover image sits in its 3:1 frame (lanes.cover). */
 export interface CoverFrame {
   /** The point of the image (0..1 of its width and height) at the centre of the frame. */
@@ -191,6 +197,8 @@ export interface NotesTable extends Versioned {
   body: Defaulted<string>;
   url: string | null;
   attachment_id: string | null;
+  /** Set with attachment_id when the idea is a picture. */
+  image: ColumnType<NoteImage | null, string | null | undefined, string | null>;
   color: string | null;
   tags: Defaulted<string[]>;
   done_at: Timestamp | null;

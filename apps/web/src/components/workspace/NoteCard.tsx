@@ -12,6 +12,7 @@ import { agentProps, useAgentMark } from './agent-marks';
 import { isEditable, useWorkspace } from './context';
 import { IconCalendar, IconCheck, IconLink, IconMinus } from './icons';
 import { corProps } from './cover';
+import { pictureRatio, pictureSrc } from './picture';
 import { columnTree, noteKey, noteOf, type ColumnRow } from './tree';
 
 /** Focus a card after React has drawn it in its new place. */
@@ -116,7 +117,8 @@ export const NoteCard = memo(function NoteCard({ note, depth = 0, open = false, 
   const done = note.doneAt !== null;
   const due = note.dueAt ? new Date(note.dueAt) : null;
   const overdue = !!due && !done && due.getTime() < new Date().setHours(0, 0, 0, 0);
-  const title = note.title || note.excerpt || t('note.untitled');
+  const ratio = pictureRatio(note);
+  const title = note.title || note.excerpt || (ratio ? t('picture.alt') : t('note.untitled'));
 
   return (
     <li className="w-card-slot" data-edge={edge ?? undefined} data-depth={depth || undefined} data-open={open || undefined} style={depth ? ({ '--depth': Math.min(depth, 4) } as CSSProperties) : undefined}>
@@ -135,6 +137,7 @@ export const NoteCard = memo(function NoteCard({ note, depth = 0, open = false, 
         }}
         onKeyDown={onKeyDown}
       >
+        {ratio && <img className="w-card__pic" src={pictureSrc(note, store.api)} alt="" draggable={false} style={{ aspectRatio: ratio }} />}
         <div className="w-card__row">
           <button
             type="button"
@@ -147,7 +150,8 @@ export const NoteCard = memo(function NoteCard({ note, depth = 0, open = false, 
           >
             {done && <IconCheck />}
           </button>
-          <span className="nr-card__titulo w-card__title">{title}</span>
+          {/* A picture says it; a title under it only when it has one. */}
+          <span className="nr-card__titulo w-card__title">{ratio && !note.title ? '' : title}</span>
           {folded > 0 ? (
             <button type="button" className="w-card__fold" data-folded data-agent-inside={agentInside || undefined} aria-expanded={false} aria-label={t('map.foldBadge', { count: folded })} title={t('map.foldBadge', { count: folded })} onClick={toggleFold}>
               {folded > 99 ? '99+' : folded}

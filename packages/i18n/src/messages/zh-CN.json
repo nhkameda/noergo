@@ -412,6 +412,16 @@
       "unavailable": "这个链接不可用",
       "unavailableHint": "分享的人可能关闭了链接，或把它显示的内容移到了回收站。",
       "pageTitle": "{title} · noergo"
+    },
+    "picture": {
+      "add": "图片",
+      "newIdea": "用图片新建点子",
+      "put": "添加图片",
+      "replace": "更换图片",
+      "remove": "移除图片",
+      "sending": "正在上传…",
+      "open": "以原始大小打开图片",
+      "alt": "图片"
     }
   },
   "footer": {

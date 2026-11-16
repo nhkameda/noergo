@@ -412,6 +412,16 @@
       "unavailable": "Este link não está disponível",
       "unavailableHint": "Quem compartilhou pode ter desativado o link ou mandado o que ele mostrava para a lixeira.",
       "pageTitle": "{title} · noergo"
+    },
+    "picture": {
+      "add": "Imagem",
+      "newIdea": "Nova ideia com uma imagem",
+      "put": "Pôr uma imagem",
+      "replace": "Trocar imagem",
+      "remove": "Remover imagem",
+      "sending": "Enviando…",
+      "open": "Abrir a imagem em tamanho real",
+      "alt": "Imagem"
     }
   },
   "footer": {

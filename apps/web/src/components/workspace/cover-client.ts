@@ -264,7 +264,7 @@ export function preload(src: string): Promise<void> {
 const inflight = new Map<string, number>();
 let runs = 0;
 
-const UPLOAD_NOTICE: Record<string, string> = {
+export const UPLOAD_NOTICE: Record<string, string> = {
   too_large: 'coverTooLarge',
   limit_reached: 'coverQuota',
   invalid: 'coverUnreadable',

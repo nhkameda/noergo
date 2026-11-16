@@ -5,9 +5,10 @@ import { LIMITS } from '@noergo/core/limits';
 import { useFormatter, useNow, useTranslations } from 'next-intl';
 import { useCallback, useEffect, useId, useMemo, useRef, useState } from 'react';
 import { isComposing, useWorkspace } from './context';
-import { IconCheck, IconClose, IconFold, IconUnfold } from './icons';
+import { IconCheck, IconClose, IconFold, IconImage, IconUnfold } from './icons';
 import { Markdown } from './Markdown';
 import { boardsOf, fold, lanesOf, locate, type Data } from './model';
+import { pictureRatio, pictureSrc, sendPicture } from './picture';
 import { makePatch, mapCaret, rebase } from './text-sync';
 import { columnTree, noteKey } from './tree';
 import { Swatches } from './ui';
@@ -362,6 +363,62 @@ export function NoteTitle({ note, onEscape }: { note: NoteDto; onEscape: () => v
   );
 }
 
+/** What a file picker for pictures accepts: what the server decodes (lib/image.ts). */
+export const PICTURE_TYPES = 'image/png,image/jpeg,image/webp,image/gif';
+
+/**
+ * An idea's picture, whole (a click opens it at full size), and in one's own workspace the
+ * way to put one, change it or take it off. A shared link shows it, without the tools.
+ */
+export function PictureField({ note, large = false }: { note: NoteDto; large?: boolean }) {
+  const t = useTranslations('app');
+  const { store, actions, can } = useWorkspace();
+  const input = useRef<HTMLInputElement>(null);
+  const [busy, setBusy] = useState(false);
+  const ratio = pictureRatio(note, { exact: true });
+  if (!ratio && !can.own) return null;
+  const choose = async (file: File | undefined) => {
+    if (!file) return;
+    setBusy(true);
+    const id = await sendPicture(file, store);
+    setBusy(false);
+    if (id) actions.setPicture(note.id, id);
+  };
+  return (
+    <div className={`w-picture${large ? ' w-picture--large' : ''}`}>
+      {ratio && (
+        <a className="w-picture__frame" href={pictureSrc(note, store.api)} target="_blank" rel="noopener noreferrer" title={t('picture.open')}>
+          <img src={pictureSrc(note, store.api)} alt={note.title || t('picture.alt')} style={{ aspectRatio: ratio }} />
+        </a>
+      )}
+      {can.own && (
+        <div className="w-picture__tools">
+          <button type="button" className="nr-btn nr-btn--sm nr-btn--fantasma" disabled={busy} onClick={() => input.current?.click()}>
+            <IconImage />
+            {busy ? t('picture.sending') : ratio ? t('picture.replace') : t('picture.put')}
+          </button>
+          {ratio && (
+            <button type="button" className="nr-btn nr-btn--sm nr-btn--fantasma" disabled={busy} onClick={() => actions.setPicture(note.id, null)}>
+              {t('picture.remove')}
+            </button>
+          )}
+          <input
+            ref={input}
+            type="file"
+            accept={PICTURE_TYPES}
+            hidden
+            onChange={(e) => {
+              const file = e.target.files?.[0];
+              e.target.value = '';
+              void choose(file);
+            }}
+          />
+        </div>
+      )}
+    </div>
+  );
+}
+
 export function TagsField({ note }: { note: NoteDto }) {
   const t = useTranslations('app');
   return (
@@ -507,6 +564,8 @@ export function NoteDrawer({ data, noteId, onClose }: { data: Data; noteId: stri
       </header>
 
       <NoteTitle note={note} onEscape={() => panel.current?.focus()} />
+
+      <PictureField note={note} large />
 
       <BodyEditor key={note.id} note={note} onWikilink={openByTitle} />
 

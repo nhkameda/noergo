@@ -130,6 +130,21 @@ async function coverFrame(tx: Tx, ctx: OpCtx, c: NonNullable<CoverInput>): Promi
   return { x: r(c.x), y: r(c.y), z: r(c.z), w: file.width, h: file.height, bg: c.bg };
 }
 
+/** A picture for an idea: a ready image of this workspace, with its size from the file. */
+async function pictureOf(tx: Tx, ctx: OpCtx, fileId: string): Promise<{ w: number; h: number }> {
+  const file = await tx
+    .selectFrom('attachments')
+    .select(['width', 'height'])
+    .where('id', '=', fileId)
+    .where('workspace_id', '=', ctx.workspaceId)
+    .where('status', '=', 'ready')
+    .where('deleted_at', 'is', null)
+    .where('mime', 'like', 'image/%')
+    .executeTakeFirst();
+  if (!file?.width || !file.height) throw notFound('image');
+  return { w: file.width, h: file.height };
+}
+
 /** jsonb keeps its own key order, so frames compare by field. */
 const sameFrame = (a: CoverFrame | null, b: CoverFrame | null) =>
   a === b || (!!a && !!b && a.x === b.x && a.y === b.y && a.z === b.z && a.w === b.w && a.h === b.h && a.bg === b.bg);
@@ -329,6 +344,7 @@ export async function applyOp(tx: Tx, ctx: OpCtx, op: Op): Promise<Applied> {
       const counter = await tx.selectFrom('workspaces').select('note_count').where('id', '=', ws).executeTakeFirstOrThrow();
       if (counter.note_count >= LIMITS.notesPerWorkspace) throw new DomainError('limit_reached', `a workspace holds at most ${LIMITS.notesPerWorkspace} notes`);
       const position = await resolvePlace(tx, ctx, 'notes', op.laneId, op.place ?? { at: 'top' });
+      const picture = op.attachmentId ? await pictureOf(tx, ctx, op.attachmentId) : null;
       const row = await tx
         .insertInto('notes')
         .values({
@@ -336,10 +352,12 @@ export async function applyOp(tx: Tx, ctx: OpCtx, op: Op): Promise<Applied> {
           workspace_id: ws,
           lane_id: op.laneId,
           position,
-          kind: op.url ? 'link' : (op.kind ?? 'text'),
+          kind: picture ? 'image' : op.url ? 'link' : (op.kind ?? 'text'),
           title: op.title,
           body: op.body ?? '',
           url: op.url ?? null,
+          attachment_id: picture ? op.attachmentId! : null,
+          image: picture ? JSON.stringify(picture) : null,
           color: op.color ?? null,
           tags: [...new Set(op.tags ?? [])],
           due_at: op.dueAt ?? null,
@@ -376,6 +394,17 @@ export async function applyOp(tx: Tx, ctx: OpCtx, op: Op): Promise<Applied> {
       if (op.url !== undefined && op.url !== cur.url) {
         patch.url = op.url;
         if (cur.kind === 'text' || cur.kind === 'link') patch.kind = op.url ? 'link' : 'text';
+      }
+      if (op.attachmentId !== undefined && op.attachmentId !== cur.attachment_id) {
+        if (op.attachmentId === null) {
+          patch.attachment_id = null;
+          patch.image = null;
+          patch.kind = (op.url !== undefined ? op.url : cur.url) ? 'link' : 'text';
+        } else {
+          patch.attachment_id = op.attachmentId;
+          patch.image = JSON.stringify(await pictureOf(tx, ctx, op.attachmentId));
+          patch.kind = 'image';
+        }
       }
       if (op.color !== undefined && op.color !== cur.color) patch.color = op.color;
       if (tags !== cur.tags && (tags.length !== cur.tags.length || tags.some((t, i) => t !== cur.tags[i]))) patch.tags = tags;

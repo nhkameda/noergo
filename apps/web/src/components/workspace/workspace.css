@@ -1088,3 +1088,16 @@ select.w-input { width: 100%; }
 .w-fieldset:disabled .w-tag__x,
 .w-fieldset:disabled .w-field__row > .nr-btn:not(a) { display: none; }
 .w-map__canvas[data-readonly] .w-map__handle { display: none; }
+
+/* ───────────────────────────── ideas that are pictures */
+
+.w-card__pic { display: block; width: 100%; max-height: 240px; margin-bottom: var(--nr-space-2); object-fit: cover; border-radius: var(--nr-radius-md); background: var(--nr-fill-hover); pointer-events: none; }
+.w-card__title:empty { display: none; }
+.w-composer__picture { margin-inline-start: auto; }
+.w-picture { display: grid; gap: var(--nr-space-2); }
+.w-picture__frame { display: block; border-radius: var(--nr-radius-lg); overflow: hidden; background: var(--nr-fill-hover); }
+.w-picture__frame img { display: block; width: 100%; max-height: 240px; object-fit: contain; }
+.w-picture--large .w-picture__frame img { max-height: 60vh; }
+.w-picture__tools { display: flex; flex-wrap: wrap; gap: var(--nr-space-2); }
+.w-picture__tools .nr-btn { gap: var(--nr-space-1-5); }
+.w-picture__tools svg { width: 16px; height: 16px; }

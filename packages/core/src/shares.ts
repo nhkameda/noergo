@@ -585,12 +585,16 @@ async function checkOp(tx: Tx, link: SharedLink, scope: Scope, op: Op): Promise<
       return ofBoard(op.id);
     case 'note.create':
       if (!scope.lanes.has(op.laneId)) throw outside();
+      // A picture lives in the owner's storage, which a link cannot fill.
+      if (op.attachmentId !== undefined) throw notHere('add pictures');
       return;
     case 'note.move':
       await noteIn(op.id);
       if (!scope.lanes.has(op.laneId)) throw outside();
       return;
     case 'note.update':
+      if (op.attachmentId !== undefined) throw notHere('change pictures');
+      return noteIn(op.id);
     case 'note.delete':
     case 'note.restore':
       return noteIn(op.id);

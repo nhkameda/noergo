@@ -18,6 +18,7 @@ const note = (id: string, laneId: string, position: string, over: Partial<NoteDt
   bodyLength: 0,
   url: null,
   attachmentId: null,
+  image: null,
   color: null,
   tags: [],
   doneAt: null,

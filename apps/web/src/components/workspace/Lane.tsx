@@ -18,6 +18,8 @@ import { useFileDrag, useImageDrop, useLaneLook } from './cover-client';
 import { IconBrush, IconGlobe, IconImage, IconMap, IconPlus } from './icons';
 import { NoteCard } from './NoteCard';
 import { MoveToBoard } from './MoveToBoard';
+import { PICTURE_TYPES } from './NoteDrawer';
+import { picturesIn, pictureTitle, sendPicture } from './picture';
 import { siteHost } from './site';
 import { columnRows, noteKey, type LaneTree } from './tree';
 import { InlineEdit, Menu } from './ui';
@@ -94,6 +96,15 @@ export const Lane = memo(function Lane({ lane, notes, tree, hideDone, index, tot
 
   const submit = () => {
     if (actions.createNote(lane.id, draft)) setDraft('');
+  };
+  const pictureInput = useRef<HTMLInputElement>(null);
+  // Pictures dropped on the cards, or chosen in the composer: one idea each, at the end.
+  const addPictures = async (files: readonly File[]) => {
+    for (const file of files.slice(0, 20)) {
+      const id = await sendPicture(file, store);
+      if (id) actions.createPicture(lane.id, id, pictureTitle(file));
+    }
+    setAdding(false);
   };
   const onComposerKey = (e: KeyboardEvent<HTMLTextAreaElement>) => {
     if (e.key === 'Enter' && !e.shiftKey && !isComposing(e)) {
@@ -256,11 +267,30 @@ export const Lane = memo(function Lane({ lane, notes, tree, hideDone, index, tot
             <button type="button" className="nr-btn nr-btn--sm nr-btn--fantasma" onClick={() => { setAdding(false); setDraft(''); }}>
               {t('cancel')}
             </button>
+            {can.own && (
+              <button type="button" className="w-icon-btn w-composer__picture" aria-label={t('picture.newIdea')} title={t('picture.newIdea')} onMouseDown={(e) => e.preventDefault()} onClick={() => pictureInput.current?.click()}>
+                <IconImage />
+              </button>
+            )}
           </div>
         </div>
       )}
 
-      <ol ref={list} className="w-cards">
+      <ol
+        ref={list}
+        className="w-cards"
+        onDragOver={(e) => {
+          if (!can.own || ![...e.dataTransfer.types].includes('Files')) return;
+          e.preventDefault();
+          e.dataTransfer.dropEffect = 'copy';
+        }}
+        onDrop={(e) => {
+          const pictures = picturesIn(e.dataTransfer);
+          if (!can.own || !pictures.length) return;
+          e.preventDefault();
+          void addPictures(pictures);
+        }}
+      >
         {rows.map((r) => (
           <NoteCard
             key={r.note.id}
@@ -275,6 +305,21 @@ export const Lane = memo(function Lane({ lane, notes, tree, hideDone, index, tot
         ))}
         {rows.length === 0 && !adding && <li className="w-lane__empty">{t('emptyColumn')}</li>}
       </ol>
+      {/* Outside the composer: the file dialog takes the focus, and an empty composer closes on blur. */}
+      {can.own && (
+        <input
+          ref={pictureInput}
+          type="file"
+          accept={PICTURE_TYPES}
+          multiple
+          hidden
+          onChange={(e) => {
+            const files = [...(e.target.files ?? [])];
+            e.target.value = '';
+            void addPictures(files);
+          }}
+        />
+      )}
     </section>
   );
 });

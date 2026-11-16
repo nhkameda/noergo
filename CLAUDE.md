@@ -63,6 +63,11 @@ you can derive; these you cannot. Break one only with a reason written in the co
 - Images are decoded and re-encoded by the server (`lib/image.ts`, sharp) before they are
   stored; nothing a person uploads is served as sent. Column covers live in PostgreSQL
   (`attachments.content`, at most 2 MB) for now, so backups carry them.
+- An idea can be a picture (`kind 'image'`, `attachment_id`). Its size lives in
+  `notes.image`, copied from the file by the server (never from the client), so every
+  screen draws its shape in proportion before it loads; `picture.ts` bridges the moment
+  before the server answers. A shared link may show pictures but not add or change one:
+  they would fill the owner's storage.
 - A component file must not differ from a module only in case (`Cover.tsx` next to
   `cover.ts`): macOS resolves both to one file and the build breaks only there.
 

@@ -480,3 +480,30 @@
 @keyframes w-agent-node-in { from { opacity: 0; transform: translate(-50%, -50%) scale(0.6); } }
 @keyframes w-agent-edge-draw { to { stroke-dashoffset: 0; } }
 @keyframes w-agent-badge { 0%, 80% { opacity: 1; } 100% { opacity: 0; } }
+
+/* ───── an idea that is a picture: the picture fills its shape (pill, rounded, rect, ellipse,
+   diamond), at the picture's proportions (--ar, cut between 1:2 and 3:1 by picture.ts). */
+
+.w-map__node[data-picture] { --pw: 180px; width: var(--pw); max-width: none; padding: 0; line-height: 0; }
+.w-map__node[data-picture][data-size="s"] { --pw: 120px; }
+.w-map__node[data-picture][data-size="l"] { --pw: 280px; }
+.w-map__node[data-picture][data-shape="ellipse"],
+.w-map__node[data-picture][data-shape="diamond"] { padding: 0; }
+.w-map__pic {
+  display: block;
+  width: 100%;
+  aspect-ratio: var(--ar, 4 / 3);
+  object-fit: cover;
+  border-radius: inherit;
+  background: var(--nr-fill-hover);
+  pointer-events: none;
+  user-select: none;
+  -webkit-user-select: none;
+  -webkit-user-drag: none;
+}
+.w-map__node[data-picture][data-shape="diamond"] .w-map__pic { border-radius: 0; clip-path: polygon(50% 0, 100% 50%, 50% 100%, 0 50%); }
+.w-map__node[data-picture][data-shape="plain"] { padding: 0 0 4px; }
+.w-map__node[data-picture][data-shape="plain"] .w-map__pic { border-radius: 6px; }
+.w-map__node[data-picture][data-done] .w-map__pic { opacity: 0.55; }
+/* Its title, typed under the picture while it is edited. */
+.w-map__caption { display: block; padding: 6px 10px 8px; line-height: 1.28; }

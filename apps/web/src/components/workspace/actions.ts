@@ -167,6 +167,24 @@ export class Actions {
     return id;
   }
 
+  /** A picture idea at the top or the bottom of a column; `title` names it (it may be empty). */
+  createPicture(laneId: string, attachmentId: string, title: string, at: 'top' | 'bottom' = 'bottom'): string | null {
+    const data = this.data;
+    if (!data) return null;
+    const list = notesByLane(data.notes, [laneId]).get(laneId) ?? [];
+    const position = at === 'top' ? between(null, list[0]?.position ?? null) : between(list.at(-1)?.position ?? null, null);
+    const id = newId();
+    this.store.dispatch({ type: 'note.create', id, laneId, title, attachmentId, place: { position } }, { undo: [{ type: 'note.delete', id }], redo: [{ type: 'note.restore', id }] });
+    return id;
+  }
+
+  /** Puts a picture on an idea, another one, or (null) takes it off; one undo step. */
+  setPicture(id: string, attachmentId: string | null) {
+    const cur = this.data?.notes.get(id);
+    if (!cur || cur.attachmentId === attachmentId) return;
+    this.store.dispatch({ type: 'note.update', id, attachmentId }, { undo: [{ type: 'note.update', id, attachmentId: cur.attachmentId }] });
+  }
+
   /**
    * A new idea hanging from `parentId`, after the ones already there (as Tab does on the
    * map); a folded parent opens so it shows. Undo puts it in the trash, link and all.

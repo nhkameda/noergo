@@ -1,4 +1,4 @@
-import type { Board, CoverFrame, Lane, Link, LinkStyle, NodeLayout, Note } from './db/types';
+import type { Board, CoverFrame, Lane, Link, LinkStyle, NodeLayout, Note, NoteImage } from './db/types';
 import { LIMITS, type MapLayout } from './limits';
 
 /**
@@ -54,7 +54,10 @@ export interface NoteDto {
   excerpt: string;
   bodyLength: number;
   url: string | null;
+  /** A picture idea (kind 'image'): its file, served at /api/files/:id. */
   attachmentId: string | null;
+  /** The picture's size, so its shape is drawn in proportion before it loads. */
+  image: NoteImage | null;
   color: string | null;
   tags: string[];
   doneAt: string | null;
@@ -143,6 +146,7 @@ export function noteDto(n: Note, opts: { fullBody?: boolean } = {}): NoteDto {
     bodyLength: n.body.length,
     url: n.url,
     attachmentId: n.attachment_id,
+    image: n.attachment_id && n.image ? { w: n.image.w, h: n.image.h } : null,
     color: n.color,
     tags: n.tags,
     doneAt: iso(n.done_at),

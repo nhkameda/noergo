@@ -29,7 +29,8 @@ AI agent ─HTTPS──►                 └─► mcp     MCP (Streamable HTT
 A **workspace** belongs to a user and holds everything: **boards**, their **lanes**
 ("columns" in the interface) and **notes**. **Links** connect any two of them (a note, a
 column hub, a board hub); `[[wikilinks]]` in a note body become links of origin `wikilink`.
-**Node layouts** place a node in a visual view: the map of a column, the map of a board, or
+A note can be a picture: it points at a stored image (`attachment_id`) and fills its
+shape on the map. **Node layouts** place a node in a visual view: the map of a column, the map of a board, or
 the global graph. The same note can sit in different places in each.
 
 Every content table carries `workspace_id` and is protected by row-level security, in

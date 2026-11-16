@@ -412,6 +412,16 @@
       "unavailable": "This link is not available",
       "unavailableHint": "Whoever shared it may have turned it off, or moved what it showed to the trash.",
       "pageTitle": "{title} · noergo"
+    },
+    "picture": {
+      "add": "Picture",
+      "newIdea": "New idea with a picture",
+      "put": "Add a picture",
+      "replace": "Change picture",
+      "remove": "Remove picture",
+      "sending": "Sending…",
+      "open": "Open the picture at full size",
+      "alt": "Picture"
     }
   },
   "footer": {

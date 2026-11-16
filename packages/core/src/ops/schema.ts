@@ -118,6 +118,8 @@ export const opSchema = z.discriminatedUnion('type', [
     color: color.optional(),
     tags: z.array(tag).max(LIMITS.tags).optional(),
     dueAt: z.iso.datetime({ offset: true }).nullable().optional(),
+    /** A picture idea: a stored image of this workspace (POST /api/files). */
+    attachmentId: id.optional(),
     place: placement.optional(),
   }),
   z.object({
@@ -139,6 +141,8 @@ export const opSchema = z.discriminatedUnion('type', [
     dueAt: z.iso.datetime({ offset: true }).nullable().optional(),
     /** Hides what hangs from it, in the column and on the map. */
     collapsed: z.boolean().optional(),
+    /** Makes it a picture idea, another picture, or (null) text again. */
+    attachmentId: id.nullable().optional(),
   }),
   z.object({ type: z.literal('note.move'), id, laneId: id, place: placement }),
   z.object({ type: z.literal('note.delete'), id }),

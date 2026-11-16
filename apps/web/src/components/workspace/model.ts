@@ -41,7 +41,7 @@ export function fromSnapshot(s: Snapshot): Data {
     // A cache written before icons, covers, websites, descriptions or folding existed lacks the fields.
     boards: new Map(s.boards.map((b) => [b.id, { ...b, icon: b.icon ?? null, background: b.background ?? null }])),
     lanes: new Map(s.lanes.map((l) => [l.id, { ...l, cover: l.cover ?? null, url: l.url ?? null, description: l.description ?? '' }])),
-    notes: new Map(s.notes.map((n) => [n.id, { ...n, collapsed: n.collapsed ?? false }])),
+    notes: new Map(s.notes.map((n) => [n.id, { ...n, collapsed: n.collapsed ?? false, image: n.image ?? null }])),
     links: new Map(s.links.map((l) => [l.id, l])),
     layouts: new Map(s.layouts.map((l) => [layoutKey(l), l])),
   };
@@ -198,13 +198,15 @@ function applyOptimistic(d: Draft, p: Pending): void {
         id: op.id,
         laneId: op.laneId,
         position,
-        kind: op.url ? 'link' : (op.kind ?? 'text'),
+        kind: op.attachmentId ? 'image' : op.url ? 'link' : (op.kind ?? 'text'),
         title: op.title,
         body,
         excerpt: excerptOf(body),
         bodyLength: body.length,
         url: op.url ?? null,
-        attachmentId: null,
+        attachmentId: op.attachmentId ?? null,
+        // The server writes the picture's size from its file; till then the screen asks picture.ts.
+        image: null,
         color: op.color ?? null,
         tags: [...new Set(op.tags ?? [])],
         doneAt: null,
@@ -239,6 +241,9 @@ function applyOptimistic(d: Draft, p: Pending): void {
       if (op.url !== undefined) {
         next.url = op.url;
         if (cur.kind === 'text' || cur.kind === 'link') next.kind = op.url ? 'link' : 'text';
+      }
+      if (op.attachmentId !== undefined && op.attachmentId !== cur.attachmentId) {
+        Object.assign(next, op.attachmentId ? { attachmentId: op.attachmentId, image: null, kind: 'image' } : { attachmentId: null, image: null, kind: next.url ? 'link' : 'text' });
       }
       if (op.color !== undefined) next.color = op.color;
       if (op.tagsAdd || op.tagsRemove) {

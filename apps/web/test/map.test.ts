@@ -20,6 +20,7 @@ const note = (id: string, over: Partial<NoteDto> = {}): NoteDto => ({
   bodyLength: 0,
   url: null,
   attachmentId: null,
+  image: null,
   color: null,
   tags: [],
   doneAt: null,
